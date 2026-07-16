@@ -17,6 +17,11 @@ const Employees = React.lazy(() => import('./pages/Employees'));
 const Positions = React.lazy(() => import('./pages/Positions'));
 const PositionAssignments = React.lazy(() => import('./pages/PositionAssignments'));
 const PositionLevels = React.lazy(() => import('./pages/PositionLevels'));
+const PositionTypes = React.lazy(() => import('./pages/PositionTypes'));
+const Shifts = React.lazy(() => import('./pages/Shifts'));
+const PositionShiftRoster = React.lazy(() => import('./pages/PositionShiftRoster'));
+const ManagerScreenMapping = React.lazy(() => import('./pages/ManagerScreenMapping'));
+const PositionScreenMapping = React.lazy(() => import('./pages/PositionScreenMapping'));
 const Projects = React.lazy(() => import('./pages/Projects'));
 const FacilityMasters = React.lazy(() => import('./pages/FacilityMasters'));
 const JobFamilies = React.lazy(() => import('./pages/JobFamilies'));
@@ -35,13 +40,16 @@ const Profile = React.lazy(() => import('./pages/Profile'));
 const PositionActivityLogs = React.lazy(() => import('./pages/PositionActivityLogs'));
 const AuditLogs = React.lazy(() => import('./pages/AuditLogs'));
 const LoginHistory = React.lazy(() => import('./pages/LoginHistory'));
+const VehicleSwaps = React.lazy(() => import('./pages/VehicleSwaps'));
+const VehicleSwapRequests = React.lazy(() => import('./pages/VehicleSwapRequests'));
+const ShiftChangeRequests = React.lazy(() => import('./pages/ShiftChangeRequests'));
 
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 const ProtectedRoute = ({ section, children }) => {
   const { canView } = useData();
   // Basic modules always allowed
-  if (['dashboard', 'users', 'api-keys', 'reactivations', 'position-assignments', 'profile', 'position-activity-logs', 'audit-logs', 'login-history'].includes(section)) {
+  if (['dashboard', 'users', 'api-keys', 'reactivations', 'position-assignments', 'profile', 'position-activity-logs', 'audit-logs', 'login-history', 'vehicle-swaps', 'vehicle-swap-requests', 'manager-screen-mappings', 'position-screen-mappings', 'shift-change-requests'].includes(section)) {
     return children;
   }
 
@@ -96,6 +104,9 @@ const AppContent = () => {
             <Route path="/organization/*" element={<ProtectedRoute section="organization"><Organization /></ProtectedRoute>} />
             <Route path="/organization-levels/*" element={<ProtectedRoute section="organization-levels"><OrganizationLevels /></ProtectedRoute>} />
             <Route path="/offices/*" element={<ProtectedRoute section="offices"><Offices /></ProtectedRoute>} />
+            <Route path="/vehicle-swaps/*" element={<ProtectedRoute section="vehicle-swaps"><VehicleSwaps /></ProtectedRoute>} />
+            <Route path="/vehicle-swap-requests/*" element={<ProtectedRoute section="vehicle-swap-requests"><VehicleSwapRequests /></ProtectedRoute>} />
+            <Route path="/shift-change-requests/*" element={<ProtectedRoute section="shift-change-requests"><ShiftChangeRequests /></ProtectedRoute>} />
             <Route path="/departments/*" element={<ProtectedRoute section="departments"><Departments /></ProtectedRoute>} />
             <Route path="/sections/*" element={<ProtectedRoute section="sections"><Sections /></ProtectedRoute>} />
             <Route path="/facility-masters/*" element={<ProtectedRoute section="facility-masters"><FacilityMasters /></ProtectedRoute>} />
@@ -113,6 +124,11 @@ const AppContent = () => {
             <Route path="/positions/*" element={<ProtectedRoute section="positions"><Positions /></ProtectedRoute>} />
             <Route path="/position-assignments/*" element={<ProtectedRoute section="position-assignments"><PositionAssignments /></ProtectedRoute>} />
             <Route path="/position-levels/*" element={<ProtectedRoute section="position-levels"><PositionLevels /></ProtectedRoute>} />
+            <Route path="/position-types/*" element={<ProtectedRoute section="position-types"><PositionTypes /></ProtectedRoute>} />
+            <Route path="/shifts/*" element={<ProtectedRoute section="shifts"><Shifts /></ProtectedRoute>} />
+            <Route path="/position-shift-rosters/*" element={<ProtectedRoute section="position-shift-rosters"><PositionShiftRoster /></ProtectedRoute>} />
+            <Route path="/manager-screen-mappings/*" element={<ProtectedRoute section="manager-screen-mappings"><ManagerScreenMapping /></ProtectedRoute>} />
+            <Route path="/position-screen-mappings/*" element={<ProtectedRoute section="position-screen-mappings"><PositionScreenMapping /></ProtectedRoute>} />
             <Route path="/projects/*" element={<ProtectedRoute section="projects"><Projects /></ProtectedRoute>} />
             <Route path="/position-activity-logs/*" element={<ProtectedRoute section="position-activity-logs"><PositionActivityLogs /></ProtectedRoute>} />
 

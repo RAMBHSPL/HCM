@@ -101,7 +101,9 @@ const APIKeyManagement = () => {
         validUntil: '',
         allowedIps: '',
         rateLimit: 100,
-        key: ''
+        key: '',
+        webhookUrl: '',
+        webhookEvents: ['shift.assigned', 'shift.unassigned', 'shift.bulk_assigned', 'shift.bulk_deleted'],
     });
 
     const [temp, setTemp] = useState({
@@ -235,7 +237,9 @@ const APIKeyManagement = () => {
                 validUntil: fullKey.valid_until || '',
                 allowedIps: fullKey.allowed_ips || '',
                 rateLimit: fullKey.rate_limit || 100,
-                key: fullKey.key || ''
+                key: fullKey.key || '',
+                webhookUrl: fullKey.webhook_url || '',
+                webhookEvents: fullKey.webhook_events?.length ? fullKey.webhook_events : ['shift.assigned', 'shift.unassigned', 'shift.bulk_assigned', 'shift.bulk_deleted'],
             });
             setIsModalOpen(true);
         } catch (e) {
@@ -260,14 +264,23 @@ const APIKeyManagement = () => {
                     ? formData.validUntil.split('T')[0].split(' ')[0]
                     : null,
                 allowed_ips: formData.allowedIps,
-                rate_limit: parseInt(formData.rateLimit) || 100
+                rate_limit: parseInt(formData.rateLimit) || 100,
+                webhook_url: formData.webhookUrl || null,
+                webhook_events: formData.webhookEvents || [],
             };
             await api.put(`api-keys/${editingKeyId}`, payload);
             setIsModalOpen(false);
             setIsEditMode(false);
             setEditingKeyId(null);
             fetchKeys(currentPage);
-            setFormData({ name: '', actions: { read: true, create: false, update: false, delete: false }, scopeType: 'GLOBAL', scopeTab: 'ORGANIZATION', selectedScopes: [], locationGlobal: false, dataPermissions: { basic: true, personal: false, contact: false, financial: false, bank: false, epfo: false, history: false }, validUntil: '', allowedIps: '', rateLimit: 100, key: '' });
+            setFormData({
+                name: '', actions: { read: true, create: false, update: false, delete: false },
+                scopeType: 'GLOBAL', scopeTab: 'ORGANIZATION', selectedScopes: [], locationGlobal: false,
+                dataPermissions: { basic: true, personal: false, contact: false, financial: false, bank: false, epfo: false, history: false },
+                validUntil: '', allowedIps: '', rateLimit: 100, key: '',
+                webhookUrl: '',
+                webhookEvents: ['shift.assigned', 'shift.unassigned', 'shift.bulk_assigned', 'shift.bulk_deleted']
+            });
             showNotification("API Key updated successfully", "success");
         } catch (e) {
             showNotification("Failed to update API Key", "error");
@@ -289,7 +302,9 @@ const APIKeyManagement = () => {
                     ? formData.validUntil.split('T')[0].split(' ')[0]
                     : null,
                 allowed_ips: formData.allowedIps,
-                rate_limit: parseInt(formData.rateLimit) || 100
+                rate_limit: parseInt(formData.rateLimit) || 100,
+                webhook_url: formData.webhookUrl || null,
+                webhook_events: formData.webhookEvents || [],
             };
             console.log('Creating API Key with payload:', payload);
             const res = await api.post('api-keys', payload);
@@ -297,7 +312,14 @@ const APIKeyManagement = () => {
             setCreatedKey(res.key); setShowSuccessModal(true); setIsModalOpen(false);
             setCurrentPage(1); // Reset to first page to see the new key
             fetchKeys(currentPage); // Note: setCurrentPage(1) might not trigger effect synchronously for this call
-            setFormData({ name: '', actions: { read: true, create: false, update: false, delete: false }, scopeType: 'GLOBAL', scopeTab: 'ORGANIZATION', selectedScopes: [], locationGlobal: false, dataPermissions: { basic: true, personal: false, contact: false, financial: false, bank: false, epfo: false, history: false }, validUntil: '', allowedIps: '', rateLimit: 100, key: '' });
+            setFormData({
+                name: '', actions: { read: true, create: false, update: false, delete: false },
+                scopeType: 'GLOBAL', scopeTab: 'ORGANIZATION', selectedScopes: [], locationGlobal: false,
+                dataPermissions: { basic: true, personal: false, contact: false, financial: false, bank: false, epfo: false, history: false },
+                validUntil: '', allowedIps: '', rateLimit: 100, key: '',
+                webhookUrl: '',
+                webhookEvents: ['shift.assigned', 'shift.unassigned', 'shift.bulk_assigned', 'shift.bulk_deleted']
+            });
             showNotification("API Key created successfully", "success");
         } catch (e) {
             console.error('Failed to create API Key:', e);
@@ -359,7 +381,14 @@ const APIKeyManagement = () => {
                         onClick={() => {
                             setIsEditMode(false);
                             setEditingKeyId(null);
-                            setFormData({ name: '', actions: { read: true, create: false, update: false, delete: false }, scopeType: 'GLOBAL', scopeTab: 'ORGANIZATION', selectedScopes: [], locationGlobal: false, dataPermissions: { basic: true, personal: false, contact: false, financial: false, bank: false, epfo: false, history: false }, validUntil: '', allowedIps: '' });
+                            setFormData({
+                                name: '', actions: { read: true, create: false, update: false, delete: false },
+                                scopeType: 'GLOBAL', scopeTab: 'ORGANIZATION', selectedScopes: [], locationGlobal: false,
+                                dataPermissions: { basic: true, personal: false, contact: false, financial: false, bank: false, epfo: false, history: false },
+                                validUntil: '', allowedIps: '', rateLimit: 100,
+                                webhookUrl: '',
+                                webhookEvents: ['shift.assigned', 'shift.unassigned', 'shift.bulk_assigned', 'shift.bulk_deleted']
+                            });
                             setIsModalOpen(true);
                         }}
                         style={{
@@ -1116,6 +1145,87 @@ const APIKeyManagement = () => {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* WEBHOOK CONFIGURATION PANEL */}
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
+                                    borderRadius: '20px',
+                                    padding: '2rem',
+                                    border: '1px solid rgba(139,92,246,0.3)',
+                                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
+                                        <div style={{ padding: '10px', background: 'rgba(139,92,246,0.2)', borderRadius: '12px', color: '#a78bfa' }}>
+                                            <Network size={20} />
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '0.7rem', fontWeight: 900, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Push Notifications</div>
+                                            <div style={{ fontSize: '1rem', fontWeight: 800, color: '#f1f5f9' }}>Webhook Configuration</div>
+                                        </div>
+                                        {formData.webhookUrl && (
+                                            <div style={{ marginLeft: 'auto', background: 'rgba(16,185,129,0.2)', color: '#34d399', padding: '4px 12px', borderRadius: '20px', fontSize: '0.65rem', fontWeight: 800, border: '1px solid rgba(52,211,153,0.3)' }}>ACTIVE</div>
+                                        )}
+                                    </div>
+
+                                    <div style={{ marginBottom: '1.25rem' }}>
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', display: 'block' }}>Endpoint URL</label>
+                                        <input
+                                            type="url"
+                                            value={formData.webhookUrl}
+                                            onChange={e => setFormData({ ...formData, webhookUrl: e.target.value })}
+                                            placeholder="https://your-system.com/api/hcm-webhook"
+                                            style={{
+                                                width: '100%', boxSizing: 'border-box', padding: '0.85rem 1rem',
+                                                borderRadius: '12px', border: '1px solid rgba(139,92,246,0.3)',
+                                                background: 'rgba(255,255,255,0.05)', color: '#f1f5f9',
+                                                fontSize: '0.9rem', fontFamily: 'monospace', outline: 'none',
+                                            }}
+                                        />
+                                        <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '6px', fontWeight: 600 }}>
+                                            HCM will POST a signed JSON body to this URL on every shift change. Leave blank to disable.
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px', display: 'block' }}>Subscribe to Events</label>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                            {[
+                                                { id: 'shift.assigned', label: 'Shift Assigned', color: '#34d399' },
+                                                { id: 'shift.unassigned', label: 'Shift Removed', color: '#f87171' },
+                                                { id: 'shift.bulk_assigned', label: 'Bulk Assign', color: '#60a5fa' },
+                                                { id: 'shift.bulk_deleted', label: 'Bulk Delete', color: '#fb923c' },
+                                            ].map(ev => {
+                                                const active = formData.webhookEvents.includes(ev.id);
+                                                return (
+                                                    <button
+                                                        key={ev.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const cur = formData.webhookEvents;
+                                                            setFormData({ ...formData, webhookEvents: active ? cur.filter(x => x !== ev.id) : [...cur, ev.id] });
+                                                        }}
+                                                        style={{
+                                                            padding: '8px 16px', borderRadius: '20px', border: '1px solid',
+                                                            borderColor: active ? ev.color : 'rgba(255,255,255,0.1)',
+                                                            background: active ? `${ev.color}22` : 'rgba(255,255,255,0.04)',
+                                                            color: active ? ev.color : '#64748b',
+                                                            fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer',
+                                                            display: 'flex', alignItems: 'center', gap: '6px',
+                                                            transition: 'all 0.2s',
+                                                        }}
+                                                    >
+                                                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: active ? ev.color : '#475569', display: 'inline-block' }} />
+                                                        {ev.label}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <div style={{ fontSize: '0.7rem', color: '#475569', marginTop: '10px', fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                                            <span style={{ color: '#a78bfa', fontWeight: 900 }}>ⓘ</span>
+                                            Each webhook is HMAC-SHA256 signed. Verify with the <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 6px', borderRadius: '4px', color: '#c4b5fd' }}>X-HCM-Signature</code> header.
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -1375,7 +1485,7 @@ const ES = ({ onSelect, onToggle }) => {
 
         const timer = setTimeout(() => {
             fetchEmployees(q);
-        }, 150); // High-speed debounce for ultra-snappy feel
+        }, 350); // Balanced debounce to prevent spamming queries
 
         return () => clearTimeout(timer);
     }, [q, show]);

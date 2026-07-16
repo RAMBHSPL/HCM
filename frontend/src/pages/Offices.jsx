@@ -16,7 +16,9 @@ const Offices = () => {
             </div>
             <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <MapPin size={12} /> {item.level_name} | code: <HighlightTerm text={item.code} term={searchTerm} />
+                    <MapPin size={12} /> {item.level_name} | SAC: <HighlightTerm text={item.sac || item.code} term={searchTerm} />
+                    {item.vehicle_code && <span style={{ color: '#64748b' }}>| Vehicle Code: <HighlightTerm text={item.vehicle_code} term={searchTerm} /></span>}
+                    {item.vehicle_no && <span style={{ color: '#64748b' }}>| Vehicle No: <HighlightTerm text={item.vehicle_no} term={searchTerm} /></span>}
                 </span>
                 {item.district_name && (
                     <span style={{ color: '#94a3b8' }}>• <HighlightTerm text={item.district_name} term={searchTerm} /></span>

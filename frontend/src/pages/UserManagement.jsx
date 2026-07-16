@@ -473,7 +473,7 @@ const UserManagement = () => {
             {pagination.count > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 0.5rem' }}>
                     <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                        Page <b>{pagination.current}</b> of <b>{Math.ceil(pagination.count / 10)}</b>
+                        Page <b>{pagination.current}</b> of <b>{Math.ceil(pagination.count / 100)}</b>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button

@@ -5,7 +5,8 @@ from core.models import (
     DocumentType, EmployeeDocument,
     EmployeeEducation, EmployeeExperience, EmployeeEmploymentHistory,
     EmployeeBankDetails, EmployeeEPFODetails, EmployeeHealthDetails, EmployeeSalaryDetails,
-    GeoContinent, GeoCountry, GeoState, GeoDistrict, GeoMandal, GeoCluster, VisitingLocation, Landmark, APIKey, APIKeyUsageLog, LoginHit, AccountBlockHistory, EmployeeArchive, PositionAssignment, PositionActivityLog
+    GeoContinent, GeoCountry, GeoState, GeoDistrict, GeoMandal, GeoCluster, VisitingLocation, Landmark, APIKey, APIKeyUsageLog, LoginHit, AccountBlockHistory, EmployeeArchive, PositionAssignment, PositionActivityLog, PositionShiftRoster,
+    Segment, RoleSubGroup
 )
 from django.contrib.auth.models import User
 
@@ -462,16 +463,56 @@ class RoleTypeSerializer(serializers.ModelSerializer):
         model = RoleType
         fields = '__all__'
 
+class SegmentSerializer(serializers.ModelSerializer):
+    project_name = serializers.ReadOnlyField(source='project.name')
+    class Meta:
+        model = Segment
+        fields = '__all__'
+
+class RoleSubGroupSerializer(serializers.ModelSerializer):
+    role_group_name = serializers.ReadOnlyField(source='role_group.name')
+    class Meta:
+        model = RoleSubGroup
+        fields = '__all__'
+
 class RoleSerializer(serializers.ModelSerializer):
     role_type_id = serializers.ReadOnlyField(source='role_type.id')
     role_type_name = serializers.ReadOnlyField(source='role_type.name')
     job_family_name = serializers.ReadOnlyField(source='role_type.job_family.name')
     job_family_id = serializers.ReadOnlyField(source='role_type.job_family.id')
     jobs = JobSerializer(many=True, read_only=True)
+    project_name = serializers.ReadOnlyField(source='project.name')
+    segment_name = serializers.ReadOnlyField(source='segment.name')
+    sub_groups = RoleSubGroupSerializer(many=True, required=False)
     
     class Meta:
         model = Role
         fields = '__all__'
+
+    def create(self, validated_data):
+        sub_groups_data = validated_data.pop('sub_groups', [])
+        role = Role.objects.create(**validated_data)
+        for sg_data in sub_groups_data:
+            RoleSubGroup.objects.create(role_group=role, **sg_data)
+        return role
+
+    def update(self, instance, validated_data):
+        sub_groups_data = validated_data.pop('sub_groups', None)
+        role = super().update(instance, validated_data)
+        
+        if sub_groups_data is not None:
+            # Sync sub groups
+            keep_ids = [sg.get('id') for sg in sub_groups_data if sg.get('id')]
+            instance.sub_groups.exclude(id__in=keep_ids).delete()
+            
+            for sg_data in sub_groups_data:
+                sg_id = sg_data.get('id')
+                if sg_id:
+                    sg_data.pop('role_group', None)
+                    RoleSubGroup.objects.filter(id=sg_id).update(**sg_data)
+                else:
+                    RoleSubGroup.objects.create(role_group=role, **sg_data)
+        return role
 
 class JobFamilySerializer(serializers.ModelSerializer):
     roles = RoleSerializer(many=True, read_only=True)
@@ -581,7 +622,6 @@ class OfficeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Office
         fields = '__all__'
-
 class LightOfficeSerializer(serializers.ModelSerializer):
     level_name = serializers.ReadOnlyField(source='level.name')
     level_code = serializers.ReadOnlyField(source='level.level_code')
@@ -591,28 +631,28 @@ class LightOfficeSerializer(serializers.ModelSerializer):
     project_id = serializers.SerializerMethodField()
     project_code = serializers.SerializerMethodField()
     project_name = serializers.SerializerMethodField()
+    code = serializers.CharField(source='sac', required=False, allow_null=True)
 
     def get_project_id(self, obj):
         if obj.facility_master and obj.facility_master.project_id:
             return obj.facility_master.project_id
-        proj = obj.projects.all()
+        proj = list(obj.projects.all())
         active_proj = next((p for p in proj if p.is_currently_active), None)
         if active_proj: return active_proj.id
-        first_proj = proj.first()
-        return first_proj.id if first_proj else None
+        return proj[0].id if proj else None
 
     def get_project_code(self, obj):
-        proj = obj.projects.first()
-        return proj.code if proj else None
+        proj = list(obj.projects.all())
+        return proj[0].code if proj else None
 
     def get_project_name(self, obj):
-        proj = obj.projects.first()
-        return proj.name if proj else None
+        proj = list(obj.projects.all())
+        return proj[0].name if proj else None
 
     class Meta:
         model = Office
         fields = [
-            'id', 'name', 'code', 'parent', 'parent_id', 'level', 'level_name', 'level_code', 
+            'id', 'name', 'code', 'sac', 'vehicle_code', 'vehicle_no', 'parent', 'parent_id', 'level', 'level_name', 'level_code', 
             'level_display', 'status', 'country_name', 'state_name', 'district_name', 'mandal_name',
             'address', 'latitude', 'longitude', 'phone', 'email', 'location', 'facility_master', 'cluster',
             'registered_name', 'din_no', 'register_id', 'status_date', 'start_date', 'project_ids', 'project_id',
@@ -773,6 +813,30 @@ class PositionDetailSerializer(serializers.ModelSerializer):
         return ret
 
 
+from .models import PositionType, Shift
+
+class ShiftSerializer(serializers.ModelSerializer):
+    project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)
+    segment_name = serializers.ReadOnlyField(source='segment.name', allow_null=True)
+    class Meta:
+        model = Shift
+        fields = '__all__'
+
+class PositionTypeSerializer(serializers.ModelSerializer):
+    project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)
+    segment_name = serializers.ReadOnlyField(source='segment.name', allow_null=True)
+    shifts_details = ShiftSerializer(source='shifts', many=True, read_only=True)
+    class Meta:
+        model = PositionType
+        fields = '__all__'
+
+class LightPositionSerializer(serializers.ModelSerializer):
+    office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
+    level_name = serializers.ReadOnlyField(source='level.name', allow_null=True)
+    class Meta:
+        model = Position
+        fields = ['id', 'name', 'code', 'office_name', 'level_name', 'status']
+
 class PositionSerializer(serializers.ModelSerializer):
     """Simple position serializer for listings"""
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
@@ -785,6 +849,8 @@ class PositionSerializer(serializers.ModelSerializer):
     job_name = serializers.ReadOnlyField(source='job.name', allow_null=True)
     level_name = serializers.ReadOnlyField(source='level.name', allow_null=True)
     level_rank = serializers.ReadOnlyField(source='level.rank', allow_null=True)
+    position_type_name = serializers.ReadOnlyField(source='position_type.name', allow_null=True)
+    shifts_details = ShiftSerializer(source='shifts', many=True, read_only=True)
     
     # Safe lookups
     job_family_name = serializers.SerializerMethodField()
@@ -797,6 +863,34 @@ class PositionSerializer(serializers.ModelSerializer):
     section_id = serializers.ReadOnlyField()
     role_id = serializers.ReadOnlyField()
     job_id = serializers.ReadOnlyField()
+
+    role_sub_group_name = serializers.ReadOnlyField(source='role_sub_group.name', allow_null=True)
+    role_sub_group_details = RoleSubGroupSerializer(source='role_sub_group', read_only=True)
+    
+    project_id = serializers.SerializerMethodField()
+    project_name = serializers.SerializerMethodField()
+    segment_id = serializers.SerializerMethodField()
+    segment_name = serializers.SerializerMethodField()
+
+    def get_project_id(self, obj):
+        project = None
+        if obj.section and obj.section.project:
+            project = obj.section.project
+        elif obj.department and obj.department.project:
+            project = obj.department.project
+        elif obj.office:
+            project = obj.office.projects.first()
+        return project.id if project else None
+
+    def get_segment_id(self, obj):
+        if obj.role and obj.role.segment:
+            return obj.role.segment.id
+        return None
+
+    def get_segment_name(self, obj):
+        if obj.role and obj.role.segment:
+            return obj.role.segment.name
+        return None
 
     def get_job_family_name(self, obj):
         try: return obj.role.role_type.job_family.name
@@ -814,9 +908,10 @@ class PositionSerializer(serializers.ModelSerializer):
         try: return obj.office.level.id
         except AttributeError: return None
     role_details = RoleSerializer(source='role', read_only=True)
+    additional_roles = serializers.PrimaryKeyRelatedField(many=True, queryset=Role.objects.all(), required=False)
+    additional_roles_details = RoleSerializer(source='additional_roles', many=True, read_only=True)
     is_vacant = serializers.ReadOnlyField()
     assigned_employee = serializers.SerializerMethodField()
-    project_name = serializers.SerializerMethodField()
 
     def get_project_name(self, obj):
         project = None
@@ -824,10 +919,9 @@ class PositionSerializer(serializers.ModelSerializer):
             project = obj.section.project
         elif obj.department and obj.department.project:
             project = obj.department.project
-        
-        if project and project.is_currently_active:
-            return project.name
-        return None
+        elif obj.office:
+            project = obj.office.projects.first()
+        return project.name if project else None
 
     def get_assigned_employee(self, obj):
         emp = obj.employees.first()
@@ -841,18 +935,21 @@ class PositionSerializer(serializers.ModelSerializer):
         return None
 
     reporting_to = serializers.PrimaryKeyRelatedField(many=True, queryset=Position.objects.all(), required=False)
-    reporting_to_details = PositionDetailSerializer(source='reporting_to', many=True, read_only=True)
+    reporting_to_details = LightPositionSerializer(source='reporting_to', many=True, read_only=True)
 
     class Meta:
         model = Position
         fields = [
-            'id', 'name', 'code', 'office', 'department', 'section', 'role', 'job',
+            'id', 'name', 'code', 'office', 'department', 'section', 'role', 'additional_roles', 'job',
             'office_id', 'department_id', 'section_id', 'role_id', 'job_id',
             'office_name', 'reporting_to_names', 'reporting_to', 'reporting_to_details', 'office_level', 'office_level_id',
             'office_hierarchy', 'department_name', 'section_name', 'role_name', 
             'job_name', 'job_family_name', 'job_family_id', 'role_type_id', 
-            'project_name', 'status', 'created_at', 'start_date', 'role_details', 'is_vacant', 
-            'assigned_employee', 'level', 'level_name', 'level_rank'
+            'project_name', 'status', 'created_at', 'start_date', 'role_details', 'additional_roles_details', 'is_vacant', 
+            'assigned_employee', 'level', 'level_name', 'level_rank',
+            'position_type', 'position_type_name', 'shifts', 'shifts_details',
+            'role_sub_group', 'role_sub_group_name', 'role_sub_group_details',
+            'project_id', 'segment_id', 'segment_name'
         ]
 
 
@@ -860,22 +957,35 @@ class PositionDropdownSerializer(serializers.ModelSerializer):
     """Lighter version for dropdowns with filtering support"""
     office_level_id = serializers.SerializerMethodField()
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
+    section_name = serializers.ReadOnlyField(source='section.name', allow_null=True)
     department_name = serializers.ReadOnlyField(source='department.name', allow_null=True)
     level_id = serializers.IntegerField(source='level.id', allow_null=True, read_only=True)
     role_name = serializers.ReadOnlyField(source='role.name', allow_null=True)
+    shifts_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Position
         fields = [
-            'id', 'name', 'code', 'status', 
-            'office_id', 'department_id', 'section_id', 
-            'office_name', 'department_name', 'office_level_id',
-            'level_id', 'role_name'
+            'id', 'name', 'code', 'status',
+            'office_id', 'department_id', 'section_id',
+            'office_name', 'department_name', 'section_name', 'office_level_id',
+            'level_id', 'role_name', 'shifts_details'
         ]
 
     def get_office_level_id(self, obj):
         try: return obj.office.level.id
         except AttributeError: return None
+
+    def get_shifts_details(self, obj):
+        return [
+            {
+                'id': s.id,
+                'name': s.name,
+                'start_time': str(s.start_time) if s.start_time else None,
+                'end_time': str(s.end_time) if s.end_time else None,
+            }
+            for s in obj.shifts.all()
+        ]
 
 class EmployeeEducationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -1251,6 +1361,8 @@ class EmployeeListSerializer(EmployeeSerializer):
                 office_data = {
                     'id': off.id,
                     'name': off.name,
+                    'sac': off.sac,
+                    'vehicle_code': off.vehicle_code,
                     'level': off.level.name if off.level else None,
                     'geo_location': {
                         'country': off.country_name,
@@ -1273,6 +1385,39 @@ class EmployeeListSerializer(EmployeeSerializer):
                         }
                     }
 
+            # 4.5. Current Shift Details (for today or requested date)
+            from django.utils import timezone
+            from core.models import PositionShiftRoster
+            import datetime
+
+            target_date = timezone.localdate()
+            if request and hasattr(request, 'query_params'):
+                date_param = request.query_params.get('date')
+                if date_param:
+                    try:
+                        target_date = datetime.datetime.strptime(date_param, '%Y-%m-%d').date()
+                    except ValueError:
+                        pass
+
+            current_shift_data = None
+            if pos:
+                try:
+                    roster = PositionShiftRoster.objects.filter(
+                        position=pos,
+                        employee=instance,
+                        date=target_date
+                    ).select_related('shift').first()
+                    if roster and roster.shift:
+                        current_shift_data = {
+                            'id': roster.shift.id,
+                            'name': roster.shift.name,
+                            'start_time': str(roster.shift.start_time) if roster.shift.start_time else None,
+                            'end_time': str(roster.shift.end_time) if roster.shift.end_time else None,
+                            'date': str(roster.date)
+                        }
+                except Exception as e:
+                    print("Error getting current shift in serializer:", e)
+
             # 5. Final Assembly of "Neat" Response
             neat_ret = {
                 'employee': employee_data,
@@ -1280,6 +1425,7 @@ class EmployeeListSerializer(EmployeeSerializer):
                 'project': project_data,
                 'office': office_data,
                 'bank_details': None,  # Always present; populated below if permitted
+                'current_shift': current_shift_data
             }
 
             # 6. Specialized Data Scopes (Split Financials)
@@ -1326,9 +1472,10 @@ class EmployeeDropdownSerializer(serializers.ModelSerializer):
 
 class CompactOfficeSerializer(serializers.ModelSerializer):
     """Lighter office serializer for list/summary views (Projects, Org Chart)"""
+    code = serializers.CharField(source='sac', required=False, allow_null=True)
     class Meta:
         model = Office
-        fields = ['id', 'name', 'code', 'status']
+        fields = ['id', 'name', 'code', 'sac', 'vehicle_code', 'status']
 
 class ProjectSerializer(serializers.ModelSerializer):
     assigned_offices_details = CompactOfficeSerializer(source='assigned_offices', many=True, read_only=True)
@@ -1336,17 +1483,58 @@ class ProjectSerializer(serializers.ModelSerializer):
     cluster_name = serializers.ReadOnlyField(source='cluster.name')
     cluster_type = serializers.ReadOnlyField(source='cluster.get_cluster_type_display')
     project_type_display = serializers.CharField(source='get_project_type_display', read_only=True)
+    segments = SegmentSerializer(many=True, required=False)
     
     class Meta:
         model = Project
         fields = '__all__'
+
+    def create(self, validated_data):
+        segments_data = validated_data.pop('segments', [])
+        assigned_offices_data = validated_data.pop('assigned_offices', [])
+        
+        project = Project.objects.create(**validated_data)
+        
+        if assigned_offices_data:
+            project.assigned_offices.set(assigned_offices_data)
+            
+        for segment_data in segments_data:
+            Segment.objects.create(project=project, **segment_data)
+        return project
+
+    def update(self, instance, validated_data):
+        segments_data = validated_data.pop('segments', None)
+        assigned_offices_data = validated_data.pop('assigned_offices', None)
+        
+        # Standard update (ignoring m2m fields like assigned_offices if overridden)
+        project = super().update(instance, validated_data)
+        
+        if assigned_offices_data is not None:
+            project.assigned_offices.set(assigned_offices_data)
+            
+        if segments_data is not None:
+            # Sync segments
+            keep_segment_ids = [s.get('id') for s in segments_data if s.get('id')]
+            instance.segments.exclude(id__in=keep_segment_ids).delete()
+            
+            for segment_data in segments_data:
+                segment_id = segment_data.get('id')
+                if segment_id:
+                    # Update segment, excluding project since it's already linked
+                    segment_data.pop('project', None)
+                    Segment.objects.filter(id=segment_id).update(**segment_data)
+                else:
+                    # Create
+                    Segment.objects.create(project=project, **segment_data)
+                    
+        return project
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         # 1. Handle implicitly linked offices via Facility Master
         from core.models import Office
         # Use a more efficient query to get both IDs AND basic info to avoid double serialization
-        implicit_offices = Office.objects.filter(facility_master__project=instance).only('id', 'name', 'code', 'status')
+        implicit_offices = Office.objects.filter(facility_master__project=instance).only('id', 'name', 'sac', 'vehicle_code', 'status')
         
         # 2. Get existing (explicit) ids
         current_ids = set(ret.get('assigned_offices', []))
@@ -1362,7 +1550,9 @@ class ProjectSerializer(serializers.ModelSerializer):
                 current_details.append({
                     'id': office.id,
                     'name': office.name,
-                    'code': office.code,
+                    'code': office.sac,
+                    'sac': office.sac,
+                    'vehicle_code': office.vehicle_code,
                     'status': office.status
                 })
             
@@ -1518,6 +1708,57 @@ class PositionAssignmentSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['assignor']
 
+class PositionShiftRosterSerializer(serializers.ModelSerializer):
+    employee_name = serializers.ReadOnlyField(source='employee.name')
+    employee_code = serializers.ReadOnlyField(source='employee.employee_code')
+    position_name = serializers.ReadOnlyField(source='position.name')
+    position_code = serializers.ReadOnlyField(source='position.code')
+    shift_name = serializers.ReadOnlyField(source='shift.name')
+    shift_start_time = serializers.ReadOnlyField(source='shift.start_time')
+    shift_end_time = serializers.ReadOnlyField(source='shift.end_time')
+
+    class Meta:
+        model = PositionShiftRoster
+        fields = '__all__'
+
+    def validate(self, data):
+        employee = data.get('employee')
+        position = data.get('position')
+        shift = data.get('shift')
+        date = data.get('date')
+
+        # 1. Exclusivity check (check if the same employee is already assigned to this position, shift, and date)
+        existing = PositionShiftRoster.objects.filter(
+            position=position,
+            shift=shift,
+            date=date,
+            employee=employee
+        )
+        if self.instance:
+            existing = existing.exclude(id=self.instance.id)
+        if existing.exists():
+            raise serializers.ValidationError({
+                "shift": f"The employee '{employee.name}' is already assigned to this shift for this position on {date}."
+            })
+
+        # 2. Time overlap check for this employee on this date
+        same_day_rosters = PositionShiftRoster.objects.filter(
+            employee=employee,
+            date=date
+        )
+        if self.instance:
+            same_day_rosters = same_day_rosters.exclude(id=self.instance.id)
+
+        for roster in same_day_rosters:
+            other_shift = roster.shift
+            if other_shift.start_time and other_shift.end_time and shift.start_time and shift.end_time:
+                if (shift.start_time < other_shift.end_time) and (shift.end_time > other_shift.start_time):
+                    raise serializers.ValidationError({
+                        "non_field_errors": f"Time conflict: Employee '{employee.name}' is already assigned to shift '{other_shift.name}' ({other_shift.start_time}-{other_shift.end_time}) which overlaps with '{shift.name}' on {date}."
+                    })
+
+        return data
+
 class PositionActivityLogSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.username', read_only=True)
     assignment_details = serializers.CharField(source='assignment.__str__', read_only=True)
@@ -1545,3 +1786,41 @@ class AuditLogSerializer(serializers.ModelSerializer):
         if obj.user:
             return obj.user.username
         return 'System'
+
+from core.models import VehicleSwapLog, VehicleSwapRequest, ShiftChangeRequest
+class VehicleSwapLogSerializer(serializers.ModelSerializer):
+    office_a_name = serializers.ReadOnlyField(source='office_a.name')
+    office_b_name = serializers.ReadOnlyField(source='office_b.name')
+
+    class Meta:
+        model = VehicleSwapLog
+        fields = '__all__'
+
+
+class VehicleSwapRequestSerializer(serializers.ModelSerializer):
+    requester_name = serializers.ReadOnlyField(source='requester.name')
+    from_office_name = serializers.ReadOnlyField(source='from_office.name')
+    from_office_sac = serializers.ReadOnlyField(source='from_office.sac')
+    to_office_name = serializers.ReadOnlyField(source='to_office.name')
+    to_office_sac = serializers.ReadOnlyField(source='to_office.sac')
+    actioned_by_username = serializers.ReadOnlyField(source='actioned_by.username')
+
+    class Meta:
+        model = VehicleSwapRequest
+        fields = '__all__'
+        read_only_fields = ['requester', 'from_vehicle_code', 'from_vehicle_no', 'to_vehicle_code', 'to_vehicle_no', 'status', 'actioned_by', 'actioned_at']
+
+
+class ShiftChangeRequestSerializer(serializers.ModelSerializer):
+    requested_by_name = serializers.ReadOnlyField(source='requested_by.name')
+    employee_name = serializers.ReadOnlyField(source='employee.name')
+    employee_code = serializers.ReadOnlyField(source='employee.employee_code')
+    position_name = serializers.ReadOnlyField(source='position.name')
+    from_shift_name = serializers.ReadOnlyField(source='from_shift.name')
+    to_shift_name = serializers.ReadOnlyField(source='to_shift.name')
+
+    class Meta:
+        model = ShiftChangeRequest
+        fields = '__all__'
+        read_only_fields = ['requested_by', 'status', 'employee_consent', 'created_at', 'updated_at']
+

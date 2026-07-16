@@ -5,12 +5,14 @@ from .views import (
     OfficeViewSet, FacilityViewSet, FacilityMasterViewSet, DepartmentViewSet, SectionViewSet, JobFamilyViewSet,
     RoleTypeViewSet, RoleViewSet, JobViewSet, TaskViewSet, TaskUrlViewSet,
     OrganizationLevelViewSet, DocumentTypeViewSet, EmployeeDocumentViewSet,
+    PositionLevelViewSet, PositionTypeViewSet, ShiftViewSet,
     EmployeeEducationViewSet, EmployeeExperienceViewSet, EmployeeEmploymentHistoryViewSet,
     EmployeeBankDetailsViewSet, EmployeeEPFODetailsViewSet, EmployeeHealthDetailsViewSet, EmployeeSalaryDetailsViewSet,
     GeoContinentViewSet, GeoCountryViewSet, GeoStateViewSet, GeoDistrictViewSet,
     GeoMandalViewSet, GeoClusterViewSet, VisitingLocationViewSet, LandmarkViewSet,
-    PositionLevelViewSet, UserViewSet, LoginAPIView, LogoutAPIView, ChangePasswordView, RequestResetOTPView, ResetPasswordWithOTPView, EmployeeTaskUrlPermissionViewSet, EmployeeDetailsAPIView, APIKeyViewSet, LoginHitViewSet, BlockedEmployeeViewSet, AccountBlockHistoryViewSet, EmployeeArchiveViewSet, PositionAssignmentViewSet, PositionActivityLogViewSet,
-    GeoBulkUploadView, GeoFullHierarchyView, AuditLogViewSet
+    PositionLevelViewSet, UserViewSet, LoginAPIView, LogoutAPIView, ChangePasswordView, RequestResetOTPView, ResetPasswordWithOTPView, EmployeeTaskUrlPermissionViewSet, EmployeeDetailsAPIView, APIKeyViewSet, LoginHitViewSet, BlockedEmployeeViewSet, AccountBlockHistoryViewSet, EmployeeArchiveViewSet, PositionAssignmentViewSet, PositionActivityLogViewSet, PositionShiftRosterViewSet, ManagerScreenMappingViewSet,
+    GeoBulkUploadView, GeoFullHierarchyView, AuditLogViewSet, VehicleSwapLogViewSet, VehicleSwapRequestViewSet, ShiftChangeRequestViewSet,
+    SegmentViewSet, RoleSubGroupViewSet
 )
 from .dashboard_views import DashboardStatsView
 
@@ -33,13 +35,19 @@ router.register(r'tasks', TaskViewSet)
 router.register(r'task-urls', TaskUrlViewSet)
 router.register(r'positions', PositionViewSet)
 router.register(r'position-levels', PositionLevelViewSet)
+router.register(r'position-types', PositionTypeViewSet)
+router.register(r'shifts', ShiftViewSet)
 router.register(r'position-assignments', PositionAssignmentViewSet)
+router.register(r'position-shift-rosters', PositionShiftRosterViewSet)
 router.register(r'position-activity-logs', PositionActivityLogViewSet)
 router.register(r'employees', EmployeeViewSet)
 router.register(r'projects', ProjectViewSet)
+router.register(r'segments', SegmentViewSet)
+router.register(r'role-sub-groups', RoleSubGroupViewSet)
 router.register(r'locations', IndianVillageViewSet)
 router.register(r'employee-permissions', EmployeeTaskUrlPermissionViewSet)
 router.register(r'api-keys', APIKeyViewSet)
+router.register(r'manager-screen-mappings', ManagerScreenMappingViewSet, basename='manager-screen-mapping')
 
 
 
@@ -64,6 +72,9 @@ router.register(r'geo-clusters', GeoClusterViewSet)
 router.register(r'visiting-locations', VisitingLocationViewSet)
 router.register(r'landmarks', LandmarkViewSet)
 router.register(r'audit-logs', AuditLogViewSet)
+router.register(r'vehicle-swaps', VehicleSwapLogViewSet)
+router.register(r'vehicle-swap-requests', VehicleSwapRequestViewSet)
+router.register(r'shift-change-requests', ShiftChangeRequestViewSet)
 
 urlpatterns = [
     path('auth/login/', LoginAPIView.as_view(), name='login'),

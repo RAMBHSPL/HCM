@@ -68,6 +68,13 @@ class DynamicSecurityPermission(permissions.BasePermission):
             
             # 5. Check against the request path
             path = request.path.lower()
+
+            # Allow positions/all_data and employees/all_data lookup if user has related screen permissions
+            if request.method in permissions.SAFE_METHODS:
+                if 'positions/all_data' in path or 'employees/all_data' in path:
+                    related_patterns = ['position-shift-rosters', 'position-assignments', 'employees', 'positions']
+                    if any(perms.get(pat, {}).get('view') and perms.get(pat, {}).get('enabled', True) for pat in related_patterns):
+                        return True
             
             # Check wildcard first
             if '*' in perms:

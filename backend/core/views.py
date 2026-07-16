@@ -4,25 +4,27 @@ from rest_framework.response import Response
 import builtins
 from .models import (
     Office, Facility, FacilityMaster, Department, Section, JobFamily, RoleType, Role, Job, Task, TaskUrl, Position, 
-    Employee, Project, IndianVillage, OrganizationLevel, EmployeeTaskUrlPermission,
+    Employee, Project, IndianVillage, OrganizationLevel, EmployeeTaskUrlPermission, PositionScreenPermission,
     DocumentType, EmployeeDocument,
     EmployeeEducation, EmployeeExperience, EmployeeEmploymentHistory,
     EmployeeBankDetails, EmployeeEPFODetails, EmployeeHealthDetails, EmployeeSalaryDetails,
-    GeoContinent, GeoCountry, GeoState, GeoDistrict,    GeoMandal, GeoCluster, VisitingLocation, Landmark, APIKey, LoginHit, AccountBlockHistory, EmployeeArchive, PositionLevel, PositionAssignment
+    GeoContinent, GeoCountry, GeoState, GeoDistrict,    GeoMandal, GeoCluster, VisitingLocation, Landmark, APIKey, LoginHit, AccountBlockHistory, EmployeeArchive, PositionLevel, PositionAssignment, PositionType, Shift, PositionShiftRoster,
+    Segment, RoleSubGroup
 )
 from django.db import transaction
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import (
     OfficeSerializer, LightOfficeSerializer, FacilitySerializer, DepartmentSerializer, SectionSerializer, JobFamilySerializer, 
     RoleTypeSerializer, RoleSerializer, JobSerializer, TaskSerializer, TaskUrlSerializer,
-    PositionLevelSerializer,
+    PositionLevelSerializer, PositionTypeSerializer, ShiftSerializer,
     PositionSerializer, PositionDetailSerializer, EmployeeSerializer, EmployeeListSerializer, ProjectSerializer, FacilityMasterSerializer, IndianVillageSerializer, 
     OrganizationLevelSerializer, DocumentTypeSerializer, EmployeeDocumentSerializer, EmployeeDocumentListSerializer, 
     EmployeeEducationSerializer, EmployeeEducationListSerializer, EmployeeExperienceSerializer, EmployeeExperienceListSerializer, EmployeeEmploymentHistorySerializer,
     EmployeeBankDetailsSerializer, EmployeeEPFODetailsSerializer, EmployeeHealthDetailsSerializer, EmployeeSalaryDetailsSerializer,
     GeoContinentSerializer, GeoCountrySerializer, GeoStateSerializer, GeoDistrictSerializer,
     GeoMandalSerializer, GeoClusterSerializer, VisitingLocationSerializer, LandmarkSerializer,
-    UserSerializer, EmployeeTaskUrlPermissionSerializer, GeoHierarchySerializer, APIKeySerializer, LoginHitSerializer, AccountBlockHistorySerializer, EmployeeArchiveSerializer, PositionAssignmentSerializer, PositionActivityLogSerializer,
+    UserSerializer, EmployeeTaskUrlPermissionSerializer, GeoHierarchySerializer, APIKeySerializer, LoginHitSerializer, AccountBlockHistorySerializer, EmployeeArchiveSerializer, PositionAssignmentSerializer, PositionActivityLogSerializer, PositionShiftRosterSerializer,
+    SegmentSerializer, RoleSubGroupSerializer,
     GeoContinentNestedSerializer
 )
 from .models import PositionActivityLog
@@ -30,7 +32,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from rest_framework.views import APIView
 from rest_framework import status, permissions, filters
-from django.db.models import Q, Min
+from django.db.models import Q, Min, Prefetch
 import builtins # For built-in list conversion
 
 def get_client_ip(request):
@@ -74,6 +76,12 @@ def get_client_ip(request):
     return '0.0.0.0'
 
 def _get_subordinate_ids(employee_id, exclude_self=True):
+    from django.core.cache import cache
+    cache_key = f"sub_ids_{employee_id}_{exclude_self}"
+    cached_val = cache.get(cache_key)
+    if cached_val is not None:
+        return cached_val
+
     try:
         employee = Employee.objects.get(id=employee_id)
     except Employee.DoesNotExist:
@@ -123,7 +131,10 @@ def _get_subordinate_ids(employee_id, exclude_self=True):
         
     if not exclude_self: ids.add(employee.id)
     elif employee.id in ids: ids.remove(employee.id)
-    return builtins.list(ids)
+    
+    result = builtins.list(ids)
+    cache.set(cache_key, result, timeout=15)
+    return result
 
 def get_recursive_subordinate_ids(employee, exclude_self=True):
     return _get_subordinate_ids(employee.id, exclude_self)
@@ -372,11 +383,10 @@ class ScopedViewSetMixin(ActivityLoggingMixin):
                 elif model == Section:
                     return queryset.filter(department__office_id__in=accessible_office_ids)
                 elif model == Project:
-                    return queryset.filter(
-                        Q(assigned_offices__id__in=accessible_office_ids) |
-                        Q(assigned_level__offices__id__in=accessible_office_ids) |
-                        Q(departments__office_id__in=accessible_office_ids)
-                    ).distinct().order_by('name')
+                    ids1 = set(Project.objects.filter(assigned_offices__id__in=accessible_office_ids).values_list('id', flat=True))
+                    ids2 = set(Project.objects.filter(assigned_level__offices__id__in=accessible_office_ids).values_list('id', flat=True))
+                    ids3 = set(Project.objects.filter(departments__office_id__in=accessible_office_ids).values_list('id', flat=True))
+                    return queryset.filter(id__in=ids1 | ids2 | ids3).distinct().order_by('name')
                 elif model in [GeoContinent, GeoCountry, GeoState, GeoDistrict, GeoMandal, GeoCluster, IndianVillage, VisitingLocation, Landmark]:
                     return queryset.all()
                 
@@ -913,7 +923,9 @@ def _get_employee_permissions(employee_id, context_id=None):
     
     positions = Position.objects.filter(id__in=my_pos_ids).select_related('job', 'role').prefetch_related(
         'job__tasks__urls',
-        'role__jobs__tasks__urls'
+        'role__jobs__tasks__urls',
+        'additional_roles__jobs__tasks__urls',
+        'screen_permissions__task_url'
     )
     
     permissions_map = {}
@@ -922,9 +934,13 @@ def _get_employee_permissions(employee_id, context_id=None):
         # Get tasks from the specific job or all jobs tied to the role
         target_jobs = []
         if position.job:
-            target_jobs = [position.job]
+            target_jobs.append(position.job)
         elif position.role:
-            target_jobs = position.role.jobs.all()
+            target_jobs.extend(position.role.jobs.all())
+            
+        # ALWAYS include jobs from additional roles
+        for add_role in position.additional_roles.all():
+            target_jobs.extend(add_role.jobs.all())
             
         for job in target_jobs:
             for task in job.tasks.all():
@@ -945,6 +961,29 @@ def _get_employee_permissions(employee_id, context_id=None):
                         p['create'] = p['create'] or task_url.can_create
                         p['edit'] = p['edit'] or task_url.can_edit
                         p['delete'] = p['delete'] or task_url.can_delete
+
+        # Add Direct Position-to-Screen Mapped Permissions
+        for pos_perm in position.screen_permissions.all():
+            pattern = pos_perm.task_url.url_pattern
+            if not pos_perm.is_enabled:
+                permissions_map[pattern] = {
+                    'view': False, 'create': False, 'edit': False, 'delete': False, 'enabled': False
+                }
+            else:
+                if pattern not in permissions_map:
+                    permissions_map[pattern] = {
+                        'view': pos_perm.can_view,
+                        'create': pos_perm.can_create,
+                        'edit': pos_perm.can_edit,
+                        'delete': pos_perm.can_delete,
+                        'enabled': True
+                    }
+                else:
+                    p = permissions_map[pattern]
+                    p['view'] = p['view'] or pos_perm.can_view
+                    p['create'] = p['create'] or pos_perm.can_create
+                    p['edit'] = p['edit'] or pos_perm.can_edit
+                    p['delete'] = p['delete'] or pos_perm.can_delete
     
     # 2. Apply explicit Employee Overrides (Take precedence)
     # Prefetch the related task_url patterns
@@ -1438,7 +1477,7 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
     queryset = Office.objects.all()
     serializer_class = OfficeSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'code', 'registered_name', 'country_name', 'state_name', 'district_name', 'mandal_name', 'address', 'location']
+    search_fields = ['name', 'sac', 'vehicle_code', 'registered_name', 'country_name', 'state_name', 'district_name', 'mandal_name', 'address', 'location']
     ordering_fields = ['name', 'level__rank']
     ordering = ['name']
 
@@ -1489,8 +1528,134 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
     @action(detail=False, methods=['get'])
     def all_data(self, request):
         queryset = self.filter_queryset(self.get_queryset())
+        queryset = queryset.select_related('level', 'facility_master').prefetch_related('projects')
         serializer = LightOfficeSerializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='swap-candidates')
+    def swap_candidates(self, request):
+        # Return all active offices with vehicles for swapping
+        queryset = Office.objects.filter(status='Active').exclude(vehicle_code__isnull=True).exclude(vehicle_code="").select_related('level', 'facility_master').prefetch_related('projects')
+        serializer = LightOfficeSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='swap-vehicles')
+    def swap_vehicles(self, request):
+        office_a_sac = request.data.get('office_a_sac')
+        office_b_sac = request.data.get('office_b_sac')
+        swap_crew = request.data.get('swap_crew', True)
+        triggered_by = request.data.get('triggered_by') or (request.user.username if request.user and request.user.is_authenticated else 'SYSTEM')
+
+        if not office_a_sac or not office_b_sac:
+            return Response({'error': 'Both office_a_sac and office_b_sac are required.'}, status=400)
+
+        if office_a_sac == office_b_sac:
+            return Response({'error': 'Cannot swap an office with itself.'}, status=400)
+
+        try:
+            office_a = Office.objects.get(sac=office_a_sac)
+        except Office.DoesNotExist:
+            return Response({'error': f'Office with SAC {office_a_sac} not found.'}, status=400)
+
+        try:
+            office_b = Office.objects.get(sac=office_b_sac)
+        except Office.DoesNotExist:
+            return Response({'error': f'Office with SAC {office_b_sac} not found.'}, status=400)
+
+        # Capture old values
+        old_v_a = office_a.vehicle_code
+        old_v_b = office_b.vehicle_code
+        old_no_a = office_a.vehicle_no
+        old_no_b = office_b.vehicle_no
+
+        # Run within atomic transaction
+        try:
+            with transaction.atomic():
+                # Swap vehicle codes and numbers
+                office_a.vehicle_code = old_v_b
+                office_a.vehicle_no = old_no_b
+                office_b.vehicle_code = old_v_a
+                office_b.vehicle_no = old_no_a
+                office_a.save()
+                office_b.save()
+
+                # Swap crew if requested
+                if swap_crew:
+                    from core.models import Position
+                    pos_a = list(Position.objects.filter(office=office_a))
+                    pos_b = list(Position.objects.filter(office=office_b))
+
+                    for p in pos_a:
+                        p.office = office_b
+                        p.save()
+                    for p in pos_b:
+                        p.office = office_a
+                        p.save()
+
+                # Log transaction
+                from core.models import VehicleSwapLog
+                VehicleSwapLog.objects.create(
+                    office_a=office_a,
+                    office_b=office_b,
+                    sac_a=office_a_sac,
+                    sac_b=office_b_sac,
+                    old_vehicle_code_a=old_v_a,
+                    old_vehicle_code_b=old_v_b,
+                    new_vehicle_code_a=old_v_b,
+                    new_vehicle_code_b=old_v_a,
+                    old_vehicle_no_a=old_no_a,
+                    old_vehicle_no_b=old_no_b,
+                    new_vehicle_no_a=old_no_b,
+                    new_vehicle_no_b=old_no_a,
+                    crew_swapped=swap_crew,
+                    triggered_by=triggered_by,
+                    status='SUCCESS'
+                )
+
+            return Response({
+                'success': True,
+                'message': 'Vehicles swapped successfully.',
+                'office_a': {
+                    'sac': office_a_sac,
+                    'new_vehicle_code': old_v_b,
+                    'old_vehicle_code': old_v_a,
+                    'new_vehicle_no': old_no_b,
+                    'old_vehicle_no': old_no_a
+                },
+                'office_b': {
+                    'sac': office_b_sac,
+                    'new_vehicle_code': old_v_a,
+                    'old_vehicle_code': old_v_b,
+                    'new_vehicle_no': old_no_a,
+                    'old_vehicle_no': old_no_b
+                }
+            })
+
+        except Exception as e:
+            # Log failure
+            try:
+                from core.models import VehicleSwapLog
+                VehicleSwapLog.objects.create(
+                    office_a=office_a,
+                    office_b=office_b,
+                    sac_a=office_a_sac,
+                    sac_b=office_b_sac,
+                    old_vehicle_code_a=old_v_a,
+                    old_vehicle_code_b=old_v_b,
+                    new_vehicle_code_a=old_v_a,
+                    new_vehicle_code_b=old_v_b,
+                    old_vehicle_no_a=old_no_a,
+                    old_vehicle_no_b=old_no_b,
+                    new_vehicle_no_a=old_no_a,
+                    new_vehicle_no_b=old_no_b,
+                    crew_swapped=swap_crew,
+                    triggered_by=triggered_by,
+                    status='FAILED',
+                    error_message=str(e)
+                )
+            except Exception:
+                pass
+            return Response({'error': f'Swap transaction failed: {str(e)}'}, status=500)
 
     @action(detail=False, methods=['post'], url_path='bulk-upload')
     def bulk_upload(self, request):
@@ -1514,7 +1679,8 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
                 try:
                     with transaction.atomic():
                         name = str(row.get('Office Name') or row.get('name') or '').strip()
-                        code = str(row.get('Office Code') or row.get('code') or '').strip()
+                        code = str(row.get('SAC') or row.get('sac') or row.get('Office Code') or row.get('code') or '').strip()
+                        vehicle_code = str(row.get('Vehicle Code') or row.get('vehicle_code') or '').strip()
                         if not name: raise Exception("Office Name is required.")
 
                         # Level resolution
@@ -1558,11 +1724,12 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
                             'phone': str(row.get('Phone') or row.get('Contact Number') or '').strip() or None,
                             'email': str(row.get('Email') or row.get('email') or '').strip() or None,
                             'status': str(row.get('Status') or 'Active').strip(),
-                            'start_date': str(row.get('Start Date') or row.get('Operational Start Date') or timezone.now().date()).strip()
+                            'start_date': str(row.get('Start Date') or row.get('Operational Start Date') or timezone.now().date()).strip(),
+                            'vehicle_code': vehicle_code or None
                         }
                         
                         # Store the provided code for pass 2 processing
-                        if code: defaults['code'] = code
+                        if code: defaults['sac'] = code
 
                         # Always use Name for organizational units to avoid collision between suffixes (like '01')
                         # The code will be finalized/prefixed in Pass 2 if it's a suffix.
@@ -1582,14 +1749,14 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
                 try:
                     parent_val = str(row.get('Parent Office') or row.get('parent') or '').strip()
                     if parent_val:
-                        parent = Office.objects.filter(Q(code__iexact=parent_val) | Q(name__iexact=parent_val)).first()
+                        parent = Office.objects.filter(Q(sac__iexact=parent_val) | Q(name__iexact=parent_val)).first()
                         if parent:
                             if parent.id == obj.id:
                                 raise Exception("An office cannot be its own parent.")
                             obj.parent = parent
                             
                             # --- Auto-Prefix Code Logic (Match UI behavior) ---
-                            current_code = str(obj.code or '').strip()
+                            current_code = str(obj.sac or '').strip()
                             # If code is just a suffix (no hyphens) and we have a parent/level
                             if current_code and '-' not in current_code:
                                 project = parent.projects.first()
@@ -1601,7 +1768,7 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
                                 if level_prefix: prefix += f"{level_prefix}-"
                                 
                                 if prefix:
-                                    obj.code = f"{prefix}{current_code}".upper()
+                                    obj.sac = f"{prefix}{current_code}".upper()
                             
                             obj.save()
                         else:
@@ -1658,7 +1825,7 @@ class DepartmentViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVi
                     if not office_val: raise Exception("Office name or code is required.")
 
                     if office_val not in office_cache:
-                        off = Office.objects.filter(Q(code__iexact=office_val) | Q(name__iexact=office_val)).first()
+                        off = Office.objects.filter(Q(sac__iexact=office_val) | Q(name__iexact=office_val)).first()
                         if not off: raise Exception(f"Office '{office_val}' not found.")
                         office_cache[office_val] = off
                     office = office_cache[office_val]
@@ -1753,7 +1920,7 @@ class DepartmentViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVi
                 if str(office).isdigit():
                     target_office = Office.objects.get(id=office)
                 else:
-                    target_office = Office.objects.filter(Q(code__iexact=office) | Q(name__iexact=office)).first()
+                    target_office = Office.objects.filter(Q(sac__iexact=office) | Q(name__iexact=office)).first()
                 
                 if target_office:
                     # Collect the office itself + all ancestor office IDs
@@ -1837,7 +2004,7 @@ class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
                     if dept_key not in dept_cache:
                         qs = Department.objects.filter(name__iexact=dept_val)
                         if office_val:
-                            qs = qs.filter(Q(office__name__iexact=office_val) | Q(office__code__iexact=office_val))
+                            qs = qs.filter(Q(office__name__iexact=office_val) | Q(office__sac__iexact=office_val))
                         dept = qs.first()
                         if not dept: raise Exception(f"Department '{dept_val}' not found (context: {office_val}).")
                         dept_cache[dept_key] = dept
@@ -1930,7 +2097,7 @@ class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
             if str(office).isdigit():
                 queryset = queryset.filter(department__office_id=office)
             else:
-                queryset = queryset.filter(Q(department__office__code__iexact=office) | Q(department__office__name__iexact=office))
+                queryset = queryset.filter(Q(department__office__sac__iexact=office) | Q(department__office__name__iexact=office))
 
         if level and level != 'all':
             if str(level).isdigit():
@@ -2006,10 +2173,44 @@ class RoleTypeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         return queryset.none()
 
 
+class SegmentViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
+    queryset = Segment.objects.all()
+    serializer_class = SegmentSerializer
+    upsert_lookup_fields = ['project', 'name']
+    pagination_class = None
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'code']
+    ordering_fields = ['name']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        project = self.request.query_params.get('project') or self.request.query_params.get('project_id')
+        if project and project != 'all':
+            queryset = queryset.filter(project_id=project)
+        return queryset
+
+class RoleSubGroupViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
+    queryset = RoleSubGroup.objects.all()
+    serializer_class = RoleSubGroupSerializer
+    upsert_lookup_fields = ['role_group', 'name']
+    pagination_class = None
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'code']
+    ordering_fields = ['name']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        role_group = self.request.query_params.get('role_group') or self.request.query_params.get('role_group_id')
+        if role_group and role_group != 'all':
+            queryset = queryset.filter(role_group_id=role_group)
+        return queryset
+
 class RoleViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
-    upsert_lookup_fields = ['role_type', 'name']
+    upsert_lookup_fields = ['project', 'segment', 'name']
     pagination_class = None
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name']
@@ -2018,6 +2219,14 @@ class RoleViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet)
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        project = self.request.query_params.get('project') or self.request.query_params.get('project_id')
+        segment = self.request.query_params.get('segment') or self.request.query_params.get('segment_id')
+        
+        if project and project != 'all':
+            queryset = queryset.filter(project_id=project)
+        if segment and segment != 'all':
+            queryset = queryset.filter(segment_id=segment)
+            
         role_type = self.request.query_params.get('role_type') or self.request.query_params.get('role_type_id')
         if role_type and role_type != 'all':
             if str(role_type).isdigit():
@@ -2117,6 +2326,55 @@ class PositionLevelViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.Mode
     search_fields = ['name']
     ordering_fields = ['rank', 'name']
 
+class PositionTypeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
+    queryset = PositionType.objects.all()
+    serializer_class = PositionTypeSerializer
+    pagination_class = None
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name']
+    ordering_fields = ['name']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        project = self.request.query_params.get('project') or self.request.query_params.get('project_id')
+        segment = self.request.query_params.get('segment') or self.request.query_params.get('segment_id')
+        if project and project != 'all':
+            queryset = queryset.filter(project_id=project)
+        if segment and segment != 'all':
+            queryset = queryset.filter(segment_id=segment)
+        return queryset
+
+class ShiftViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
+    queryset = Shift.objects.all()
+    serializer_class = ShiftSerializer
+    pagination_class = None
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name']
+    ordering_fields = ['name', 'start_time']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        project = self.request.query_params.get('project') or self.request.query_params.get('project_id')
+        segment = self.request.query_params.get('segment') or self.request.query_params.get('segment_id')
+        
+        position_type = self.request.query_params.get('position_type') or self.request.query_params.get('position_type_id')
+        if position_type and position_type != 'all':
+            queryset = queryset.filter(position_types__id=position_type)
+            
+        if project and project != 'all':
+            queryset = queryset.filter(project_id=project)
+        if segment and segment != 'all':
+            queryset = queryset.filter(segment_id=segment)
+        return queryset
+
+def get_subordinates_recursive(employee, visited=None):
+    if not employee:
+        return []
+    sub_ids = get_recursive_subordinate_ids(employee, exclude_self=True)
+    return builtins.list(Employee.objects.filter(id__in=sub_ids, is_deleted=False))
+
 class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Position.objects.all()
     serializer_class = PositionSerializer
@@ -2128,6 +2386,12 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        reports_to_me = self.request.query_params.get('reports_to_me', 'false').lower() == 'true'
+        if reports_to_me and hasattr(self.request.user, 'employee_profile'):
+            emp = self.request.user.employee_profile
+            sub_ids = get_recursive_subordinate_ids(emp, exclude_self=True)
+            queryset = queryset.filter(employees__id__in=sub_ids).distinct()
+
         office = self.request.query_params.get('office')
         department = self.request.query_params.get('department')
         section = self.request.query_params.get('section')
@@ -2138,6 +2402,24 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         role = self.request.query_params.get('role') or self.request.query_params.get('role_id')
         job = self.request.query_params.get('job') or self.request.query_params.get('job_id')
         position_level = self.request.query_params.get('position_level')
+
+        # Project and segment scoped filters
+        project_id = self.request.query_params.get('project') or self.request.query_params.get('project_id')
+        if project_id and project_id != 'all':
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(department__project_id=project_id) |
+                Q(section__project_id=project_id) |
+                Q(office__projects__id=project_id)
+            ).distinct()
+            
+        segment_id = self.request.query_params.get('segment') or self.request.query_params.get('segment_id')
+        if segment_id and segment_id != 'all':
+            queryset = queryset.filter(role__segment_id=segment_id)
+
+        role_sub_group_id = self.request.query_params.get('role_sub_group') or self.request.query_params.get('role_sub_group_id')
+        if role_sub_group_id and role_sub_group_id != 'all':
+            queryset = queryset.filter(role_sub_group_id=role_sub_group_id)
 
         if office and office != 'all':
             queryset = queryset.filter(office_id=office)
@@ -2185,7 +2467,20 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         if mandal_name:
             queryset = queryset.filter(office__mandal_name__icontains=mandal_name)
             
-        return queryset.distinct()
+        return queryset.select_related(
+            'office', 'office__level', 'department', 'section', 'role', 'role_sub_group',
+            'role__role_type', 'role__role_type__job_family', 'job', 'level',
+            'position_type', 'section__project', 'department__project'
+        ).prefetch_related(
+            'shifts',
+            Prefetch('reporting_to', queryset=Position.objects.select_related(
+                'office', 'office__level', 'department', 'section', 'role', 'level'
+            ).prefetch_related('employees')),
+            'employees',
+            'role__jobs',
+            'role__jobs__tasks',
+            'role__jobs__tasks__urls'
+        ).distinct()
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -2202,16 +2497,75 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
     @action(detail=False, methods=['get'])
     def all_data(self, request):
         """Get all positions for dropdowns, bypassing standard scope if needed"""
-        # We start with the full queryset, but we might arguably still want SOME filtering?
-        # For now, let's return all active positions to facilitate hierarchy selection.
-        # If we want to respect scope but allow parents, it gets complex.
-        # Returning all positions is the simplest fix for "Why can't I see my boss?"
         positions = Position.objects.filter(status='Active').order_by('name')
-        
-        # Optimize query
-        positions = positions.select_related('office', 'department', 'section', 'role', 'job')
-        
+
+        # Optimize query — always prefetch shifts for the roster grid
+        positions = positions.select_related(
+            'office', 'office__level', 'department', 'section', 'role', 'job', 'level'
+        ).prefetch_related('shifts')
+
+        # Filter: only return positions that have shifts mapped (for roster screen)
+        has_shifts = request.query_params.get('has_shifts', 'false').lower() == 'true'
+        if has_shifts:
+            positions = positions.filter(shifts__isnull=False).distinct()
+
+        # Support search parameter for server-side search
+        search_query = request.query_params.get('search')
+        if search_query:
+            from django.db.models import Q as Qx
+            positions = positions.filter(
+                Qx(name__icontains=search_query) | Qx(code__icontains=search_query)
+            ).distinct()
+
+        # Filter by office if provided
+        office = request.query_params.get('office')
+        if office and office != 'all':
+            positions = positions.filter(office_id=office)
+
+        # Filter by project (via department or section)
+        project = request.query_params.get('project')
+        if project and project != 'all':
+            from django.db.models import Q as Qx
+            positions = positions.filter(
+                Qx(department__project_id=project) | Qx(section__project_id=project)
+            ).distinct()
+
+        # For non-superusers: only show positions whose employees report to them
+        reports_to_me = request.query_params.get('reports_to_me', 'false').lower() == 'true'
+        if reports_to_me and not request.user.is_superuser:
+            if hasattr(request.user, 'employee_profile'):
+                emp = request.user.employee_profile
+                sub_ids = get_recursive_subordinate_ids(emp, exclude_self=True)
+                positions = positions.filter(employees__id__in=sub_ids).distinct()
+            else:
+                positions = positions.none()
+
+        # Check if pagination is requested
+        page = request.query_params.get('page')
         from .serializers import PositionDropdownSerializer
+        if page:
+            try:
+                page = int(page)
+                page_size = int(request.query_params.get('page_size', 50))
+                from django.core.paginator import Paginator, EmptyPage
+                paginator = Paginator(positions, page_size)
+                try:
+                    paginated_qs = paginator.page(page)
+                except EmptyPage:
+                    return Response({
+                        'count': paginator.count,
+                        'num_pages': paginator.num_pages,
+                        'results': []
+                    })
+                
+                return Response({
+                    'count': paginator.count,
+                    'num_pages': paginator.num_pages,
+                    'results': PositionDropdownSerializer(paginated_qs, many=True).data
+                })
+            except ValueError:
+                pass
+
         return Response(PositionDropdownSerializer(positions, many=True).data)
 
     @action(detail=False, methods=['post'], url_path='bulk-upload')
@@ -2259,7 +2613,7 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
                         office = None
                         if office_val:
                             if office_val not in office_cache:
-                                off_obj = Office.objects.filter(Q(code=office_val) | Q(name=office_val)).first()
+                                off_obj = Office.objects.filter(Q(sac=office_val) | Q(name=office_val)).first()
                                 if not off_obj:
                                     off_obj = Office.objects.filter(name=office_val).first()
                                     if not off_obj:
@@ -2431,6 +2785,164 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
             
         return response
 
+    @action(detail=True, methods=['get'])
+    def screen_permissions(self, request, pk=None):
+        position = self.get_object()
+        
+        target_screens = {
+            'dashboard': 'Dashboard',
+            'users': 'User Management',
+            'api-keys': 'API Key Management',
+            'reactivations': 'Reactivations',
+            'audit-logs': 'Audit Logs',
+            'login-history': 'Login History',
+            'organization': 'Structure',
+            'organization-levels': 'Levels',
+            'offices': 'Offices',
+            'departments': 'Departments',
+            'sections': 'Sections',
+            'facility-masters': 'Facility Master',
+            'job-families': 'Job Families',
+            'role-types': 'Role Types',
+            'roles': 'Role Names',
+            'jobs': 'Jobs',
+            'tasks': 'Tasks',
+            'task-urls': 'Task URL Mapping',
+            'employees': 'Employees',
+            'positions': 'Positions',
+            'position-assignments': 'Position Assignments',
+            'position-levels': 'Position Levels',
+            'position-types': 'Position Types',
+            'shifts': 'Shifts',
+            'position-shift-rosters': 'Shift Roster',
+            'projects': 'Projects',
+            'position-activity-logs': 'Delegate Activity',
+            'vehicle-swaps': 'Vehicle Swaps',
+            'geo-continents': 'Geo Territory',
+            'geo-countries': 'Countries',
+            'geo-states': 'States',
+            'geo-districts': 'Districts',
+            'geo-mandals': 'Mandals',
+            'geo-clusters': 'Clusters',
+            'visiting-locations': 'Hotspots',
+            'landmarks': 'Landmarks',
+        }
+        
+        # Ensure task urls exist for all target patterns
+        for pattern, name in target_screens.items():
+            ensure_task_url_exists(pattern, name)
+            
+        perms = {}
+        for pattern, name in target_screens.items():
+            turl = TaskUrl.objects.filter(url_pattern=pattern).first()
+            if turl:
+                perm_obj = PositionScreenPermission.objects.filter(
+                    position=position,
+                    task_url=turl
+                ).first()
+                perms[pattern] = {
+                    'view': perm_obj.can_view if perm_obj else False,
+                    'create': perm_obj.can_create if perm_obj else False,
+                    'edit': perm_obj.can_edit if perm_obj else False,
+                    'delete': perm_obj.can_delete if perm_obj else False,
+                    'is_enabled': perm_obj.is_enabled if perm_obj else False
+                }
+            else:
+                perms[pattern] = {
+                    'view': False, 'create': False, 'edit': False, 'delete': False, 'is_enabled': False
+                }
+                
+        return Response(perms)
+
+    @action(detail=True, methods=['post'])
+    def toggle_screen_permission(self, request, pk=None):
+        position = self.get_object()
+        pattern = request.data.get('pattern')
+        enabled = request.data.get('enabled', False)
+        permission_type = request.data.get('permission_type', 'view') # view, create, edit, delete
+
+        if not pattern:
+            return Response({'error': 'Pattern is required'}, status=400)
+
+        target_screens = {
+            'dashboard': 'Dashboard',
+            'users': 'User Management',
+            'api-keys': 'API Key Management',
+            'reactivations': 'Reactivations',
+            'audit-logs': 'Audit Logs',
+            'login-history': 'Login History',
+            'organization': 'Structure',
+            'organization-levels': 'Levels',
+            'offices': 'Offices',
+            'departments': 'Departments',
+            'sections': 'Sections',
+            'facility-masters': 'Facility Master',
+            'job-families': 'Job Families',
+            'role-types': 'Role Types',
+            'roles': 'Role Names',
+            'jobs': 'Jobs',
+            'tasks': 'Tasks',
+            'task-urls': 'Task URL Mapping',
+            'employees': 'Employees',
+            'positions': 'Positions',
+            'position-assignments': 'Position Assignments',
+            'position-levels': 'Position Levels',
+            'position-types': 'Position Types',
+            'shifts': 'Shifts',
+            'position-shift-rosters': 'Shift Roster',
+            'projects': 'Projects',
+            'position-activity-logs': 'Delegate Activity',
+            'vehicle-swaps': 'Vehicle Swaps',
+            'geo-continents': 'Geo Territory',
+            'geo-countries': 'Countries',
+            'geo-states': 'States',
+            'geo-districts': 'Districts',
+            'geo-mandals': 'Mandals',
+            'geo-clusters': 'Clusters',
+            'visiting-locations': 'Hotspots',
+            'landmarks': 'Landmarks',
+        }
+
+        if pattern not in target_screens:
+            return Response({'error': 'Invalid pattern'}, status=400)
+
+        turl = ensure_task_url_exists(pattern, target_screens[pattern])
+
+        # Find existing or create
+        perm_obj, created = PositionScreenPermission.objects.get_or_create(
+            position=position,
+            task_url=turl,
+            defaults={
+                'can_view': enabled if permission_type == 'view' else False,
+                'can_create': enabled if permission_type == 'create' else False,
+                'can_edit': enabled if permission_type == 'edit' else False,
+                'can_delete': enabled if permission_type == 'delete' else False,
+                'is_enabled': True
+            }
+        )
+        
+        if not created:
+            if permission_type == 'view':
+                perm_obj.can_view = enabled
+            elif permission_type == 'create':
+                perm_obj.can_create = enabled
+            elif permission_type == 'edit':
+                perm_obj.can_edit = enabled
+            elif permission_type == 'delete':
+                perm_obj.can_delete = enabled
+            
+            any_enabled = perm_obj.can_view or perm_obj.can_create or perm_obj.can_edit or perm_obj.can_delete
+            perm_obj.is_enabled = any_enabled
+            perm_obj.save()
+
+        return Response({
+            'success': True,
+            'pattern': pattern,
+            'permission_type': permission_type,
+            'enabled': enabled
+        })
+
+
 class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Employee.objects.all()
     serializer_class = EmployeeSerializer
@@ -2444,12 +2956,45 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
             return EmployeeListSerializer
         return EmployeeSerializer
 
+    def filter_queryset(self, queryset):
+        # 1. Custom Fast-Path Search to avoid heavy joins if searching by Name or Code
+        search_query = self.request.query_params.get('search', '').strip()
+        if search_query:
+            from django.db.models import Q
+            # Fast-path: check if we match name or employee code directly
+            fast_queryset = queryset.filter(
+                Q(name__icontains=search_query) | 
+                Q(employee_code__icontains=search_query)
+            )
+            # If we found matches, use them and bypass the heavy SearchFilter joins
+            if fast_queryset.exists():
+                # Apply ordering filter still
+                for backend in list(self.filter_backends):
+                    if backend != filters.SearchFilter:
+                        fast_queryset = backend().filter_queryset(self.request, fast_queryset, self)
+                return fast_queryset.distinct()
+
+        # 2. Fallback to default SearchFilter
+        return super().filter_queryset(queryset)
+
     def get_queryset(self):
         """Override to exclude deleted employees by default and apply filters"""
         queryset = super().get_queryset().filter(is_deleted=False)
         
-        # Optimize with select_related for common fields
-        queryset = queryset.prefetch_related('positions__office', 'positions__department', 'positions__section', 'positions__role', 'positions__job')
+        reports_to_me = self.request.query_params.get('reports_to_me', 'false').lower() == 'true'
+        if reports_to_me and hasattr(self.request.user, 'employee_profile'):
+            emp = self.request.user.employee_profile
+            sub_ids = get_recursive_subordinate_ids(emp, exclude_self=True)
+            queryset = queryset.filter(id__in=sub_ids)
+
+        # Optimize with select_related/prefetch_related for common fields
+        queryset = queryset.prefetch_related(
+            'positions__office__cluster', 
+            'positions__department__project', 
+            'positions__section__project', 
+            'positions__role', 
+            'positions__job'
+        )
 
         # Filter out soft-deleted employees
         include_deleted = self.request.query_params.get('include_deleted', 'false').lower() == 'true'
@@ -3090,7 +3635,9 @@ class EmployeeDetailsAPIView(APIView):
                     'designation': pos.name if pos else None,
                     'role': pos.role.name if pos and pos.role else None,
                     'office': pos.office.name if pos and pos.office else None,
-                    'office_code': pos.office.code if pos and pos.office else None,
+                    'office_code': pos.office.sac if pos and pos.office else None,
+                    'office_sac': pos.office.sac if pos and pos.office else None,
+                    'office_vehicle_code': pos.office.vehicle_code if pos and pos.office else None,
                     'department': pos.department.name if pos and pos.department else None,
                     'section': pos.section.name if pos and pos.section else None,
                     'level': pos.level.name if pos and pos.level else None,
@@ -3117,7 +3664,9 @@ class EmployeeDetailsAPIView(APIView):
             'designation': position.name if position else None,
             'role': position.role.name if position and position.role else None,
             'office': position.office.name if position and position.office else None,
-            'office_code': position.office.code if position and position.office else None,
+            'office_code': position.office.sac if position and position.office else None,
+            'office_sac': position.office.sac if position and position.office else None,
+            'office_vehicle_code': position.office.vehicle_code if position and position.office else None,
             'department': position.department.name if position and position.department else None,
             'section': position.section.name if position and position.section else None,
             'level': position.level.name if position and position.level else None,
@@ -3698,3 +4247,742 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         # For security, you can customize this to allow specific Employee roles
         # For now, locking it entirely to superusers.
         return AuditLog.objects.none()
+
+from core.models import VehicleSwapLog
+from core.serializers import VehicleSwapLogSerializer
+
+class VehicleSwapLogViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = VehicleSwapLog.objects.all().select_related('office_a', 'office_b')
+    serializer_class = VehicleSwapLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
+    search_fields = ['sac_a', 'sac_b', 'old_vehicle_code_a', 'old_vehicle_code_b', 'new_vehicle_code_a', 'new_vehicle_code_b', 'triggered_by', 'status']
+    ordering_fields = ['timestamp']
+    ordering = ['-timestamp']
+
+class PositionShiftRosterViewSet(viewsets.ModelViewSet):
+    queryset = PositionShiftRoster.objects.all()
+    serializer_class = PositionShiftRosterSerializer
+    pagination_class = None
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['employee__name', 'position__name', 'shift__name']
+    ordering_fields = ['date', 'position__name', 'shift__name']
+    ordering = ['date', 'position__name', 'shift__name']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if not user.is_superuser:
+            if hasattr(user, 'employee_profile'):
+                emp = user.employee_profile
+                sub_ids = get_recursive_subordinate_ids(emp, exclude_self=True)
+                # Filter roster entries to subordinates + self
+                queryset = queryset.filter(employee_id__in=sub_ids + [emp.id])
+            else:
+                return PositionShiftRoster.objects.none()
+
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        if start_date:
+            queryset = queryset.filter(date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(date__lte=end_date)
+            
+        office = self.request.query_params.get('office')
+        if office and office != 'all':
+            queryset = queryset.filter(position__office_id=office)
+            
+        project = self.request.query_params.get('project')
+        if project and project != 'all':
+            queryset = queryset.filter(
+                Q(position__section__project_id=project) | 
+                Q(position__department__project_id=project)
+            )
+
+        position_ids = self.request.query_params.get('position_ids')
+        if position_ids:
+            try:
+                id_list = [int(x) for x in position_ids.split(',') if x.strip()]
+                if id_list:
+                    queryset = queryset.filter(position_id__in=id_list)
+            except ValueError:
+                pass
+            
+        return queryset.select_related('employee', 'position', 'shift')
+
+    def _roster_payload(self, roster):
+        """Build the JSON payload for a single roster entry."""
+        return {
+            'id': roster.id,
+            'employee_id': roster.employee_id,
+            'employee_name': roster.employee.name,
+            'employee_code': roster.employee.employee_code,
+            'position_id': roster.position_id,
+            'position_name': roster.position.name,
+            'shift_id': roster.shift_id,
+            'shift_name': roster.shift.name,
+            'shift_start': str(roster.shift.start_time) if roster.shift.start_time else None,
+            'shift_end': str(roster.shift.end_time) if roster.shift.end_time else None,
+            'date': str(roster.date),
+        }
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        from .webhook_utils import fire_shift_webhook
+        fire_shift_webhook('shift.assigned', self._roster_payload(instance))
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        from .webhook_utils import fire_shift_webhook
+        fire_shift_webhook('shift.assigned', self._roster_payload(instance))
+
+    def perform_destroy(self, instance):
+        payload = self._roster_payload(instance)
+        instance.delete()
+        from .webhook_utils import fire_shift_webhook
+        fire_shift_webhook('shift.unassigned', payload)
+
+    @action(detail=False, methods=['post'], url_path='bulk-assign')
+    def bulk_assign(self, request):
+        employee_id = request.data.get('employee')
+        position_id = request.data.get('position')
+        shift_id = request.data.get('shift')
+        dates = request.data.get('dates', [])
+        overwrite = request.data.get('overwrite', False)
+
+        if not all([employee_id, position_id, shift_id, dates]):
+            return Response({'error': 'Employee, position, shift, and dates are required.'}, status=400)
+
+        try:
+            employee = Employee.objects.get(id=employee_id)
+            position = Position.objects.get(id=position_id)
+            shift = Shift.objects.get(id=shift_id)
+        except (Employee.DoesNotExist, Position.DoesNotExist, Shift.DoesNotExist) as e:
+            return Response({'error': str(e)}, status=404)
+
+        success_dates = []
+        skipped_dates = []
+        error_dates = []
+
+        from datetime import datetime
+        from django.db import transaction
+
+        with transaction.atomic():
+            for date_str in dates:
+                try:
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    
+                    # 1. Exclusivity check: is this position/shift already assigned on this date?
+                    existing = PositionShiftRoster.objects.filter(
+                        position=position,
+                        shift=shift,
+                        date=date_obj
+                    )
+                    
+                    if existing.exists():
+                        if overwrite:
+                            existing.delete()
+                        else:
+                            skipped_dates.append({
+                                'date': date_str,
+                                'reason': f"Shift '{shift.name}' is already assigned to another employee on this date."
+                            })
+                            continue
+
+                    # 2. Time overlap check for this employee on this date
+                    same_day_rosters = PositionShiftRoster.objects.filter(
+                        employee=employee,
+                        date=date_obj
+                    )
+                    
+                    overlap_conflict = False
+                    for roster in same_day_rosters:
+                        other_shift = roster.shift
+                        if other_shift.start_time and other_shift.end_time and shift.start_time and shift.end_time:
+                            if (shift.start_time < other_shift.end_time) and (shift.end_time > other_shift.start_time):
+                                overlap_conflict = True
+                                skipped_dates.append({
+                                    'date': date_str,
+                                    'reason': f"Employee '{employee.name}' has overlap with shift '{other_shift.name}'."
+                                })
+                                break
+                    
+                    if overlap_conflict:
+                        continue
+
+                    # Create assignment
+                    PositionShiftRoster.objects.create(
+                        employee=employee,
+                        position=position,
+                        shift=shift,
+                        date=date_obj
+                    )
+                    success_dates.append(date_str)
+                    
+                except Exception as ex:
+                    error_dates.append({
+                        'date': date_str,
+                        'reason': str(ex)
+                    })
+
+        # Fire webhook for bulk assignment
+        if success_dates:
+            from .webhook_utils import fire_shift_webhook
+            fire_shift_webhook('shift.bulk_assigned', {
+                'employee_id': employee.id,
+                'employee_name': employee.name,
+                'employee_code': employee.employee_code,
+                'position_id': position.id,
+                'position_name': position.name,
+                'shift_id': shift.id,
+                'shift_name': shift.name,
+                'shift_start': str(shift.start_time) if shift.start_time else None,
+                'shift_end': str(shift.end_time) if shift.end_time else None,
+                'success_dates': success_dates,
+                'skipped_dates': [s['date'] for s in skipped_dates],
+                'overwrite': overwrite,
+            })
+
+        return Response({
+            'success': True,
+            'success_dates': success_dates,
+            'skipped_dates': skipped_dates,
+            'error_dates': error_dates
+        })
+
+    @action(detail=False, methods=['post'], url_path='bulk-delete')
+    def bulk_delete(self, request):
+        position_id = request.data.get('position')
+        shift_id = request.data.get('shift')
+        dates = request.data.get('dates', [])
+
+        if not all([position_id, shift_id, dates]):
+            return Response({'error': 'Position, shift, and dates are required.'}, status=400)
+
+        try:
+            position = Position.objects.get(id=position_id)
+            shift = Shift.objects.get(id=shift_id)
+        except (Position.DoesNotExist, Shift.DoesNotExist) as e:
+            return Response({'error': str(e)}, status=404)
+
+        from django.db import transaction
+
+        with transaction.atomic():
+            deleted_count, _ = PositionShiftRoster.objects.filter(
+                position=position,
+                shift=shift,
+                date__in=dates
+            ).delete()
+
+        # Fire webhook for bulk deletion
+        if deleted_count > 0:
+            from .webhook_utils import fire_shift_webhook
+            fire_shift_webhook('shift.bulk_deleted', {
+                'position_id': position.id,
+                'position_name': position.name,
+                'shift_id': shift.id,
+                'shift_name': shift.name,
+                'deleted_dates': dates,
+                'deleted_count': deleted_count,
+            })
+
+        return Response({
+            'success': True,
+            'deleted_count': deleted_count
+        })
+
+
+def ensure_task_url_exists(pattern, name):
+    from core.models import TaskUrl, Task, Job, JobFamily
+    turl = TaskUrl.objects.filter(url_pattern=pattern).first()
+    if turl:
+        return turl
+    
+    # Need to find or create a task
+    # First, get a Job to attach the task to
+    job = Job.objects.first()
+    if not job:
+        # Create a system job
+        jf = JobFamily.objects.first()
+        if not jf:
+            jf = JobFamily.objects.create(name="System Administration")
+        job = Job.objects.create(
+            name="System Manager Job",
+            job_family=jf,
+            code="SYS_MGR"
+        )
+        
+    task = Task.objects.filter(code=f"SYS_{pattern.upper().replace('-', '_')}"[:50]).first()
+    if not task:
+        task = Task.objects.create(
+            name=name,
+            code=f"SYS_{pattern.upper().replace('-', '_')}"[:50],
+            job=job,
+            description=f"System Task for {name}"
+        )
+        
+    turl = TaskUrl.objects.create(
+        task=task,
+        url_pattern=pattern,
+        can_view=True,
+        can_create=True,
+        can_edit=True,
+        can_delete=True
+    )
+    return turl
+
+
+class ManagerScreenMappingViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def list(self, request):
+        managers = Employee.objects.filter(is_deleted=False, subordinates__isnull=False)
+        
+        # Let's also include any employee that has an active user account just in case
+        user_employees = Employee.objects.filter(is_deleted=False, user__isnull=False)
+        managers = (managers | user_employees).distinct()
+
+        # Target screen patterns
+        target_screens = [
+            {'pattern': 'position-shift-rosters', 'name': 'Shift Roster'},
+            {'pattern': 'position-assignments', 'name': 'Position Assignments'},
+            {'pattern': 'employees', 'name': 'Employees Registry'},
+            {'pattern': 'positions', 'name': 'Positions Registry'},
+        ]
+
+        # Ensure task urls exist for all target patterns
+        for screen in target_screens:
+            ensure_task_url_exists(screen['pattern'], screen['name'])
+
+        results = []
+        for mgr in managers:
+            sub_ids_count = len(get_recursive_subordinate_ids(mgr, exclude_self=True))
+            
+            # Fetch overrides for this manager
+            perms = {}
+            for screen in target_screens:
+                turl = ensure_task_url_exists(screen['pattern'], screen['name'])
+                perm_obj = EmployeeTaskUrlPermission.objects.filter(
+                    employee=mgr,
+                    task_url=turl
+                ).first()
+                perms[screen['pattern']] = perm_obj.can_view if (perm_obj and perm_obj.is_enabled) else False
+
+            results.append({
+                'id': mgr.id,
+                'name': mgr.name,
+                'employee_code': mgr.employee_code,
+                'subordinates_count': sub_ids_count,
+                'permissions': perms
+            })
+
+        return Response(results)
+
+    @action(detail=True, methods=['post'])
+    def toggle_permission(self, request, pk=None):
+        employee = Employee.objects.get(id=pk)
+        pattern = request.data.get('pattern')
+        enabled = request.data.get('enabled', False)
+
+        if not pattern:
+            return Response({'error': 'Pattern is required'}, status=400)
+
+        target_screens = {
+            'position-shift-rosters': 'Shift Roster',
+            'position-assignments': 'Position Assignments',
+            'employees': 'Employees Registry',
+            'positions': 'Positions Registry',
+        }
+
+        if pattern not in target_screens:
+            return Response({'error': 'Invalid pattern'}, status=400)
+
+        turl = ensure_task_url_exists(pattern, target_screens[pattern])
+
+        if enabled:
+            # Enable permission
+            EmployeeTaskUrlPermission.objects.update_or_create(
+                employee=employee,
+                task_url=turl,
+                defaults={
+                    'can_view': True,
+                    'can_create': True,
+                    'can_edit': True,
+                    'can_delete': True,
+                    'is_enabled': True,
+                    'is_overridden': True
+                }
+            )
+        else:
+            # Disable permission
+            EmployeeTaskUrlPermission.objects.update_or_create(
+                employee=employee,
+                task_url=turl,
+                defaults={
+                    'can_view': False,
+                    'can_create': False,
+                    'can_edit': False,
+                    'can_delete': False,
+                    'is_enabled': False,
+                    'is_overridden': True
+                }
+            )
+
+        return Response({'success': True, 'pattern': pattern, 'enabled': enabled})
+
+    @action(detail=True, methods=['get'])
+    def subordinates(self, request, pk=None):
+        employee = Employee.objects.get(id=pk)
+        subs = get_subordinates_recursive(employee)
+        data = [{
+            'id': s.id,
+            'name': s.name,
+            'employee_code': s.employee_code,
+            'status': s.status
+        } for s in subs]
+        return Response(data)
+
+
+from core.models import VehicleSwapRequest
+from core.serializers import VehicleSwapRequestSerializer
+
+class VehicleSwapRequestViewSet(viewsets.ModelViewSet):
+    queryset = VehicleSwapRequest.objects.all().select_related('requester', 'from_office', 'to_office')
+    serializer_class = VehicleSwapRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if not user.is_superuser:
+            if hasattr(user, 'employee_profile'):
+                emp = user.employee_profile
+                sub_ids = get_recursive_subordinate_ids(emp, exclude_self=True)
+                # User can see requests made by themselves or their subordinates
+                queryset = queryset.filter(requester_id__in=sub_ids + [emp.id])
+            else:
+                return VehicleSwapRequest.objects.none()
+        return queryset
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if not hasattr(user, 'employee_profile'):
+            raise ValidationError("You must have an employee profile to create swap requests.")
+        
+        emp = user.employee_profile
+        from_office = serializer.validated_data.get('from_office')
+        to_office = serializer.validated_data.get('to_office')
+
+        # Pre-fill vehicle details at the time of request
+        serializer.save(
+            requester=emp,
+            from_vehicle_code=from_office.vehicle_code,
+            from_vehicle_no=from_office.vehicle_no,
+            to_vehicle_code=to_office.vehicle_code,
+            to_vehicle_no=to_office.vehicle_no,
+            status='PENDING'
+        )
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        swap_req = self.get_object()
+        if swap_req.status != 'PENDING':
+            return Response({'error': 'Only pending requests can be approved.'}, status=400)
+
+        office_a = swap_req.from_office
+        office_b = swap_req.to_office
+        swap_crew = swap_req.swap_crew
+
+        # Swap vehicle codes and numbers
+        old_v_a = office_a.vehicle_code
+        old_v_b = office_b.vehicle_code
+        old_no_a = office_a.vehicle_no
+        old_no_b = office_b.vehicle_no
+
+        try:
+            with transaction.atomic():
+                office_a.vehicle_code = old_v_b
+                office_a.vehicle_no = old_no_b
+                office_b.vehicle_code = old_v_a
+                office_b.vehicle_no = old_no_a
+                office_a.save()
+                office_b.save()
+
+                if swap_crew:
+                    pos_a = list(Position.objects.filter(office=office_a))
+                    pos_b = list(Position.objects.filter(office=office_b))
+                    for p in pos_a:
+                        p.office = office_b
+                        p.save()
+                    for p in pos_b:
+                        p.office = office_a
+                        p.save()
+
+                # Update swap request status
+                swap_req.status = 'APPROVED'
+                swap_req.actioned_by = request.user
+                swap_req.actioned_at = timezone.now()
+                swap_req.save()
+
+                # Log transaction
+                from core.models import VehicleSwapLog
+                VehicleSwapLog.objects.create(
+                    office_a=office_a,
+                    office_b=office_b,
+                    sac_a=office_a.sac,
+                    sac_b=office_b.sac,
+                    old_vehicle_code_a=old_v_a,
+                    old_vehicle_code_b=old_v_b,
+                    new_vehicle_code_a=old_v_b,
+                    new_vehicle_code_b=old_v_a,
+                    old_vehicle_no_a=old_no_a,
+                    old_vehicle_no_b=old_no_b,
+                    new_vehicle_no_a=old_no_b,
+                    new_vehicle_no_b=old_no_a,
+                    crew_swapped=swap_crew,
+                    triggered_by=request.user.username,
+                    status='SUCCESS'
+                )
+
+            return Response({'success': True, 'message': 'Request approved and swap completed.'})
+        except Exception as e:
+            # Log failure
+            try:
+                from core.models import VehicleSwapLog
+                VehicleSwapLog.objects.create(
+                    office_a=office_a,
+                    office_b=office_b,
+                    sac_a=office_a.sac,
+                    sac_b=office_b.sac,
+                    old_vehicle_code_a=old_v_a,
+                    old_vehicle_code_b=old_v_b,
+                    new_vehicle_code_a=old_v_a,
+                    new_vehicle_code_b=old_v_b,
+                    old_vehicle_no_a=old_no_a,
+                    old_vehicle_no_b=old_no_b,
+                    new_vehicle_no_a=old_no_a,
+                    new_vehicle_no_b=old_no_b,
+                    crew_swapped=swap_crew,
+                    triggered_by=request.user.username,
+                    status='FAILED',
+                    error_message=str(e)
+                )
+            except Exception:
+                pass
+            return Response({'error': f'Failed to execute swap: {str(e)}'}, status=500)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        swap_req = self.get_object()
+        if swap_req.status != 'PENDING':
+            return Response({'error': 'Only pending requests can be rejected.'}, status=400)
+
+        swap_req.status = 'REJECTED'
+        swap_req.actioned_by = request.user
+        swap_req.actioned_at = timezone.now()
+        swap_req.comments = request.data.get('comments', '')
+        swap_req.save()
+
+        return Response({'success': True, 'message': 'Request rejected.'})
+
+
+from core.models import ShiftChangeRequest
+from core.serializers import ShiftChangeRequestSerializer
+
+class ShiftChangeRequestViewSet(viewsets.ModelViewSet):
+    queryset = ShiftChangeRequest.objects.all().select_related('requested_by', 'employee', 'position', 'from_shift', 'to_shift')
+    serializer_class = ShiftChangeRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if not user.is_superuser:
+            if hasattr(user, 'employee_profile'):
+                emp = user.employee_profile
+                sub_ids = get_recursive_subordinate_ids(emp, exclude_self=True)
+                from django.db.models import Q
+                queryset = queryset.filter(
+                    Q(requested_by=emp) | 
+                    Q(employee=emp) | 
+                    Q(employee_id__in=sub_ids) | 
+                    Q(requested_by_id__in=sub_ids)
+                )
+            else:
+                return ShiftChangeRequest.objects.none()
+        return queryset
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if not hasattr(user, 'employee_profile'):
+            raise ValidationError("You must have an employee profile to create shift requests.")
+        
+        emp = user.employee_profile
+        employee = serializer.validated_data.get('employee')
+        position = serializer.validated_data.get('position')
+        date = serializer.validated_data.get('date')
+        to_shift = serializer.validated_data.get('to_shift')
+        
+        from_shift = None
+        existing_roster = PositionShiftRoster.objects.filter(
+            employee=employee,
+            position=position,
+            date=date
+        ).first()
+        if existing_roster:
+            from_shift = existing_roster.shift
+
+        if user.is_superuser:
+            instance = serializer.save(
+                requested_by=emp,
+                from_shift=from_shift,
+                status='APPROVED',
+                employee_consent='ACCEPTED'
+            )
+            self._apply_roster_update(instance)
+        elif emp == employee:
+            serializer.save(
+                requested_by=emp,
+                from_shift=from_shift,
+                status='PENDING_APPROVAL',
+                employee_consent='ACCEPTED'
+            )
+        else:
+            serializer.save(
+                requested_by=emp,
+                from_shift=from_shift,
+                status='PENDING_CONSENT',
+                employee_consent='PENDING'
+            )
+
+    def _apply_roster_update(self, request_obj):
+        with transaction.atomic():
+            roster, created = PositionShiftRoster.objects.update_or_create(
+                employee=request_obj.employee,
+                position=request_obj.position,
+                date=request_obj.date,
+                defaults={
+                    'shift': request_obj.to_shift,
+                    'actual_start_time': None,
+                    'actual_end_time': None,
+                    'attendance_status': 'PENDING'
+                }
+            )
+            try:
+                from .webhook_utils import fire_shift_webhook
+                payload = {
+                    'id': roster.id,
+                    'employee_id': roster.employee_id,
+                    'employee_name': roster.employee.name,
+                    'employee_code': roster.employee.employee_code,
+                    'position_id': roster.position_id,
+                    'position_name': roster.position.name,
+                    'shift_id': roster.shift_id,
+                    'shift_name': roster.shift.name,
+                    'shift_start': str(roster.shift.start_time) if roster.shift.start_time else None,
+                    'shift_end': str(roster.shift.end_time) if roster.shift.end_time else None,
+                    'date': str(roster.date),
+                }
+                fire_shift_webhook('shift.assigned', payload)
+            except Exception:
+                pass
+
+    @action(detail=True, methods=['post'])
+    def consent(self, request, pk=None):
+        request_obj = self.get_object()
+        user = request.user
+        if not hasattr(user, 'employee_profile') or request_obj.employee != user.employee_profile:
+            return Response({'error': 'Only the target employee can give consent.'}, status=403)
+        
+        if request_obj.status != 'PENDING_CONSENT':
+            return Response({'error': 'Request is not awaiting consent.'}, status=400)
+            
+        action_val = request.data.get('action')
+        reason = request.data.get('reason', '')
+        
+        if action_val == 'accept':
+            request_obj.employee_consent = 'ACCEPTED'
+            is_manager_initiated = (request_obj.requested_by == request_obj.employee.reporting_to)
+            
+            if is_manager_initiated or request.user.is_superuser:
+                request_obj.status = 'APPROVED'
+                request_obj.save()
+                self._apply_roster_update(request_obj)
+                return Response({'success': True, 'message': 'Consent accepted. Shift updated successfully.', 'status': 'APPROVED'})
+            else:
+                request_obj.status = 'PENDING_APPROVAL'
+                request_obj.save()
+                return Response({'success': True, 'message': 'Consent accepted. Awaiting manager approval.', 'status': 'PENDING_APPROVAL'})
+        elif action_val == 'decline':
+            request_obj.employee_consent = 'DECLINED'
+            request_obj.status = 'REJECTED'
+            request_obj.admin_notes = reason
+            request_obj.save()
+            return Response({'success': True, 'message': 'Consent declined. Request rejected.', 'status': 'REJECTED'})
+        else:
+            return Response({'error': 'Invalid action. Must be accept or decline.'}, status=400)
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        request_obj = self.get_object()
+        user = request.user
+        if not user.is_superuser:
+            if not hasattr(user, 'employee_profile'):
+                return Response({'error': 'Access denied.'}, status=403)
+            emp = user.employee_profile
+            sub_ids = get_recursive_subordinate_ids(emp, exclude_self=True)
+            if request_obj.employee_id not in sub_ids and request_obj.requested_by_id not in sub_ids:
+                return Response({'error': 'You do not have permission to approve this request.'}, status=403)
+
+        if request_obj.status not in ['PENDING_APPROVAL', 'PENDING_CONSENT']:
+            return Response({'error': 'Request is not in a pending state.'}, status=400)
+
+        request_obj.status = 'APPROVED'
+        request_obj.admin_notes = request.data.get('admin_notes', '')
+        request_obj.save()
+        
+        self._apply_roster_update(request_obj)
+        return Response({'success': True, 'message': 'Request approved and roster updated.'})
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        request_obj = self.get_object()
+        user = request.user
+        if not user.is_superuser:
+            if not hasattr(user, 'employee_profile'):
+                return Response({'error': 'Access denied.'}, status=403)
+            emp = user.employee_profile
+            sub_ids = get_recursive_subordinate_ids(emp, exclude_self=True)
+            if request_obj.employee_id not in sub_ids and request_obj.requested_by_id not in sub_ids:
+                return Response({'error': 'You do not have permission to reject this request.'}, status=403)
+
+        if request_obj.status not in ['PENDING_APPROVAL', 'PENDING_CONSENT']:
+            return Response({'error': 'Request is not in a pending state.'}, status=400)
+
+        request_obj.status = 'REJECTED'
+        request_obj.admin_notes = request.data.get('admin_notes', '')
+        request_obj.save()
+        return Response({'success': True, 'message': 'Request rejected.'})
+
+    @action(detail=True, methods=['post'])
+    def override(self, request, pk=None):
+        request_obj = self.get_object()
+        user = request.user
+        if not user.is_superuser:
+            if not hasattr(user, 'employee_profile'):
+                return Response({'error': 'Access denied.'}, status=403)
+            emp = user.employee_profile
+            sub_ids = get_recursive_subordinate_ids(emp, exclude_self=True)
+            if request_obj.employee_id not in sub_ids:
+                return Response({'error': 'You do not have permission to override this request.'}, status=403)
+
+        request_obj.status = 'APPROVED'
+        request_obj.employee_consent = 'ACCEPTED'
+        request_obj.admin_notes = f"Overridden by {user.username}"
+        request_obj.save()
+        
+        self._apply_roster_update(request_obj)
+        return Response({'success': True, 'message': 'Request overridden and roster updated directly.'})
+
+

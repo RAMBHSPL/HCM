@@ -200,12 +200,25 @@ class Command(BaseCommand):
         """Test Phase 3: Create Complete Office Hierarchy L1-L9"""
         self.print_header("PHASE 3: COMPLETE OFFICE HIERARCHY (L1-L9)")
         
+        # Clean up existing test offices to avoid duplicate errors on rerun
+        test_office_names = [
+            'BAVYA Group', 'Healthcare Vertical', 'Education Vertical',
+            'Healthcare Headquarters', 'Education Headquarters',
+            'Healthcare South Region', 'Healthcare North Region',
+            'Karnataka Zone Office', 'Tamil Nadu Zone Office',
+            'Bangalore Circle Office', 'Mysore Circle Office',
+            'Bangalore Urban Division', 'Bangalore Rural Division',
+            'Koramangala Branch Office', 'Whitefield Branch Office',
+            'Mobile Health Unit - Zone A', 'Koramangala Clinic'
+        ]
+        Office.objects.filter(name__in=test_office_names).delete()
+
         levels = {level.level_code: level for level in OrganizationLevel.objects.all()}
         
         # L1: Group
         group, created = Office.objects.get_or_create(
             level=levels['L1'],
-            code='GRP-001',
+            sac='GRP-001',
             defaults={
                 'name': 'BAVYA Group',
                 'registered_name': 'BAVYA Enterprises Group Limited',
@@ -232,7 +245,7 @@ class Command(BaseCommand):
         for code, name, state, district in vertical_data:
             vertical, created = Office.objects.get_or_create(
                 level=levels['L2'],
-                code=code,
+                sac=code,
                 defaults={
                     'name': name,
                     'parent': group,
@@ -257,7 +270,7 @@ class Command(BaseCommand):
         for code, name, parent, state, district in hq_data:
             hq, created = Office.objects.get_or_create(
                 level=levels['L3'],
-                code=code,
+                sac=code,
                 defaults={
                     'name': name,
                     'parent': parent,
@@ -283,7 +296,7 @@ class Command(BaseCommand):
         for code, name, parent, state, district in region_data:
             region, created = Office.objects.get_or_create(
                 level=levels['L4'],
-                code=code,
+                sac=code,
                 defaults={
                     'name': name,
                     'parent': parent,
@@ -308,7 +321,7 @@ class Command(BaseCommand):
         for code, name, parent, state, district in zone_data:
             zone, created = Office.objects.get_or_create(
                 level=levels['L5'],
-                code=code,
+                sac=code,
                 defaults={
                     'name': name,
                     'parent': parent,
@@ -333,7 +346,7 @@ class Command(BaseCommand):
         for code, name, parent, state, district, mandal in circle_data:
             circle, created = Office.objects.get_or_create(
                 level=levels['L6'],
-                code=code,
+                sac=code,
                 defaults={
                     'name': name,
                     'parent': parent,
@@ -359,7 +372,7 @@ class Command(BaseCommand):
         for code, name, parent, loc_type in division_data:
             division, created = Office.objects.get_or_create(
                 level=levels['L7'],
-                code=code,
+                sac=code,
                 defaults={
                     'name': name,
                     'parent': parent,
@@ -367,7 +380,7 @@ class Command(BaseCommand):
                     'state_name': 'Karnataka',
                     'district_name': 'Bangalore Urban',
                     'mandal_name': 'Koramangala',
-                    'location_type': loc_type,
+                    'location': loc_type,
                     'status': 'Active'
                 }
             )
@@ -386,7 +399,7 @@ class Command(BaseCommand):
         for code, name, parent, mandal in branch_data:
             branch, created = Office.objects.get_or_create(
                 level=levels['L8'],
-                code=code,
+                sac=code,
                 defaults={
                     'name': name,
                     'parent': parent,
@@ -411,7 +424,7 @@ class Command(BaseCommand):
         for code, name, parent in facility_data:
             facility, created = Office.objects.get_or_create(
                 level=levels['L9'],
-                code=code,
+                sac=code,
                 defaults={
                     'name': name,
                     'parent': parent,

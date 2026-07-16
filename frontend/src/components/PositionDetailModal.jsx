@@ -27,7 +27,9 @@ const PositionDetailModal = () => {
     const {
         selectedPosition,
         setShowPositionDetail,
-        setSelectedPosition
+        setSelectedPosition,
+        handleEdit,
+        canEdit
     } = useData();
 
     const [activeTab, setActiveTab] = useState('Overview');
@@ -149,90 +151,125 @@ const PositionDetailModal = () => {
     );
 
     const renderOverview = () => (
-        <div className="fade-in detail-two-column-grid">
-            <div>
-                <h4 style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Sparkles size={14} /> Primary Assignment
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    <DetailItem icon={<Settings />} label="ROLE SPECIFICATION" value={selectedPosition.role_name} subValue={`Code: ${selectedPosition.role_code || 'N/A'}`} />
-                    <DetailItem icon={<MapPin />} label="FUNCTIONAL UNIT" value={selectedPosition.department_name} subValue={selectedPosition.section_name ? `Section: ${selectedPosition.section_name}` : 'General Department Assignment'} />
-                    {selectedPosition.level_name && (
-                        <DetailItem
-                            icon={<LayoutGrid />}
-                            label="POSITION SENIORITY LEVEL"
-                            value={selectedPosition.level_name}
-                            subValue={`Rank / Priority: ${selectedPosition.level_rank || 'Standard'}`}
-                        />
-                    )}
-                    {selectedPosition.project_name && (
-                        <DetailItem
-                            icon={<FolderKanban />}
-                            label="PROJECT ASSIGNMENT"
-                            value={selectedPosition.project_name}
-                            style={{ borderLeft: '3px solid var(--primary)', paddingLeft: '1rem' }}
-                        />
-                    )}
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+            <div className="detail-two-column-grid" style={{ gap: '3rem' }}>
+                <div>
+                    <h4 style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Sparkles size={14} /> Primary Assignment
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                        <DetailItem icon={<Settings />} label="ROLE SPECIFICATION" value={selectedPosition.role_name} subValue={`Code: ${selectedPosition.role_code || 'N/A'}`} />
+                        <DetailItem icon={<MapPin />} label="FUNCTIONAL UNIT" value={selectedPosition.department_name} subValue={selectedPosition.section_name ? `Section: ${selectedPosition.section_name}` : 'General Department Assignment'} />
+                        {selectedPosition.level_name && (
+                            <DetailItem
+                                icon={<LayoutGrid />}
+                                label="POSITION SENIORITY LEVEL"
+                                value={selectedPosition.level_name}
+                                subValue={`Rank / Priority: ${selectedPosition.level_rank || 'Standard'}`}
+                            />
+                        )}
+                        {selectedPosition.project_name && (
+                            <DetailItem
+                                icon={<FolderKanban />}
+                                label="PROJECT ASSIGNMENT"
+                                value={selectedPosition.project_name}
+                                style={{ borderLeft: '3px solid var(--primary)', paddingLeft: '1rem' }}
+                            />
+                        )}
+                    </div>
+                </div>
+
+                <div>
+                    <h4 style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Network size={14} /> Hierarchy & Reporting
+                    </h4>
+                    <div style={{
+                        padding: '2rem',
+                        background: '#f8fafc',
+                        borderRadius: '24px',
+                        border: '1px solid #e2e8f0',
+                        position: 'relative',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{ borderLeft: '3px solid #be185d', paddingLeft: '1.5rem' }}>
+                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 700 }}>REPORTS TO</div>
+                            <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1.1rem', marginTop: '6px' }}>
+                                {selectedPosition.reporting_to_names?.length
+                                    ? selectedPosition.reporting_to_names.join(', ')
+                                    : 'Organization Head'}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
+                                {selectedPosition.reporting_to_names?.length ? 'Active Matrix Reporting' : 'Top Level Authority'}
+                            </div>
+                        </div>
+
+                        <div style={{
+                            marginTop: '2rem',
+                            padding: '1.25rem',
+                            background: selectedPosition.assigned_employee ? '#ecfdf5' : '#fff7ed',
+                            borderRadius: '16px',
+                            display: 'flex',
+                            gap: '12px',
+                            alignItems: 'center',
+                            border: `1px solid ${selectedPosition.assigned_employee ? '#a7f3d0' : '#fed7aa'}`
+                        }}>
+                            {selectedPosition.assigned_employee ? (
+                                <div style={{ background: '#10b981', color: 'white', padding: '10px', borderRadius: '12px' }}>
+                                    <UserCircle size={24} />
+                                </div>
+                            ) : (
+                                <div style={{ background: '#f97316', color: 'white', padding: '10px', borderRadius: '12px' }}>
+                                    <ShieldAlert size={24} />
+                                </div>
+                            )}
+                            <div>
+                                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#334155' }}>
+                                    {selectedPosition.assigned_employee ? 'CURRENT INCUMBENT' : 'OCCUPANCY STATUS'}
+                                </div>
+                                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: selectedPosition.assigned_employee ? '#065f46' : '#9a3412' }}>
+                                    {selectedPosition.assigned_employee?.name || 'Position is Vacant'}
+                                </div>
+                                {selectedPosition.assigned_employee && (
+                                    <div style={{ fontSize: '0.75rem', color: '#059669' }}>
+                                        Joined: {new Date(selectedPosition.assigned_employee.hire_date).toLocaleDateString()}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div>
-                <h4 style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Network size={14} /> Hierarchy & Reporting
+            {/* Mapped Shifts Section */}
+            <div style={{ background: '#fafafa', padding: '2.5rem', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
+                <h4 style={{ color: '#be185d', fontSize: '0.9rem', fontWeight: 800, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Calendar size={18} /> Mapped Operational Shifts
                 </h4>
-                <div style={{
-                    padding: '2rem',
-                    background: '#f8fafc',
-                    borderRadius: '24px',
-                    border: '1px solid #e2e8f0',
-                    position: 'relative',
-                    overflow: 'hidden'
-                }}>
-                    <div style={{ borderLeft: '3px solid #be185d', paddingLeft: '1.5rem' }}>
-                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 700 }}>REPORTS TO</div>
-                        <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1.1rem', marginTop: '6px' }}>
-                            {selectedPosition.reporting_to_names?.length
-                                ? selectedPosition.reporting_to_names.join(', ')
-                                : 'Organization Head'}
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
-                            {selectedPosition.reporting_to_names?.length ? 'Active Matrix Reporting' : 'Top Level Authority'}
-                        </div>
-                    </div>
-
-                    <div style={{
-                        marginTop: '2rem',
-                        padding: '1.25rem',
-                        background: selectedPosition.assigned_employee ? '#ecfdf5' : '#fff7ed',
-                        borderRadius: '16px',
-                        display: 'flex',
-                        gap: '12px',
-                        alignItems: 'center',
-                        border: `1px solid ${selectedPosition.assigned_employee ? '#a7f3d0' : '#fed7aa'}`
-                    }}>
-                        {selectedPosition.assigned_employee ? (
-                            <div style={{ background: '#10b981', color: 'white', padding: '10px', borderRadius: '12px' }}>
-                                <UserCircle size={24} />
-                            </div>
-                        ) : (
-                            <div style={{ background: '#f97316', color: 'white', padding: '10px', borderRadius: '12px' }}>
-                                <ShieldAlert size={24} />
-                            </div>
-                        )}
-                        <div>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#334155' }}>
-                                {selectedPosition.assigned_employee ? 'CURRENT INCUMBENT' : 'OCCUPANCY STATUS'}
-                            </div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: selectedPosition.assigned_employee ? '#065f46' : '#9a3412' }}>
-                                {selectedPosition.assigned_employee?.name || 'Position is Vacant'}
-                            </div>
-                            {selectedPosition.assigned_employee && (
-                                <div style={{ fontSize: '0.75rem', color: '#059669' }}>
-                                    Joined: {new Date(selectedPosition.assigned_employee.hire_date).toLocaleDateString()}
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    {selectedPosition.shifts_details && selectedPosition.shifts_details.length > 0 ? (
+                        selectedPosition.shifts_details.map(shift => (
+                            <div key={shift.id} style={{
+                                padding: '12px 18px',
+                                background: 'white',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                            }}>
+                                <Clock size={16} color="#be185d" />
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1e293b' }}>{shift.name}</div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{shift.start_time?.substring(0, 5)} - {shift.end_time?.substring(0, 5)}</div>
                                 </div>
-                            )}
+                            </div>
+                        ))
+                    ) : (
+                        <div style={{ padding: '2rem', textAlign: 'center', width: '100%', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic', border: '1px dashed #cbd5e1', borderRadius: '12px' }}>
+                            No operational shifts mapped to this position.
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -430,13 +467,29 @@ const PositionDetailModal = () => {
                                     <Clock size={14} /> Registered: {new Date(selectedPosition.created_at).toLocaleDateString()}
                                 </div>
                             </div>
-                            <button
-                                className="btn-primary"
-                                onClick={() => { setShowPositionDetail(false); setSelectedPosition(null); }}
-                                style={{ padding: '10px 30px' }}
-                            >
-                                Close Registry
-                            </button>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                {canEdit('positions') && (
+                                    <button
+                                        className="btn-primary"
+                                        onClick={() => {
+                                            const pos = selectedPosition;
+                                            setShowPositionDetail(false);
+                                            setSelectedPosition(null);
+                                            handleEdit('Positions', pos);
+                                        }}
+                                        style={{ padding: '10px 30px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', borderColor: '#059669' }}
+                                    >
+                                        Edit Position
+                                    </button>
+                                )}
+                                <button
+                                    className="btn-primary"
+                                    onClick={() => { setShowPositionDetail(false); setSelectedPosition(null); }}
+                                    style={{ padding: '10px 30px' }}
+                                >
+                                    Close Registry
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}

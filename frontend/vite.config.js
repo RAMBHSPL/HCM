@@ -10,8 +10,8 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       // Proxy all /api requests to Django backend
-      '/api': {
-        target: 'http://127.0.0.1:8001',
+      '/api/': {
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
       },

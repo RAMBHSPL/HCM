@@ -48,7 +48,9 @@ import {
     Map as MapIcon,
     Layers,
     UserX,
-    History
+    History,
+    Truck,
+    Calendar
 } from 'lucide-react';
 
 const Network = ({ size = 20 }) => (
@@ -90,6 +92,10 @@ const resolveEndpointHelper = (type) => {
         'Positions': 'positions',
         'Position Assignments': 'position-assignments',
         'Offices': 'offices',
+        'Vehicle Swaps': 'vehicle-swaps',
+        'VehicleSwaps': 'vehicle-swaps',
+        'Vehicle Swap Requests': 'vehicle-swap-requests',
+        'VehicleSwapRequests': 'vehicle-swap-requests',
         'Departments': 'departments',
         'Sections': 'sections',
         'Projects': 'projects',
@@ -100,7 +106,9 @@ const resolveEndpointHelper = (type) => {
         'FacilityMaster': 'facility-masters',
         'Position Levels': 'position-levels',
         'Delegate Activity': 'position-activity-logs',
-        'Login History': 'login-hits'
+        'Login History': 'login-hits',
+        'Segments': 'segments',
+        'Role Sub Groups': 'role-sub-groups'
     };
 
     if (mappings[type]) return mappings[type];
@@ -122,6 +130,8 @@ export const SECTIONS = [
     { id: 'organization', name: 'Structure', icon: <Network />, endpoint: 'offices' },
     { id: 'organization-levels', name: 'Levels', icon: <LayoutList />, endpoint: 'organization-levels' },
     { id: 'offices', name: 'Offices', icon: <Building2 />, endpoint: 'offices' },
+    { id: 'vehicle-swaps', name: 'Vehicle Swaps', icon: <Truck />, endpoint: 'vehicle-swaps' },
+    { id: 'vehicle-swap-requests', name: 'Vehicle Swap Requests', icon: <Truck />, endpoint: 'vehicle-swap-requests' },
     { id: 'departments', name: 'Departments', icon: <Layers />, endpoint: 'departments' },
     { id: 'sections', name: 'Sections', icon: <LayoutGrid />, endpoint: 'sections' },
     { id: 'facility-masters', name: 'Facility Master', icon: <MapIcon />, endpoint: 'facility-masters' },
@@ -135,7 +145,14 @@ export const SECTIONS = [
     { id: 'positions', name: 'Positions', icon: <UserSquare2 />, endpoint: 'positions' },
     { id: 'position-assignments', name: 'Position Assignments', icon: <Network />, endpoint: 'position-assignments' },
     { id: 'position-levels', name: 'Position Levels', icon: <LayoutList />, endpoint: 'position-levels' },
+    { id: 'position-types', name: 'Position Types', icon: <Settings />, endpoint: 'position-types' },
+    { id: 'shifts', name: 'Shifts', icon: <Settings />, endpoint: 'shifts' },
+    { id: 'position-shift-rosters', name: 'Shift Roster', icon: <Calendar />, endpoint: 'position-shift-rosters' },
+    { id: 'shift-change-requests', name: 'Shift Requests', icon: <Calendar />, endpoint: 'shift-change-requests' },
+    { id: 'position-screen-mappings', name: 'Position Mapping', icon: <ShieldCheck />, endpoint: 'positions' },
     { id: 'projects', name: 'Projects', icon: <FolderKanban />, endpoint: 'projects' },
+    { id: 'segments', name: 'Segments', icon: <Layers />, endpoint: 'segments' },
+    { id: 'role-sub-groups', name: 'Role Sub Groups', icon: <Layers />, endpoint: 'role-sub-groups' },
     { id: 'position-activity-logs', name: 'Delegate Activity', icon: <ClipboardList />, endpoint: 'position-activity-logs' },
     { id: 'employee-documents', name: 'Documents', icon: <FileText />, endpoint: 'employee-documents' },
     { id: 'employee-education', name: 'Education', icon: <GraduationCap />, endpoint: 'employee-education' },
@@ -153,20 +170,20 @@ export const SECTIONS = [
     { id: 'geo-clusters', name: 'Clusters', icon: <Layers />, endpoint: 'geo-clusters' },
     { id: 'visiting-locations', name: 'Hotspots', icon: <MapPin />, endpoint: 'visiting-locations' },
     { id: 'landmarks', name: 'Landmarks', icon: <MapPin />, endpoint: 'landmarks' },
-
+ 
     { id: 'reactivations', name: 'Reactivations', icon: <UserX />, endpoint: 'reactivations' },
     { id: 'audit-logs', name: 'Audit Logs', icon: <ClipboardList />, endpoint: 'audit-logs' },
     { id: 'login-history', name: 'Login History', icon: <History />, endpoint: 'login-hits' }
 ];
-
+ 
 export const SECTION_GROUPS = [
     { name: 'Dashboard Overview', icon: <LayoutDashboard />, items: ['dashboard', 'users'], standalone: true },
-    { name: 'Organization', icon: <Building2 />, items: ['organization', 'organization-levels', 'offices', 'facility-masters', 'departments', 'sections'] },
+    { name: 'Organization', icon: <Building2 />, items: ['organization', 'organization-levels', 'offices', 'vehicle-swaps', 'vehicle-swap-requests', 'facility-masters', 'departments', 'sections'] },
     { name: 'Job Structure', icon: <Briefcase />, items: ['job-families', 'role-types', 'roles', 'jobs', 'tasks', 'task-urls'] },
-    { name: 'Workforce', icon: <Users />, items: ['employees', 'positions', 'position-assignments', 'position-levels', 'projects', 'position-activity-logs'] },
-
+    { name: 'Workforce', icon: <Users />, items: ['employees', 'positions', 'position-assignments', 'position-levels', 'position-types', 'shifts', 'position-shift-rosters', 'shift-change-requests', 'projects', 'position-activity-logs'] },
+ 
     { name: 'Geo Locations', icon: <Globe />, items: ['geo-continents', 'geo-countries', 'geo-states', 'geo-districts', 'geo-mandals', 'geo-clusters', 'visiting-locations', 'landmarks'] },
-    { name: 'Security & Access', icon: <ShieldCheck />, items: ['api-keys', 'reactivations', 'audit-logs', 'login-history'] }
+    { name: 'Security & Access', icon: <ShieldCheck />, items: ['api-keys', 'position-screen-mappings', 'reactivations', 'audit-logs', 'login-history'] }
 ];
 
 const getPhotoUrl = (photo) => {
@@ -199,6 +216,8 @@ export const DataProvider = ({ children }) => {
     const [positions, setPositions] = useState([]);
     const [orgLevels, setOrgLevels] = useState([]);
     const [positionLevels, setPositionLevels] = useState([]);
+    const [positionTypes, setPositionTypes] = useState([]);
+    const [shifts, setShifts] = useState([]);
     const [projects, setProjects] = useState([]);
     const [allEmployees, setAllEmployees] = useState([]);
     const [roleTypes, setRoleTypes] = useState([]);
@@ -699,11 +718,49 @@ export const DataProvider = ({ children }) => {
         });
     };
 
-    // Helper: Safe Fetch for Dropdowns/Charts (swallows errors, returns array)
+    const activeSafeRequests = useRef(new Map());
+
+    // Helper: Safe Fetch for Dropdowns/Charts (with sessionStorage caching to prevent redundant server hits)
     const safeFetch = async (endpoint, force = false) => {
         try {
-            const res = await api.get(endpoint, { force });
-            return Array.isArray(res) ? res : (res?.results || []);
+            const cacheKey = `safe_fetch_cache_${endpoint}`;
+            if (!force) {
+                const cached = sessionStorage.getItem(cacheKey);
+                if (cached) {
+                    try {
+                        return JSON.parse(cached);
+                    } catch (e) {
+                        // Ignore and fetch fresh if corrupted
+                    }
+                }
+            }
+
+            // Deduplicate concurrent active requests for the same endpoint
+            if (activeSafeRequests.current.has(endpoint)) {
+                return activeSafeRequests.current.get(endpoint);
+            }
+
+            const fetchPromise = (async () => {
+                const res = await api.get(endpoint, { force });
+                const data = Array.isArray(res) ? res : (res?.results || []);
+                if (data && data.length > 0) {
+                    try {
+                        sessionStorage.setItem(cacheKey, JSON.stringify(data));
+                    } catch (e) {
+                        // Ignore quota exceeded errors silently
+                    }
+                }
+                return data;
+            })();
+
+            activeSafeRequests.current.set(endpoint, fetchPromise);
+
+            try {
+                const result = await fetchPromise;
+                return result;
+            } finally {
+                activeSafeRequests.current.delete(endpoint);
+            }
         } catch (e) { return []; }
     };
 
@@ -1087,7 +1144,9 @@ export const DataProvider = ({ children }) => {
                     'role-types': (d) => setRoleTypes(universalSort(d)),
                     'tasks': (d) => setTasks(universalSort(d)),
                     'facility-masters': (d) => setFacilityMasters(universalSort(d)),
-                    'position-levels': (d) => setPositionLevels(levelSort(d))
+                    'position-levels': (d) => setPositionLevels(levelSort(d)),
+        'position-types': (d) => setPositionTypes(universalSort(d)),
+        'shifts': (d) => setShifts(universalSort(d))
                 };
                 if (setterMap[filterEndpoint]) {
                     setterMap[filterEndpoint](refreshed);
@@ -1151,10 +1210,12 @@ export const DataProvider = ({ children }) => {
                     safeFetch('positions/all_data', force),
                     safeFetch('employees/all_data', force),
                     safeFetch('position-levels', force),
+                    safeFetch('position-types', force),
+                    safeFetch('shifts', force),
                     safeFetch('tasks', force)
                 ]);
 
-                const [departmentsData, sectionsData, rolesData, jobsData, positionsData, employeesData, positionLevelsData, tasksData] = wave2;
+                const [departmentsData, sectionsData, rolesData, jobsData, positionsData, employeesData, positionLevelsData, positionTypesData, shiftsData, tasksData] = wave2;
 
                 setDepartments(universalSort(departmentsData));
                 setSections(universalSort(sectionsData));
@@ -1163,6 +1224,8 @@ export const DataProvider = ({ children }) => {
                 setPositions(universalSort(positionsData));
                 setAllEmployees(universalSort(employeesData));
                 setPositionLevels(levelSort(positionLevelsData));
+                setPositionTypes(universalSort(positionTypesData));
+                setShifts(universalSort(shiftsData));
                 setTasks(universalSort(tasksData));
 
                 // Instant Cache Pre-population
@@ -1930,6 +1993,8 @@ export const DataProvider = ({ children }) => {
         projects, setProjects,
         facilityMasters, setFacilityMasters,
         positionLevels, setPositionLevels,
+        positionTypes, setPositionTypes,
+        shifts, setShifts,
         documentTypes: [], // Removed section
         allEmployees, setAllEmployees,
         roleTypes, setRoleTypes,

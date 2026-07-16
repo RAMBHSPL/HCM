@@ -427,13 +427,12 @@ const GenericTable = ({ renderTableData, customData = null }) => {
             'departments': ['search', 'status', 'level', 'office'],
             'sections': ['search', 'status', 'level', 'office', 'department'],
             'employees': ['search', 'status', 'level', 'office', 'department', 'section', 'positionLevel'],
-            'positions': ['search', 'status', 'level', 'office', 'department', 'section', 'jobFamily', 'roleType', 'role', 'positionLevel'],
-            'jobs': ['search', 'status', 'jobFamily', 'roleType', 'role'],
-            'tasks': ['search', 'status', 'jobFamily', 'roleType', 'role', 'job'],
-            'task-urls': ['search', 'status', 'jobFamily', 'roleType', 'role', 'job', 'task'],
+            'positions': ['search', 'status', 'level', 'office', 'department', 'section', 'role', 'positionLevel'],
+            'jobs': ['search', 'status', 'role'],
+            'tasks': ['search', 'status', 'role', 'job'],
+            'task-urls': ['search', 'status', 'role', 'job', 'task'],
             'projects': ['search', 'status', 'level', 'office'],
-            'role-types': ['search', 'status', 'jobFamily'],
-            'roles': ['search', 'status', 'jobFamily', 'roleType'],
+            'roles': ['search', 'status'],
             'geo-countries': ['search', 'continent'],
             'geo-states': ['search', 'continent', 'country'],
             'geo-districts': ['search', 'continent', 'country', 'state'],
@@ -1635,7 +1634,7 @@ const GenericTable = ({ renderTableData, customData = null }) => {
                 !customData && pagination && pagination.count > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1rem', padding: '0 0.5rem' }}>
                         <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                            Page <b>{pagination.current}</b> of <b>{Math.ceil(pagination.count / 10)}</b>
+                            Page <b>{pagination.current}</b> of <b>{Math.ceil(pagination.count / 100)}</b>
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button

@@ -109,7 +109,9 @@ class FacilityMaster(models.Model):
 class Office(models.Model):
     registered_name = models.CharField(max_length=255, blank=True, null=True)
     name = models.CharField(max_length=255, unique=True)
-    code = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    sac = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    vehicle_code = models.CharField(max_length=50, blank=True, null=True)
+    vehicle_no = models.CharField(max_length=50, blank=True, null=True)
     level = models.ForeignKey(OrganizationLevel, on_delete=models.SET_NULL, related_name='offices', null=True, blank=True)
     parent = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='sub_offices')
     facility_master = models.ForeignKey(FacilityMaster, on_delete=models.SET_NULL, null=True, blank=True, related_name='offices')
@@ -150,17 +152,37 @@ class Office(models.Model):
                             self.state_name = cluster.mandal.district.state.name
                             
         super().save(*args, **kwargs)
+        if hasattr(Office, '_hierarchy_cache'):
+            delattr(Office, '_hierarchy_cache')
         if self.facility_master and self.facility_master.project:
             self.facility_master.project.assigned_offices.add(self)
     @property
     def hierarchy_path(self):
+        if not hasattr(Office, '_hierarchy_cache'):
+            # Fetch all offices in a single query to build parent-child map in-memory
+            all_offices = {o.id: o for o in Office.objects.select_related('level').all()}
+            Office._hierarchy_cache = all_offices
+        
+        cached_offices = getattr(Office, '_hierarchy_cache', {})
         level_name = self.level.name if self.level else "N/A"
         path = [f"{self.name} ({level_name})"]
-        curr = self.parent
-        while curr:
-            curr_level = curr.level.name if curr.level else "N/A"
-            path.insert(0, f"{curr.name} ({curr_level})")
-            curr = curr.parent
+        
+        curr_id = self.parent_id
+        while curr_id:
+            cached_curr = cached_offices.get(curr_id)
+            if cached_curr:
+                curr_level = cached_curr.level.name if cached_curr.level else "N/A"
+                path.insert(0, f"{cached_curr.name} ({curr_level})")
+                curr_id = cached_curr.parent_id
+            else:
+                # Fallback to DB if not found in cache (should not happen since we load all)
+                try:
+                    curr = Office.objects.get(id=curr_id)
+                    curr_level = curr.level.name if curr.level else "N/A"
+                    path.insert(0, f"{curr.name} ({curr_level})")
+                    curr_id = curr.parent_id
+                except Office.DoesNotExist:
+                    break
         return " > ".join(path)
     @property
     def is_facility(self): return self.level.name.upper() == 'FACILITY' if self.level else False
@@ -267,7 +289,7 @@ class GeoMandal(models.Model):
 
 class GeoCluster(models.Model):
     name = models.CharField(max_length=100)
-    code = models.CharField(max_length=4, blank=True)
+    code = models.CharField(max_length=10, blank=True)
     mandal = models.ForeignKey(GeoMandal, on_delete=models.CASCADE, related_name='clusters')
     cluster_type = models.CharField(max_length=20, choices=[
         ('METROPOLITAN', 'Metropolitan'),
@@ -379,15 +401,33 @@ class Role(models.Model):
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=50, blank=True, null=True)
     role_type = models.ForeignKey(RoleType, on_delete=models.CASCADE, related_name='roles', null=True, blank=True)
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='role_groups', null=True, blank=True)
+    segment = models.ForeignKey('Segment', on_delete=models.CASCADE, null=True, blank=True, related_name='role_groups')
+    facility_type = models.CharField(max_length=50, choices=FACILITY_TYPE_CHOICES, blank=True, null=True)
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, default='Active')
     start_date = models.DateField(default=timezone.now, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
-        unique_together = ('role_type', 'code')
+        unique_together = ('project', 'segment', 'name')
         ordering = ['name']
 
     def __str__(self): return self.name
+
+class RoleSubGroup(models.Model):
+    name = models.CharField(max_length=255)
+    code = models.CharField(max_length=50, blank=True, null=True)
+    role_group = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='sub_groups')
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, default='Active')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('role_group', 'name')
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.role_group.name} - {self.name}"
 
 class Job(models.Model):
     name = models.CharField(max_length=255)
@@ -440,6 +480,35 @@ class PositionLevel(models.Model):
     def __str__(self):
         return f"{self.name} (Rank: {self.rank})"
 
+class PositionType(models.Model):
+    name = models.CharField(max_length=100)
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='position_types', null=True, blank=True)
+    segment = models.ForeignKey('Segment', on_delete=models.CASCADE, null=True, blank=True, related_name='position_types')
+    shifts = models.ManyToManyField('Shift', blank=True, related_name='position_types')
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('project', 'segment', 'name')
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+class Shift(models.Model):
+    name = models.CharField(max_length=50)
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    project = models.ForeignKey('Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='shifts')
+    segment = models.ForeignKey('Segment', on_delete=models.SET_NULL, null=True, blank=True, related_name='shifts')
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
 
 class Position(models.Model):
     name = models.CharField(max_length=255)
@@ -448,8 +517,12 @@ class Position(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='positions', null=True, blank=True)
     section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='positions', null=True, blank=True)
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='positions')
+    role_sub_group = models.ForeignKey(RoleSubGroup, on_delete=models.SET_NULL, null=True, blank=True, related_name='positions')
+    additional_roles = models.ManyToManyField(Role, blank=True, related_name='additional_positions')
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='positions', null=True, blank=True)
     level = models.ForeignKey(PositionLevel, on_delete=models.SET_NULL, null=True, blank=True, related_name='positions')
+    position_type = models.ForeignKey(PositionType, on_delete=models.SET_NULL, null=True, blank=True, related_name='positions')
+    shifts = models.ManyToManyField(Shift, related_name='positions', blank=True)
     reporting_to = models.ManyToManyField('self', symmetrical=False, related_name='subordinates', blank=True)
     status = models.CharField(max_length=20, default='Active')
     start_date = models.DateField(default=timezone.now, null=True, blank=True)
@@ -577,10 +650,23 @@ class EmployeeTaskUrlPermission(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     class Meta: unique_together = ('employee', 'task_url')
 
+class PositionScreenPermission(models.Model):
+    position = models.ForeignKey(Position, on_delete=models.CASCADE, related_name='screen_permissions')
+    task_url = models.ForeignKey(TaskUrl, on_delete=models.CASCADE)
+    is_enabled = models.BooleanField(default=True)
+    can_view = models.BooleanField(default=True)
+    can_create = models.BooleanField(default=False)
+    can_edit = models.BooleanField(default=False)
+    can_delete = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta: unique_together = ('position', 'task_url')
+
+
 class Project(models.Model):
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=50, unique=True, blank=True, null=True)
     description = models.TextField(blank=True)
+    has_segments = models.BooleanField(default=False)
     location = models.CharField(max_length=255, blank=True, null=True)
     geo_scope_level = models.CharField(max_length=50, blank=True, null=True, choices=[
         ('Territory', 'Territory'),
@@ -665,6 +751,20 @@ class Project(models.Model):
             
             if updates:
                 Facility.objects.filter(facility_master__in=masters).update(**updates)
+
+class Segment(models.Model):
+    name = models.CharField(max_length=255)
+    code = models.CharField(max_length=50, blank=True, null=True)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='segments')
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('project', 'name')
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.project.name} - {self.name}"
 
 class DocumentType(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -781,6 +881,8 @@ class APIKey(models.Model):
     allowed_ips = models.TextField(blank=True, help_text="Comma separated IPs")
     rate_limit = models.IntegerField(default=100, help_text="Requests per minute")
     usage_count = models.IntegerField(default=0)
+    webhook_url = models.URLField(max_length=500, null=True, blank=True, help_text="URL to POST shift roster change events to")
+    webhook_events = models.JSONField(default=list, blank=True, help_text="List of events to fire: shift.assigned, shift.unassigned, shift.bulk_assigned")
     
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -887,6 +989,39 @@ class PositionAssignment(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+class PositionShiftRoster(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='shift_rosters')
+    position = models.ForeignKey(Position, on_delete=models.CASCADE, related_name='shift_rosters')
+    shift = models.ForeignKey(Shift, on_delete=models.CASCADE, related_name='shift_rosters')
+    date = models.DateField()
+    actual_start_time = models.TimeField(null=True, blank=True)
+    actual_end_time = models.TimeField(null=True, blank=True)
+    attendance_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('PENDING', 'Pending'),
+            ('PRESENT', 'Present'),
+            ('ABSENT', 'Absent'),
+            ('LATE', 'Late'),
+            ('LEFT_EARLY', 'Left Early'),
+            ('PARTIAL_SHIFT', 'Partial Shift'),
+            ('WEEK_OFF', 'Week Off'),
+        ],
+        default='PENDING'
+    )
+    hours_worked = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    remarks = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('position', 'shift', 'date', 'employee')
+        ordering = ['date', 'position', 'shift']
+
+    def __str__(self):
+        return f"{self.date} - {self.position.name} - {self.shift.name}: {self.employee.name}"
+
+
 class PositionActivityLog(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='position_activities')
     assignment = models.ForeignKey(PositionAssignment, on_delete=models.CASCADE, related_name='activities')
@@ -975,6 +1110,139 @@ class AuditLog(models.Model):
     def __str__(self):
         username = self.user.username if self.user else 'System'
         return f"{self.action} on {self.model_name} by {username}"
+
+class VehicleSwapLog(models.Model):
+    office_a = models.ForeignKey('Office', on_delete=models.CASCADE, related_name='swap_logs_a')
+    office_b = models.ForeignKey('Office', on_delete=models.CASCADE, related_name='swap_logs_b')
+    sac_a = models.CharField(max_length=50)
+    sac_b = models.CharField(max_length=50)
+    old_vehicle_code_a = models.CharField(max_length=50, blank=True, null=True)
+    old_vehicle_code_b = models.CharField(max_length=50, blank=True, null=True)
+    new_vehicle_code_a = models.CharField(max_length=50, blank=True, null=True)
+    new_vehicle_code_b = models.CharField(max_length=50, blank=True, null=True)
+    old_vehicle_no_a = models.CharField(max_length=50, blank=True, null=True)
+    old_vehicle_no_b = models.CharField(max_length=50, blank=True, null=True)
+    new_vehicle_no_a = models.CharField(max_length=50, blank=True, null=True)
+    new_vehicle_no_b = models.CharField(max_length=50, blank=True, null=True)
+    crew_swapped = models.BooleanField(default=True)
+    triggered_by = models.CharField(max_length=100, default='SYSTEM')
+    status = models.CharField(max_length=20, default='SUCCESS')
+    error_message = models.TextField(blank=True, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"Swap: {self.sac_a} ({self.old_vehicle_code_a}) <-> {self.sac_b} ({self.old_vehicle_code_b}) at {self.timestamp}"
+
+
+class VehicleSwapRequest(models.Model):
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    ]
+    requester = models.ForeignKey('Employee', on_delete=models.CASCADE, related_name='swap_requests_made')
+    from_office = models.ForeignKey('Office', on_delete=models.CASCADE, related_name='swap_requests_from')
+    to_office = models.ForeignKey('Office', on_delete=models.CASCADE, related_name='swap_requests_to')
+    from_vehicle_code = models.CharField(max_length=50, blank=True, null=True)
+    from_vehicle_no = models.CharField(max_length=50, blank=True, null=True)
+    to_vehicle_code = models.CharField(max_length=50, blank=True, null=True)
+    to_vehicle_no = models.CharField(max_length=50, blank=True, null=True)
+    swap_crew = models.BooleanField(default=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    reason = models.TextField(blank=True, null=True)
+    comments = models.TextField(blank=True, null=True)
+    actioned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='swap_requests_actioned')
+    actioned_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Request by {self.requester.name}: {self.from_office.sac} -> {self.to_office.sac} ({self.status})"
+
+class ShiftChangeRequest(models.Model):
+    REQUEST_TYPE_CHOICES = [
+        ('ALLOCATION', 'New Shift Assignment'),
+        ('SHIFT_CHANGE', 'Shift Transfer'),
+        ('SWAP', 'Shift Swap / Cover'),
+        ('REPLACEMENT', 'Early-Leave Replacement'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('PENDING_CONSENT', 'Pending Employee Consent'),
+        ('PENDING_APPROVAL', 'Pending Manager Approval'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+        ('CANCELLED', 'Cancelled'),
+    ]
+    
+    CONSENT_CHOICES = [
+        ('PENDING', 'Pending Decision'),
+        ('ACCEPTED', 'Accepted'),
+        ('DECLINED', 'Declined'),
+    ]
+
+    requested_by = models.ForeignKey(
+        'Employee', 
+        on_delete=models.CASCADE, 
+        related_name='shift_requests_made'
+    )
+    employee = models.ForeignKey(
+        'Employee', 
+        on_delete=models.CASCADE, 
+        related_name='shift_requests_received'
+    )
+    position = models.ForeignKey(
+        'Position', 
+        on_delete=models.CASCADE
+    )
+    date = models.DateField()
+    
+    from_shift = models.ForeignKey(
+        'Shift', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='requests_from'
+    )
+    to_shift = models.ForeignKey(
+        'Shift', 
+        on_delete=models.CASCADE, 
+        related_name='requests_to'
+    )
+    
+    request_type = models.CharField(
+        max_length=20, 
+        choices=REQUEST_TYPE_CHOICES, 
+        default='ALLOCATION'
+    )
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='PENDING_CONSENT'
+    )
+    employee_consent = models.CharField(
+        max_length=20, 
+        choices=CONSENT_CHOICES, 
+        default='PENDING'
+    )
+    
+    reason = models.TextField(blank=True, null=True)
+    admin_notes = models.TextField(blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Shift Request for {self.employee.name} on {self.date}: -> {self.to_shift.name} ({self.status})"
 
 # Sync Django Admin Interface Actions directly to our custom AuditLog
 from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION

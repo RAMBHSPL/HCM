@@ -3,9 +3,9 @@ let API_BASE_URL;
 if (import.meta.env.DEV) {
     // Always use the same hostname the browser is on so it works via localhost OR network IP
     const hostname = window.location.hostname;
-    API_BASE_URL = `http://${hostname}:8001/api`;
+    API_BASE_URL = `http://${hostname}:8000/api`;
 } else {
-    API_BASE_URL = 'http://103.174.161.68:8001/api';
+    API_BASE_URL = 'http://103.174.161.68:8000/api';
 }
 
 const getHeaders = (contentType = 'application/json') => {

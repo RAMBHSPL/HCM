@@ -20,7 +20,8 @@ import {
     Home,
     FolderKanban,
     Navigation2,
-    ExternalLink
+    ExternalLink,
+    Car
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
@@ -163,7 +164,7 @@ const OfficeDetailModal = () => {
                                 <span style={{ padding: '4px 12px', background: '#ecfdf5', color: '#059669', borderRadius: '12px', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>{data.status || 'Active'}</span>
                             </div>
                             <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span>{data.code}</span>
+                                <span>{data.sac || data.code}</span>
                                 <span style={{ opacity: 0.5 }}>•</span>
                                 <span>{data.level_name} UNIT</span>
                             </div>
@@ -268,7 +269,13 @@ const OfficeDetailModal = () => {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2.5rem' }}>
                             <SectionCard title="INTERNAL CONFIG" icon={Layout} delay={0.1}>
                                 <div style={{ display: 'grid', gap: '1rem' }}>
-                                    <ProfileDetailItem icon={Hash} label="System Identifier" value={data.code} />
+                                    <ProfileDetailItem icon={Hash} label="SAC Code" value={data.sac || data.code} />
+                                    {data.vehicle_code && (
+                                        <ProfileDetailItem icon={Car} label="Vehicle Code" value={data.vehicle_code} color="var(--orange)" />
+                                    )}
+                                    {data.vehicle_no && (
+                                        <ProfileDetailItem icon={Car} label="Vehicle No" value={data.vehicle_no} color="var(--orange)" />
+                                    )}
                                     <ProfileDetailItem icon={Calendar} label="Date Registered" value={data.created_at?.split('T')[0]} />
                                     <ProfileDetailItem icon={ShieldCheck} label="Regulatory ID" value={data.register_id} />
                                     <ProfileDetailItem icon={UserCircle} label="Authorized DIN" value={data.din_no} />

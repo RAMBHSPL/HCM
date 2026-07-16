@@ -145,7 +145,7 @@ const Organization = () => {
                                                             onClick={() => setSelectedOfficeId(f.id)}
                                                         >
                                                             <span className="name">{f.name}</span>
-                                                            <span className="code">{f.code} • {f.status}</span>
+                                                            <span className="code">{f.sac || f.code} • {f.status}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -182,7 +182,7 @@ const Organization = () => {
                     <td>
                         <div style={{ fontWeight: 700, color: '#1e293b' }}>{item.name}</div>
                         <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                            code: {item.code} | Level: {item.level_name}
+                            SAC: {item.sac || item.code} | Level: {item.level_name}
                             {item.is_temporary && <span style={{ color: '#f59e0b', marginLeft: '8px', fontWeight: 700 }}>[TEMPORARY]</span>}
                         </div>
                     </td>

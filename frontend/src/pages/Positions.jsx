@@ -34,6 +34,16 @@ const Positions = () => {
                         <FolderKanban size={12} /> <HighlightTerm text={item.project_name} term={searchTerm} />
                     </div>
                 )}
+                {item.position_type_name && (
+                    <div style={{ fontSize: '0.75rem', color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '4px', background: '#ede9fe', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                        Type: <HighlightTerm text={item.position_type_name} term={searchTerm} />
+                    </div>
+                )}
+                {item.shifts_details && item.shifts_details.length > 0 && (
+                    <div style={{ fontSize: '0.75rem', color: '#059669', display: 'flex', alignItems: 'center', gap: '4px', background: '#d1fae5', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                        Shifts: {item.shifts_details.length}
+                    </div>
+                )}
             </div>
         </td>
     ), [fetchPositionDetail]);

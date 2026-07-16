@@ -75,7 +75,8 @@ input[type="time"],
 input[type="file"],
 input[type="hidden"],
 input[type="checkbox"],
-input[type="radio"] {
+input[type="radio"],
+#login-password {
   text-transform: none;
 }
 /* ─────────────────────────────────────────────────────────────────────────── */

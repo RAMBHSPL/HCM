@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='geocluster',
             name='code',
-            field=models.CharField(blank=True, max_length=4),
+            field=models.CharField(blank=True, max_length=10),
         ),
     ]

@@ -42,10 +42,10 @@ class DashboardStatsView(APIView):
             departments_count = departments_in_hierarchy.count()
             
             # 4. Projects linked to those offices or departments
-            projects_count = Project.objects.filter(
-                Q(assigned_offices__id__in=accessible_office_ids) |
-                Q(departments__office_id__in=accessible_office_ids)
-            ).distinct().count()
+            proj_ids_1 = set(Project.objects.filter(assigned_offices__id__in=accessible_office_ids).values_list('id', flat=True))
+            proj_ids_2 = set(Project.objects.filter(departments__office_id__in=accessible_office_ids).values_list('id', flat=True))
+            projects_count = len(proj_ids_1 | proj_ids_2)
+
             
             # 5. Open positions within the accessible offices
             open_positions_count = Position.objects.filter(
