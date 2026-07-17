@@ -39,6 +39,11 @@ const Projects = () => {
                         <HighlightTerm text={item.assigned_level_name || 'Global'} term={searchTerm} />
                     </span>
                     <span style={{ fontWeight: 600, background: '#eff6ff', color: '#1e40af', padding: '2px 8px', borderRadius: '6px' }}>{item.project_type_display}</span>
+                    {item.has_segments && item.segments && item.segments.length > 0 && (
+                        <span style={{ fontWeight: 600, background: '#f0fdf4', color: '#15803d', padding: '2px 8px', borderRadius: '6px' }}>
+                            Segments: {item.segments.map(s => s.name).join(', ')}
+                        </span>
+                    )}
                     {item.assigned_offices_details?.length > 0 && (
                         <div
                             className={`project-units-container ${openUnitsProjectId === item.id ? 'active' : ''}`}

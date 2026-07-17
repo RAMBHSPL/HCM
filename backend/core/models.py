@@ -158,32 +158,28 @@ class Office(models.Model):
             self.facility_master.project.assigned_offices.add(self)
     @property
     def hierarchy_path(self):
-        if not hasattr(Office, '_hierarchy_cache'):
-            # Fetch all offices in a single query to build parent-child map in-memory
-            all_offices = {o.id: o for o in Office.objects.select_related('level').all()}
+        import time as _time
+        cache_ttl = 300  # 5-minute TTL - auto-refresh after office edits
+        now = _time.time()
+        cache = getattr(Office, '_hierarchy_cache', None)
+        cache_ts = getattr(Office, '_hierarchy_cache_ts', 0)
+        if cache is None or (now - cache_ts) > cache_ttl:
+            all_offices = {o.id: o for o in Office.objects.select_related('level').only('id', 'name', 'parent_id', 'level__name')}
             Office._hierarchy_cache = all_offices
-        
-        cached_offices = getattr(Office, '_hierarchy_cache', {})
+            Office._hierarchy_cache_ts = now
+            cache = all_offices
         level_name = self.level.name if self.level else "N/A"
         path = [f"{self.name} ({level_name})"]
-        
         curr_id = self.parent_id
         while curr_id:
-            cached_curr = cached_offices.get(curr_id)
-            if cached_curr:
-                curr_level = cached_curr.level.name if cached_curr.level else "N/A"
-                path.insert(0, f"{cached_curr.name} ({curr_level})")
-                curr_id = cached_curr.parent_id
-            else:
-                # Fallback to DB if not found in cache (should not happen since we load all)
-                try:
-                    curr = Office.objects.get(id=curr_id)
-                    curr_level = curr.level.name if curr.level else "N/A"
-                    path.insert(0, f"{curr.name} ({curr_level})")
-                    curr_id = curr.parent_id
-                except Office.DoesNotExist:
-                    break
+            cached_curr = cache.get(curr_id)
+            if not cached_curr:
+                break
+            curr_level = cached_curr.level.name if cached_curr.level else "N/A"
+            path.insert(0, f"{cached_curr.name} ({curr_level})")
+            curr_id = cached_curr.parent_id
         return " > ".join(path)
+
     @property
     def is_facility(self): return self.level.name.upper() == 'FACILITY' if self.level else False
 

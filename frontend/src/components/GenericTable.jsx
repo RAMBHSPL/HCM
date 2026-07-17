@@ -211,7 +211,26 @@ const GenericTable = ({ renderTableData, customData = null }) => {
 
     // SAVE FILTERS TO SESSION STORAGE WHENEVER THEY CHANGE
     useEffect(() => {
-        sessionStorage.setItem(`filters_${activeSection}`, JSON.stringify(filters));
+        try {
+            sessionStorage.setItem(`filters_${activeSection}`, JSON.stringify(filters));
+        } catch (e) {
+            // QuotaExceededError: sessionStorage is full — purge all filter keys and retry
+            console.warn('[GenericTable] sessionStorage quota exceeded — clearing old filter keys.');
+            const keysToRemove = [];
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                if (key && (key.startsWith('filters_') || key.startsWith('last_fetch_'))) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(k => sessionStorage.removeItem(k));
+            // Retry after clearing
+            try {
+                sessionStorage.setItem(`filters_${activeSection}`, JSON.stringify(filters));
+            } catch (e2) {
+                // Silent fail — filters simply won't be persisted this session
+            }
+        }
     }, [filters, activeSection]);
 
     // Debounced Server-side Search & Filtering

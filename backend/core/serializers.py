@@ -468,6 +468,18 @@ class SegmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Segment
         fields = '__all__'
+        extra_kwargs = {
+            'id': {'read_only': False, 'required': False},
+            'project': {'required': False, 'allow_null': True}
+        }
+
+    def get_validators(self):
+        # Suppress the auto-generated unique_together validator for (project, name).
+        # The ProjectSerializer.update() handles segment lifecycle correctly:
+        # it deletes stale segments first, then updates or creates the rest.
+        # The DB constraint still enforces uniqueness; we just skip the pre-save check
+        # which causes false positives when updating existing segments via nested writes.
+        return []
 
 class RoleSubGroupSerializer(serializers.ModelSerializer):
     role_group_name = serializers.ReadOnlyField(source='role_group.name')
@@ -566,32 +578,33 @@ class OfficeSerializer(serializers.ModelSerializer):
     project_code = serializers.SerializerMethodField()
     project_name = serializers.SerializerMethodField()
 
+    def _get_projects_cached(self, obj):
+        """Share prefetch cache so all 4 project fields use a single DB hit per object."""
+        if not hasattr(obj, '_cached_projects'):
+            obj._cached_projects = list(obj.projects.all())
+        return obj._cached_projects
+
     def get_project_id(self, obj):
         # 1. Check Facility Master (Direct Template Mapping)
-        if obj.facility_master and obj.facility_master.project_id:
+        if obj.facility_master and getattr(obj.facility_master, 'project_id', None):
             return obj.facility_master.project_id
-        
-        # 2. Check Many-to-Many Projects
-        proj = obj.projects.all()
+        # 2. Use shared cache (single DB call for this row)
+        proj = self._get_projects_cached(obj)
         active_proj = next((p for p in proj if p.is_currently_active), None)
         if active_proj: return active_proj.id
-        
-        # 3. Fallback to any project
-        first_proj = proj.first()
-        return first_proj.id if first_proj else None
+        return proj[0].id if proj else None
 
     def get_assigned_projects(self, obj):
-        # Show projects that are Active OR currently in the Planning phase
-        # Use is_currently_active property for consistency
-        return [p.name for p in obj.projects.all() if p.is_currently_active]
+        proj = self._get_projects_cached(obj)
+        return [p.name for p in proj if p.is_currently_active]
 
     def get_project_code(self, obj):
-        proj = obj.projects.all()
+        proj = self._get_projects_cached(obj)
         active_proj = next((p for p in proj if p.is_currently_active), None)
         return active_proj.code if active_proj else None
 
     def get_project_name(self, obj):
-        proj = obj.projects.all()
+        proj = self._get_projects_cached(obj)
         active_proj = next((p for p in proj if p.is_currently_active), None)
         return active_proj.name if active_proj else None
     
@@ -605,6 +618,9 @@ class OfficeSerializer(serializers.ModelSerializer):
     has_sub_offices = serializers.SerializerMethodField()
 
     def get_has_sub_offices(self, obj):
+        # Use annotated count if available (set via annotate() in queryset)
+        if hasattr(obj, 'sub_offices_count'):
+            return obj.sub_offices_count > 0
         return obj.sub_offices.exists()
 
     def get_facility_type(self, obj):
@@ -633,20 +649,25 @@ class LightOfficeSerializer(serializers.ModelSerializer):
     project_name = serializers.SerializerMethodField()
     code = serializers.CharField(source='sac', required=False, allow_null=True)
 
+    def _get_projects_cached(self, obj):
+        if not hasattr(obj, '_cached_projects'):
+            obj._cached_projects = list(obj.projects.all())
+        return obj._cached_projects
+
     def get_project_id(self, obj):
-        if obj.facility_master and obj.facility_master.project_id:
+        if hasattr(obj, 'facility_master') and obj.facility_master and getattr(obj.facility_master, 'project_id', None):
             return obj.facility_master.project_id
-        proj = list(obj.projects.all())
+        proj = self._get_projects_cached(obj)
         active_proj = next((p for p in proj if p.is_currently_active), None)
         if active_proj: return active_proj.id
         return proj[0].id if proj else None
 
     def get_project_code(self, obj):
-        proj = list(obj.projects.all())
+        proj = self._get_projects_cached(obj)
         return proj[0].code if proj else None
 
     def get_project_name(self, obj):
-        proj = list(obj.projects.all())
+        proj = self._get_projects_cached(obj)
         return proj[0].name if proj else None
 
     class Meta:
@@ -818,6 +839,34 @@ from .models import PositionType, Shift
 class ShiftSerializer(serializers.ModelSerializer):
     project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)
     segment_name = serializers.ReadOnlyField(source='segment.name', allow_null=True)
+    positions_count = serializers.SerializerMethodField()
+    position_types_count = serializers.SerializerMethodField()
+    assigned_projects = serializers.SerializerMethodField()
+
+    def get_positions_count(self, obj):
+        return obj.positions.count()
+
+    def get_position_types_count(self, obj):
+        return obj.position_types.count()
+
+    def get_assigned_projects(self, obj):
+        projects = set()
+        if obj.project:
+            projects.add(obj.project.name)
+        
+        # Get projects from position types using this shift
+        pt_projects = obj.position_types.filter(project__isnull=False).values_list('project__name', flat=True)
+        projects.update(pt_projects)
+        
+        # Get projects from positions using this shift (via section or department)
+        sec_projects = obj.positions.filter(section__project__isnull=False).values_list('section__project__name', flat=True)
+        projects.update(sec_projects)
+        
+        dep_projects = obj.positions.filter(department__project__isnull=False).values_list('department__project__name', flat=True)
+        projects.update(dep_projects)
+        
+        return list(projects)
+
     class Meta:
         model = Shift
         fields = '__all__'
@@ -1235,9 +1284,61 @@ class EmployeeSerializer(serializers.ModelSerializer):
              )
         return instance
 
+class LightEmployeePositionListSerializer(serializers.ModelSerializer):
+    office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
+    department_name = serializers.ReadOnlyField(source='department.name', allow_null=True)
+    level_id = serializers.IntegerField(source='level.id', allow_null=True, read_only=True)
+    office_level_id = serializers.IntegerField(source='office.level.id', allow_null=True, read_only=True)
+    project_id = serializers.SerializerMethodField()
+    project_name = serializers.SerializerMethodField()
+    segment_id = serializers.SerializerMethodField()
+    segment_name = serializers.SerializerMethodField()
+    position_type_id = serializers.IntegerField(source='position_type.id', allow_null=True, read_only=True)
+    position_type_name = serializers.ReadOnlyField(source='position_type.name', allow_null=True)
+    role_id = serializers.IntegerField(source='role.id', allow_null=True, read_only=True)
+    role_name = serializers.ReadOnlyField(source='role.name', allow_null=True)
+    role_sub_group_id = serializers.IntegerField(source='role_sub_group.id', allow_null=True, read_only=True)
+    role_sub_group_name = serializers.ReadOnlyField(source='role_sub_group.name', allow_null=True)
+
+    def get_project_id(self, obj):
+        project = None
+        if obj.section and obj.section.project:
+            project = obj.section.project
+        elif obj.department and obj.department.project:
+            project = obj.department.project
+        return project.id if project else None
+
+    def get_project_name(self, obj):
+        project = None
+        if obj.section and obj.section.project:
+            project = obj.section.project
+        elif obj.department and obj.department.project:
+            project = obj.department.project
+        return project.name if project else None
+
+    def get_segment_id(self, obj):
+        if obj.role and obj.role.segment:
+            return obj.role.segment.id
+        return None
+
+    def get_segment_name(self, obj):
+        if obj.role and obj.role.segment:
+            return obj.role.segment.name
+        return None
+
+    class Meta:
+        model = Position
+        fields = [
+            'id', 'name', 'office_id', 'office_name', 'department_id', 'department_name', 
+            'section_id', 'level_id', 'office_level_id',
+            'project_id', 'project_name', 'segment_id', 'segment_name',
+            'position_type_id', 'position_type_name', 'role_id', 'role_name',
+            'role_sub_group_id', 'role_sub_group_name'
+        ]
+
 class EmployeeListSerializer(EmployeeSerializer):
     """Lighter version of EmployeeSerializer for list views to avoid sending large Base64 photo data"""
-    positions_details = PositionDetailSerializer(source='positions', many=True, read_only=True)
+    positions_details = LightEmployeePositionListSerializer(source='positions', many=True, read_only=True)
     primary_position = serializers.SerializerMethodField()
     project_name = serializers.SerializerMethodField()
     location_details = serializers.SerializerMethodField()
@@ -1459,11 +1560,70 @@ class EmployeeListSerializer(EmployeeSerializer):
         return ret
 
 
+class LightEmployeePositionSerializer(serializers.ModelSerializer):
+    """Position serializer with all fields required for WorkforceTracker filtering & grouping."""
+    office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
+    department_name = serializers.ReadOnlyField(source='department.name', allow_null=True)
+    department_id = serializers.ReadOnlyField()
+    section_id = serializers.ReadOnlyField()
+    role_id = serializers.ReadOnlyField()
+    role_name = serializers.ReadOnlyField(source='role.name', allow_null=True)
+    role_sub_group_id = serializers.ReadOnlyField()
+    role_sub_group_name = serializers.ReadOnlyField(source='role_sub_group.name', allow_null=True)
+    position_type_id = serializers.ReadOnlyField()
+    position_type_name = serializers.ReadOnlyField(source='position_type.name', allow_null=True)
+
+    project_id = serializers.SerializerMethodField()
+    project_name = serializers.SerializerMethodField()
+    segment_id = serializers.SerializerMethodField()
+    segment_name = serializers.SerializerMethodField()
+
+    def get_project_id(self, obj):
+        # section.project → department.project (office.projects avoided — N+1 on M2M)
+        if obj.section_id and obj.section and obj.section.project_id:
+            return obj.section.project_id
+        if obj.department_id and obj.department and obj.department.project_id:
+            return obj.department.project_id
+        return None
+
+    def get_project_name(self, obj):
+        if obj.section_id and obj.section and obj.section.project:
+            return obj.section.project.name
+        if obj.department_id and obj.department and obj.department.project:
+            return obj.department.project.name
+        return None
+
+    def get_segment_id(self, obj):
+        if obj.role and obj.role.segment_id:
+            return obj.role.segment_id
+        return None
+
+    def get_segment_name(self, obj):
+        if obj.role and obj.role.segment:
+            return obj.role.segment.name
+        return None
+
+    class Meta:
+        model = Position
+        fields = [
+            'id', 'name', 'office_id', 'office_name',
+            'department_id', 'department_name', 'section_id',
+            'level', 'position_type_id', 'position_type_name',
+            'role_id', 'role_name',
+            'role_sub_group_id', 'role_sub_group_name',
+            'project_id', 'project_name',
+            'segment_id', 'segment_name',
+        ]
+
+
 class EmployeeDropdownSerializer(serializers.ModelSerializer):
-    """Ultra-lightweight serializer for dropdowns and search hints"""
+    """Serializer for WorkforceTracker — includes full position context for filtering."""
+    positions_details = LightEmployeePositionSerializer(source='positions', many=True, read_only=True)
+    photo = serializers.ImageField(use_url=True, read_only=True, allow_null=True)
+
     class Meta:
         model = Employee
-        fields = ['id', 'name', 'employee_code', 'status', 'positions']
+        fields = ['id', 'name', 'employee_code', 'email', 'phone', 'status', 'photo', 'positions_details']
 
 
 

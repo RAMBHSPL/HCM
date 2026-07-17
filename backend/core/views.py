@@ -1483,8 +1483,15 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
 
     def get_queryset(self):
         # Use ScopedViewSetMixin's filtering and prefetch projects for UI tags
-        queryset = super().get_queryset().select_related('level', 'parent', 'cluster').prefetch_related('projects')
-        
+        from django.db.models import Count
+        queryset = super().get_queryset().select_related(
+            'level', 'parent', 'cluster', 'facility_master', 'facility_master__project'
+        ).prefetch_related(
+            'projects', 'sub_offices'
+        ).annotate(
+            sub_offices_count=Count('sub_offices', distinct=True)
+        )
+
         # Manual query param filtering for level and status
         level = self.request.query_params.get('level') or self.request.query_params.get('office_level')
         if level and level != 'all':
@@ -1893,10 +1900,21 @@ class DepartmentViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVi
         is provided, return all departments for that specific office directly
         from the DB - guaranteeing dropdowns always show correct options.
         """
+        from django.db.models import Prefetch
         office_param = request.query_params.get('office') or request.query_params.get('office_id')
         if office_param and office_param != 'all' and str(office_param).isdigit():
             # Direct unscoped fetch for a specific office (used by Add Section / Add Position forms)
-            queryset = Department.objects.filter(office_id=office_param).order_by('name')
+            queryset = (
+                Department.objects.filter(office_id=office_param)
+                .select_related('office', 'office__level', 'project')
+                .prefetch_related(
+                    Prefetch(
+                        'sections',
+                        queryset=Section.objects.select_related('project')
+                    )
+                )
+                .order_by('name')
+            )
             status_param = request.query_params.get('status')
             if status_param and status_param != 'all':
                 queryset = queryset.filter(status=status_param)
@@ -1904,6 +1922,16 @@ class DepartmentViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVi
             return Response(serializer.data)
         # Otherwise fall back to the scoped list
         queryset = self.filter_queryset(self.get_queryset())
+        queryset = (
+            queryset
+            .select_related('office', 'office__level', 'project')
+            .prefetch_related(
+                Prefetch(
+                    'sections',
+                    queryset=Section.objects.select_related('project')
+                )
+            )
+        )
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
@@ -2060,15 +2088,21 @@ class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
         """
         dept_param = request.query_params.get('department')
         office_param = request.query_params.get('office') or request.query_params.get('office_id')
+        base_qs = Section.objects.select_related(
+            'project',
+            'department',
+            'department__office',
+            'department__office__level'
+        )
         if dept_param and dept_param != 'all' and str(dept_param).isdigit():
-            queryset = Section.objects.filter(department_id=dept_param).order_by('name')
+            queryset = base_qs.filter(department_id=dept_param).order_by('name')
             status_param = request.query_params.get('status')
             if status_param and status_param != 'all':
                 queryset = queryset.filter(status=status_param)
             serializer = self.get_serializer(queryset, many=True)
             return Response(serializer.data)
         if office_param and office_param != 'all' and str(office_param).isdigit():
-            queryset = Section.objects.filter(department__office_id=office_param).order_by('name')
+            queryset = base_qs.filter(department__office_id=office_param).order_by('name')
             status_param = request.query_params.get('status')
             if status_param and status_param != 'all':
                 queryset = queryset.filter(status=status_param)
@@ -2076,6 +2110,12 @@ class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
             return Response(serializer.data)
         # Fallback: return scoped list
         queryset = self.filter_queryset(self.get_queryset())
+        queryset = queryset.select_related(
+            'project',
+            'department',
+            'department__office',
+            'department__office__level'
+        )
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
@@ -2369,6 +2409,23 @@ class ShiftViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet
             queryset = queryset.filter(segment_id=segment)
         return queryset
 
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        pt_count = instance.position_types.count()
+        pos_count = instance.positions.count()
+        
+        if pt_count > 0 or pos_count > 0:
+            details = []
+            if pt_count > 0:
+                details.append(f"{pt_count} position type(s)")
+            if pos_count > 0:
+                details.append(f"{pos_count} position(s)")
+            return Response(
+                {"error": f"Cannot delete shift '{instance.name}' because it is currently assigned to: {', '.join(details)}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().destroy(request, *args, **kwargs)
+
 def get_subordinates_recursive(employee, visited=None):
     if not employee:
         return []
@@ -2467,20 +2524,32 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         if mandal_name:
             queryset = queryset.filter(office__mandal_name__icontains=mandal_name)
             
-        return queryset.select_related(
-            'office', 'office__level', 'department', 'section', 'role', 'role_sub_group',
-            'role__role_type', 'role__role_type__job_family', 'job', 'level',
-            'position_type', 'section__project', 'department__project'
-        ).prefetch_related(
-            'shifts',
-            Prefetch('reporting_to', queryset=Position.objects.select_related(
-                'office', 'office__level', 'department', 'section', 'role', 'level'
-            ).prefetch_related('employees')),
-            'employees',
-            'role__jobs',
-            'role__jobs__tasks',
-            'role__jobs__tasks__urls'
-        ).distinct()
+        if self.action == 'retrieve':
+            return queryset.select_related(
+                'office', 'office__level', 'department', 'section', 'role', 'role_sub_group',
+                'role__role_type', 'role__role_type__job_family', 'job', 'level',
+                'position_type', 'section__project', 'department__project'
+            ).prefetch_related(
+                'shifts',
+                Prefetch('reporting_to', queryset=Position.objects.select_related(
+                    'office', 'office__level', 'department', 'section', 'role', 'level'
+                ).prefetch_related('employees')),
+                'employees',
+                'role__jobs',
+                'role__jobs__tasks',
+                'role__jobs__tasks__urls'
+            ).distinct()
+        else:
+            return queryset.select_related(
+                'office', 'office__level', 'department', 'section', 'role', 'role_sub_group',
+                'role__role_type', 'role__role_type__job_family', 'job', 'level',
+                'position_type', 'section__project', 'department__project'
+            ).prefetch_related(
+                'shifts',
+                Prefetch('reporting_to', queryset=Position.objects.select_related('office', 'level').only('id', 'name', 'code', 'office__name', 'level__name', 'status')),
+                'employees',
+                'additional_roles'
+            ).distinct()
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -2988,13 +3057,25 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
             queryset = queryset.filter(id__in=sub_ids)
 
         # Optimize with select_related/prefetch_related for common fields
-        queryset = queryset.prefetch_related(
-            'positions__office__cluster', 
-            'positions__department__project', 
-            'positions__section__project', 
-            'positions__role', 
-            'positions__job'
-        )
+        from django.db.models import Prefetch
+        from .models import Position
+        if self.action == 'list':
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    'positions',
+                    queryset=Position.objects.select_related('office', 'office__level', 'department').only(
+                        'id', 'name', 'office_id', 'office__name', 'office__level__id', 'department_id', 'department__name', 'section_id', 'level_id'
+                    )
+                )
+            )
+        else:
+            queryset = queryset.prefetch_related(
+                'positions__office__cluster', 
+                'positions__department__project', 
+                'positions__section__project', 
+                'positions__role', 
+                'positions__job'
+            )
 
         # Filter out soft-deleted employees
         include_deleted = self.request.query_params.get('include_deleted', 'false').lower() == 'true'
@@ -3195,12 +3276,27 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
     @action(detail=False, methods=['get'])
     def all_data(self, request):
         """
-        Get all employees for dropdowns (non-paginated).
-        Uses ultra-light EmployeeDropdownSerializer to ensure fast synchronization.
+        Get all employees with full position context for WorkforceTracker.
+        Prefetches all relations needed for project/segment/role filtering.
         """
-        queryset = self.filter_queryset(self.get_queryset())
+        from django.db.models import Prefetch
+        from .models import Position
+        position_qs = Position.objects.select_related(
+            'office', 'department', 'department__project',
+            'section', 'section__project',
+            'role', 'role__segment',
+            'role_sub_group', 'position_type',
+        )
+
+        queryset = self.filter_queryset(
+            self.get_queryset()
+            .prefetch_related(None)
+            .prefetch_related(
+                Prefetch('positions', queryset=position_qs)
+            )
+        )
         from .serializers import EmployeeDropdownSerializer
-        serializer = EmployeeDropdownSerializer(queryset, many=True)
+        serializer = EmployeeDropdownSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
@@ -3464,7 +3560,11 @@ class ProjectViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
         if continent_id and continent_id != 'all':
             queryset = queryset.filter(assigned_offices__cluster__mandal__district__state__country__continent_ref_id=continent_id).distinct()
             
-        return queryset.distinct()
+        return queryset.select_related(
+            'assigned_level', 'cluster'
+        ).prefetch_related(
+            'assigned_offices', 'segments'
+        ).distinct()
 
 class IndianVillageViewSet(ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = IndianVillage.objects.all()

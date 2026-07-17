@@ -108,7 +108,8 @@ const resolveEndpointHelper = (type) => {
         'Delegate Activity': 'position-activity-logs',
         'Login History': 'login-hits',
         'Segments': 'segments',
-        'Role Sub Groups': 'role-sub-groups'
+        'Role Sub Groups': 'role-sub-groups',
+        'Workforce Tracker': 'workforce-tracker'
     };
 
     if (mappings[type]) return mappings[type];
@@ -139,9 +140,8 @@ export const SECTIONS = [
     { id: 'role-types', name: 'Role Types', icon: <Settings />, endpoint: 'role-types' },
     { id: 'roles', name: 'Role Names', icon: <Settings />, endpoint: 'roles' },
     { id: 'jobs', name: 'Jobs', icon: <ClipboardList />, endpoint: 'jobs' },
-    { id: 'tasks', name: 'Tasks', icon: <ClipboardList />, endpoint: 'tasks' },
-    { id: 'task-urls', name: 'Task URL Mapping', icon: <Network />, endpoint: 'task-urls' },
     { id: 'employees', name: 'Employees', icon: <Users />, endpoint: 'employees' },
+    { id: 'workforce-tracker', name: 'Workforce Tracker', icon: <Users />, endpoint: 'employees' },
     { id: 'positions', name: 'Positions', icon: <UserSquare2 />, endpoint: 'positions' },
     { id: 'position-assignments', name: 'Position Assignments', icon: <Network />, endpoint: 'position-assignments' },
     { id: 'position-levels', name: 'Position Levels', icon: <LayoutList />, endpoint: 'position-levels' },
@@ -179,8 +179,8 @@ export const SECTIONS = [
 export const SECTION_GROUPS = [
     { name: 'Dashboard Overview', icon: <LayoutDashboard />, items: ['dashboard', 'users'], standalone: true },
     { name: 'Organization', icon: <Building2 />, items: ['organization', 'organization-levels', 'offices', 'vehicle-swaps', 'vehicle-swap-requests', 'facility-masters', 'departments', 'sections'] },
-    { name: 'Job Structure', icon: <Briefcase />, items: ['job-families', 'role-types', 'roles', 'jobs', 'tasks', 'task-urls'] },
-    { name: 'Workforce', icon: <Users />, items: ['employees', 'positions', 'position-assignments', 'position-levels', 'position-types', 'shifts', 'position-shift-rosters', 'shift-change-requests', 'projects', 'position-activity-logs'] },
+    { name: 'Job Structure', icon: <Briefcase />, items: ['roles', 'role-sub-groups'] },
+    { name: 'Workforce', icon: <Users />, items: ['employees', 'workforce-tracker', 'positions', 'position-assignments', 'position-levels', 'position-types', 'shifts', 'position-shift-rosters', 'shift-change-requests', 'projects', 'position-activity-logs'] },
  
     { name: 'Geo Locations', icon: <Globe />, items: ['geo-continents', 'geo-countries', 'geo-states', 'geo-districts', 'geo-mandals', 'geo-clusters', 'visiting-locations', 'landmarks'] },
     { name: 'Security & Access', icon: <ShieldCheck />, items: ['api-keys', 'position-screen-mappings', 'reactivations', 'audit-logs', 'login-history'] }
@@ -212,6 +212,7 @@ export const DataProvider = ({ children }) => {
     const [sections, setSections] = useState([]);
     const [jobFamilies, setJobFamilies] = useState([]);
     const [roles, setRoles] = useState([]);
+    const [roleSubGroups, setRoleSubGroups] = useState([]);
     const [jobs, setJobs] = useState([]);
     const [positions, setPositions] = useState([]);
     const [orgLevels, setOrgLevels] = useState([]);
@@ -527,6 +528,14 @@ export const DataProvider = ({ children }) => {
                     sessionStorage.setItem('loginHitId', res.login_hit_id);
                 }
 
+                // CLEANUP: Purge any old safe_fetch_cache_* blobs from previous sessions
+                // These used to be stored in sessionStorage but caused QuotaExceededError
+                Object.keys(sessionStorage).forEach(key => {
+                    if (key.startsWith('safe_fetch_cache_')) {
+                        sessionStorage.removeItem(key);
+                    }
+                });
+
                 if (res.requires_password_change) {
                     setPasswordResetRequired(true);
                     setUser(res.user); // Store user details for display
@@ -583,7 +592,7 @@ export const DataProvider = ({ children }) => {
 
         // SECURITY: Clear all cached filter states and session-bound persistence
         Object.keys(sessionStorage).forEach(key => {
-            if (key.startsWith('filters_') || key.startsWith('last_fetch_')) {
+            if (key.startsWith('filters_') || key.startsWith('last_fetch_') || key.startsWith('safe_fetch_cache_')) {
                 sessionStorage.removeItem(key);
             }
         });
@@ -720,36 +729,17 @@ export const DataProvider = ({ children }) => {
 
     const activeSafeRequests = useRef(new Map());
 
-    // Helper: Safe Fetch for Dropdowns/Charts (with sessionStorage caching to prevent redundant server hits)
+    // Helper: Safe Fetch for Dropdowns/Charts (in-memory dedup only, no sessionStorage to avoid quota issues)
     const safeFetch = async (endpoint, force = false) => {
         try {
-            const cacheKey = `safe_fetch_cache_${endpoint}`;
-            if (!force) {
-                const cached = sessionStorage.getItem(cacheKey);
-                if (cached) {
-                    try {
-                        return JSON.parse(cached);
-                    } catch (e) {
-                        // Ignore and fetch fresh if corrupted
-                    }
-                }
-            }
-
             // Deduplicate concurrent active requests for the same endpoint
-            if (activeSafeRequests.current.has(endpoint)) {
+            if (!force && activeSafeRequests.current.has(endpoint)) {
                 return activeSafeRequests.current.get(endpoint);
             }
 
             const fetchPromise = (async () => {
                 const res = await api.get(endpoint, { force });
                 const data = Array.isArray(res) ? res : (res?.results || []);
-                if (data && data.length > 0) {
-                    try {
-                        sessionStorage.setItem(cacheKey, JSON.stringify(data));
-                    } catch (e) {
-                        // Ignore quota exceeded errors silently
-                    }
-                }
                 return data;
             })();
 
@@ -820,6 +810,9 @@ export const DataProvider = ({ children }) => {
                     .then(data => setData(data))
                     .catch(err => console.error(err))
                     .finally(() => setLoading(false));
+            } else if (activeSection === 'workforce-tracker') {
+                // Custom page, does not use GenericTable's fetchData; data is loaded via Wave 2 dropdowns
+                setLoading(false);
             } else {
                 // UNIVERSAL FIX FOR STANDARD SECTIONS
                 // We leave loading as true here. 
@@ -1032,16 +1025,16 @@ export const DataProvider = ({ children }) => {
                 }
                 return null;
             } finally {
-                // Keep UI consistent: If big spinner was on, turn it off.
-                // Silent usually means don't START a spinner, but if one is already on,
-                // this fetch finishing should probably clear it.
-                if (!silent || loading) setLoading(false);
-                setIsSyncing(null); // Always turn off syncing
+                if (requestSection === activeSectionRef.current) {
+                    setLoading(false);
+                }
+                setIsSyncing(prev => prev === requestSection ? null : prev);
             }
         } else {
-            // No endpoint or section found - ensure we don't leave the UI in a loading state
-            if (!silent) setLoading(false);
-            setIsSyncing(null);
+            if (requestSection === activeSectionRef.current) {
+                setLoading(false);
+            }
+            setIsSyncing(prev => prev === requestSection ? null : prev);
         }
         return null;
     };
@@ -1129,6 +1122,7 @@ export const DataProvider = ({ children }) => {
                     'sections': (d) => setSections(universalSort(d)),
                     'job-families': (d) => setJobFamilies(universalSort(d)),
                     'roles': (d) => setRoles(universalSort(d)),
+                    'role-sub-groups': (d) => setRoleSubGroups(universalSort(d)),
                     'jobs': (d) => setJobs(universalSort(d)),
                     'positions': (d) => setPositions(universalSort(d)),
                     'projects': (d) => setProjects(universalSort(d)),
@@ -1206,36 +1200,40 @@ export const DataProvider = ({ children }) => {
                     safeFetch('departments/all_data', force),
                     safeFetch('sections/all_data', force),
                     safeFetch('roles', force),
+                    safeFetch('role-sub-groups', force),
                     safeFetch('jobs', force),
                     safeFetch('positions/all_data', force),
-                    safeFetch('employees/all_data', force),
                     safeFetch('position-levels', force),
                     safeFetch('position-types', force),
                     safeFetch('shifts', force),
-                    safeFetch('tasks', force)
+                    safeFetch('tasks', force),
+                    safeFetch('employees/all_data', force)
                 ]);
 
-                const [departmentsData, sectionsData, rolesData, jobsData, positionsData, employeesData, positionLevelsData, positionTypesData, shiftsData, tasksData] = wave2;
+                const [departmentsData, sectionsData, rolesData, roleSubGroupsData, jobsData, positionsData, positionLevelsData, positionTypesData, shiftsData, tasksData, employeesData] = wave2;
 
                 setDepartments(universalSort(departmentsData));
                 setSections(universalSort(sectionsData));
                 setRoles(universalSort(rolesData));
+                setRoleSubGroups(universalSort(roleSubGroupsData));
                 setJobs(universalSort(jobsData));
                 setPositions(universalSort(positionsData));
-                setAllEmployees(universalSort(employeesData));
                 setPositionLevels(levelSort(positionLevelsData));
                 setPositionTypes(universalSort(positionTypesData));
                 setShifts(universalSort(shiftsData));
                 setTasks(universalSort(tasksData));
+                setAllEmployees(universalSort(employeesData));
 
                 // Instant Cache Pre-population
                 const wave2Map = {
                     'departments': departmentsData,
                     'sections': sectionsData,
                     'roles': rolesData,
+                    'role-sub-groups': roleSubGroupsData,
                     'jobs': jobsData,
                     'positions': positionsData,
-                    'tasks': tasksData
+                    'tasks': tasksData,
+                    'employees': employeesData
                 };
 
                 Object.entries(wave2Map).forEach(([key, items]) => {
@@ -1247,12 +1245,11 @@ export const DataProvider = ({ children }) => {
                 console.log('✅ [Performance] Wave 2 complete. Forms ready!');
             }, 100);
 
-            // WAVE 3: OPTIONAL - Load after 500ms (geo data, employees)
+            // WAVE 3: OPTIONAL - Load after 4000ms (geo data, employees)
             setTimeout(async () => {
                 console.log('🚀 [Performance] Wave 3: Loading OPTIONAL data (geo, employees)...');
 
                 const wave3 = await Promise.all([
-                    safeFetch('employees/all_data', force),
                     safeFetch('geo-continents/all_data', force),
                     safeFetch('geo-countries/all_data', force),
                     safeFetch('geo-states/all_data', force),
@@ -1264,13 +1261,12 @@ export const DataProvider = ({ children }) => {
                 ]);
 
                 const [
-                    employeesData, geoContinentsData, geoCountriesData, geoStatesDataRes, geoDistrictsDataRes,
+                    geoContinentsData, geoCountriesData, geoStatesDataRes, geoDistrictsDataRes,
                     geoMandalsData, geoClustersData, geoVisitingRes, geoLandmarksRes
                 ] = wave3;
 
                 // PRE-POPULATE PAGE CACHE for Instant Navigation
                 const geoMap = {
-                    'employees': employeesData,
                     'geo-continents': geoContinentsData,
                     'geo-countries': geoCountriesData,
                     'geo-states': geoStatesDataRes,
@@ -1286,8 +1282,6 @@ export const DataProvider = ({ children }) => {
                         pageCache.current.set(key, universalSort(items));
                     }
                 });
-
-                setAllEmployees(universalSort(employeesData));
                 setGeoContinents(universalSort(geoContinentsData));
                 setGeoCountries(universalSort(geoCountriesData));
                 setGeoStatesData(universalSort(geoStatesDataRes));
@@ -1298,7 +1292,7 @@ export const DataProvider = ({ children }) => {
                 setGeoLandmarks(universalSort(geoLandmarksRes));
 
                 console.log('✅ [Performance] Wave 3 complete. All data loaded!');
-            }, 500);
+            }, 4000);
 
         } catch (err) {
             console.error('[Performance] Data loading failed:', err);
@@ -1457,7 +1451,26 @@ export const DataProvider = ({ children }) => {
                 }
             }
 
+            // Special handling for Positions to extract project and segment context
+            if (type === 'Positions') {
+                hydratedItem._pos_project = item.project_id || '';
+                hydratedItem._pos_segment = item.segment_id || '';
+            }
+
+            // Special handling for Role Sub Groups to extract project and segment context from its Role Group
+            if (type === 'Role Sub Groups') {
+                const roleId = item.role_group && typeof item.role_group === 'object' ? item.role_group.id : item.role_group;
+                const roleObj = roles?.find(r => String(r.id) === String(roleId));
+                if (roleObj) {
+                    const rProjId = roleObj.project_id || (roleObj.project && typeof roleObj.project === 'object' ? roleObj.project.id : roleObj.project) || '';
+                    const rSegId = roleObj.segment_id || (roleObj.segment && typeof roleObj.segment === 'object' ? roleObj.segment.id : roleObj.segment) || '';
+                    hydratedItem._sg_project = String(rProjId);
+                    hydratedItem._sg_segment = String(rSegId);
+                }
+            }
+
             Object.keys(hydratedItem).forEach(key => {
+                if (key === 'segments') return;
                 const val = hydratedItem[key];
 
                 // Case 1: Single Object (ForeignKey)
@@ -1987,6 +2000,7 @@ export const DataProvider = ({ children }) => {
         sections, setSections,
         jobFamilies, setJobFamilies,
         roles, setRoles,
+        roleSubGroups, setRoleSubGroups,
         jobs, setJobs,
         positions, setPositions,
         orgLevels, setOrgLevels,
@@ -2027,6 +2041,7 @@ export const DataProvider = ({ children }) => {
         isBulkUploadOpen, setIsBulkUploadOpen
     };
 
+    window.__dataContext = value;
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 };
 

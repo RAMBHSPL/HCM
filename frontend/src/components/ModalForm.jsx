@@ -86,7 +86,9 @@ const ModalForm = () => {
         positionLevels,
         user,
         validationErrors,
-        setValidationErrors
+        setValidationErrors,
+        shifts,
+        positionTypes
     } = useData();
 
     const [officeSearchTerm, setOfficeSearchTerm] = useState('');
@@ -1755,6 +1757,52 @@ const ModalForm = () => {
                                 )}
                             </div>
 
+                            {currentLevel?.level_code !== 'L2' && (
+                                <>
+                                    <div className="form-group">
+                                        <label className="premium-label"><Network size={14} /> SAC Code</label>
+                                        <div className="premium-input-wrapper">
+                                            <Network className="premium-input-icon" size={18} />
+                                            <input
+                                                type="text"
+                                                className="premium-input"
+                                                placeholder="Enter SAC Code"
+                                                value={formData.sac || ''}
+                                                onChange={(e) => setFormData({ ...formData, sac: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label className="premium-label"><Car size={14} /> Vehicle Code</label>
+                                        <div className="premium-input-wrapper">
+                                            <Car className="premium-input-icon" size={18} />
+                                            <input
+                                                type="text"
+                                                className="premium-input"
+                                                placeholder="Enter Vehicle Code"
+                                                value={formData.vehicle_code || ''}
+                                                onChange={(e) => setFormData({ ...formData, vehicle_code: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label className="premium-label"><Car size={14} /> Vehicle Number</label>
+                                        <div className="premium-input-wrapper">
+                                            <Car className="premium-input-icon" size={18} />
+                                            <input
+                                                type="text"
+                                                className="premium-input"
+                                                placeholder="Enter Vehicle Number"
+                                                value={formData.vehicle_no || ''}
+                                                onChange={(e) => setFormData({ ...formData, vehicle_no: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
                             {currentLevel?.level_code !== 'L2' && currentLevel?.level_code !== 'L9' && (
                                 <div className="form-group">
                                     <label className="premium-label"><Calendar size={14} /> Operational Start Date <span style={{ color: '#ef4444' }}>*</span></label>
@@ -2975,6 +3023,130 @@ const ModalForm = () => {
                 </div>
             );
 
+        case 'Role Sub Groups':
+        case 'RoleSubGroups':
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    <div className="premium-form-section">
+                        <div className="form-section-title" style={{ marginBottom: '2rem' }}><Layers size={18} /> Role Sub Group Identity</div>
+                        <div className="form-grid">
+                            <div className="form-group">
+                                <label className="premium-label"><FolderKanban size={14} /> Project (Filter)</label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={projects?.map(p => ({ id: String(p.id), name: p.name })) || []}
+                                        value={formData._sg_project || ''}
+                                        onChange={(e) => {
+                                            const projId = e.target.value;
+                                            setFormData({ ...formData, _sg_project: projId, _sg_segment: '', role_group: '' });
+                                        }}
+                                        placeholder="All Projects..."
+                                        icon={FolderKanban}
+                                    />
+                                </div>
+                            </div>
+
+                            {(() => {
+                                const selectedProj = projects?.find(p => String(p.id) === String(formData._sg_project));
+                                const hasSegments = selectedProj?.has_segments || (selectedProj?.segments && selectedProj.segments.length > 0);
+                                if (!hasSegments) return null;
+                                return (
+                                    <div className="form-group">
+                                        <label className="premium-label"><Layers size={14} /> Segment (Filter)</label>
+                                        <div className="premium-input-wrapper">
+                                            <SearchableSelect
+                                                options={selectedProj?.segments?.map(s => ({ id: String(s.id), name: `${s.name} (${s.code})` })) || []}
+                                                value={formData._sg_segment || ''}
+                                                onChange={(e) => setFormData({ ...formData, _sg_segment: e.target.value, role_group: '' })}
+                                                placeholder="All Segments..."
+                                                icon={Layers}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            <div className="form-group full-width">
+                                <label className="premium-label"><Users size={14} /> Role Group <span style={{ color: '#ef4444' }}>*</span></label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={(() => {
+                                            let filteredRoles = roles || [];
+                                            if (formData._sg_project) {
+                                                filteredRoles = filteredRoles.filter(r => {
+                                                    const rProjId = r.project_id || (r.project && typeof r.project === 'object' ? r.project.id : r.project);
+                                                    const matchesProj = String(rProjId) === String(formData._sg_project);
+                                                    if (formData._sg_segment) {
+                                                        const rSegId = r.segment_id || (r.segment && typeof r.segment === 'object' ? r.segment.id : r.segment);
+                                                        return matchesProj && String(rSegId) === String(formData._sg_segment);
+                                                    }
+                                                    return matchesProj;
+                                                });
+                                            }
+                                            return filteredRoles.map(r => ({ id: r.id, name: r.name }));
+                                        })()}
+                                        value={formData.role_group || ''}
+                                        onChange={(e) => {
+                                            const roleId = e.target.value;
+                                            const selectedRole = roles?.find(r => String(r.id) === String(roleId));
+                                            if (selectedRole) {
+                                                const rProjId = selectedRole.project_id || (selectedRole.project && typeof selectedRole.project === 'object' ? selectedRole.project.id : selectedRole.project) || '';
+                                                const rSegId = selectedRole.segment_id || (selectedRole.segment && typeof selectedRole.segment === 'object' ? selectedRole.segment.id : selectedRole.segment) || '';
+                                                setFormData({
+                                                    ...formData,
+                                                    role_group: roleId,
+                                                    _sg_project: String(rProjId),
+                                                    _sg_segment: String(rSegId)
+                                                });
+                                            } else {
+                                                setFormData({ ...formData, role_group: roleId });
+                                            }
+                                        }}
+                                        placeholder="Select Role Group..."
+                                        icon={Users}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="premium-label"><Edit size={14} /> Sub Group Name <span style={{ color: '#ef4444' }}>*</span></label>
+                                <div className="premium-input-wrapper">
+                                    <Edit className="premium-input-icon" size={18} />
+                                    <input type="text" className="premium-input" placeholder="Enter Sub Group Name" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: validateName(e.target.value, 100, 'sg_name') })} required />
+                                </div>
+                                {validationErrors.sg_name && (
+                                    <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <X size={12} /> {validationErrors.sg_name}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="form-group">
+                                <label className="premium-label"><Network size={14} /> Sub Group Code <span style={{ color: '#ef4444' }}>*</span></label>
+                                <div className="premium-input-wrapper">
+                                    <Network className="premium-input-icon" size={18} />
+                                    <input type="text" className="premium-input" placeholder="Enter Sub Group Code" value={formData.code || ''} onChange={(e) => setFormData({ ...formData, code: validateCode(e.target.value, 20, 'sg_code') })} required />
+                                </div>
+                                {validationErrors.sg_code && (
+                                    <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <X size={12} /> {validationErrors.sg_code}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="form-group full-width">
+                                <label className="premium-label"><FileText size={14} /> Description</label>
+                                <div className="premium-input-wrapper" style={{ height: 'auto' }}>
+                                    <FileText className="premium-input-icon" size={18} style={{ marginTop: '0.75rem' }} />
+                                    <textarea className="premium-input" style={{ padding: '0.75rem 0.75rem 0.75rem 2.5rem', minHeight: '100px', resize: 'vertical' }} rows="3" value={formData.description || ''} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
         case 'Jobs':
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -3914,6 +4086,29 @@ const ModalForm = () => {
                                     />
                                 </div>
                             </div>
+                            <div className="form-group">
+                                <label className="premium-label"><Layers size={14} /> Segment Creation Option <span style={{ color: 'var(--primary)' }}>*</span></label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={[
+                                            { id: 'false', name: 'No' },
+                                            { id: 'true', name: 'Yes' }
+                                        ]}
+                                        value={String(formData.has_segments || false)}
+                                        onChange={(e) => {
+                                            const val = e.target.value === 'true';
+                                            setFormData({ 
+                                                ...formData, 
+                                                has_segments: val,
+                                                segments: val ? (formData.segments?.length > 0 ? formData.segments : [{ name: '', code: '' }]) : []
+                                            });
+                                        }}
+                                        placeholder="Enable segments?"
+                                        icon={Layers}
+                                        required
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -3964,6 +4159,73 @@ const ModalForm = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Project Segments Builder */}
+                    {formData.has_segments && (
+                        <div className="premium-form-section fade-in">
+                            <div className="form-section-title" style={{ marginBottom: '2rem' }}>
+                                <Layers size={18} /> Define Project Segments
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: '#f8fafc', padding: '1.5rem', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                                {(formData.segments || []).map((seg, segIdx) => (
+                                    <div key={segIdx} style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                        <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label className="premium-label" style={{ fontSize: '0.75rem', marginBottom: '2px' }}>Segment Name <span style={{ color: '#ef4444' }}>*</span></label>
+                                            <input
+                                                type="text"
+                                                placeholder="Segment Name (e.g. Phase 1)"
+                                                value={seg.name || ''}
+                                                onChange={(e) => {
+                                                    const newSegs = [...(formData.segments || [])];
+                                                    newSegs[segIdx].name = validateAlphaNumeric(e.target.value, 100, `seg_name_${segIdx}`);
+                                                    setFormData({ ...formData, segments: newSegs });
+                                                }}
+                                                className="premium-input"
+                                                style={{ paddingLeft: '1rem', height: '40px' }}
+                                                required
+                                            />
+                                        </div>
+                                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label className="premium-label" style={{ fontSize: '0.75rem', marginBottom: '2px' }}>Code <span style={{ color: '#ef4444' }}>*</span></label>
+                                            <input
+                                                type="text"
+                                                placeholder="Code (e.g. PH1)"
+                                                value={seg.code || ''}
+                                                onChange={(e) => {
+                                                    const newSegs = [...(formData.segments || [])];
+                                                    newSegs[segIdx].code = validateCode(e.target.value, 50, `seg_code_${segIdx}`);
+                                                    setFormData({ ...formData, segments: newSegs });
+                                                }}
+                                                className="premium-input"
+                                                style={{ paddingLeft: '1rem', height: '40px' }}
+                                                required
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newSegs = (formData.segments || []).filter((_, idx) => idx !== segIdx);
+                                                setFormData({ ...formData, segments: newSegs });
+                                            }}
+                                            style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fee2e2', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600, marginTop: '20px' }}
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const newSegs = [...(formData.segments || []), { name: '', code: '' }];
+                                        setFormData({ ...formData, segments: newSegs });
+                                    }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start', background: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe', borderRadius: '8px', padding: '8px 14px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}
+                                >
+                                    <Plus size={14} /> Add Segment
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Geo Scope Jurisdiction */}
                     <div className="premium-form-section">
@@ -4370,6 +4632,57 @@ const ModalForm = () => {
                             </div>
 
                             <div className="form-group">
+                                <label className="premium-label"><FolderKanban size={14} /> Project <span style={{ color: '#ef4444' }}>*</span></label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={projects?.map(p => ({ id: String(p.id), name: p.name })) || []}
+                                        value={formData._pos_project || ''}
+                                        onChange={(e) => {
+                                            const projId = e.target.value;
+                                            const selectedProj = projects?.find(p => String(p.id) === String(projId));
+                                            setFormData({ 
+                                                ...formData, 
+                                                _pos_project: projId, 
+                                                _pos_segment: '',
+                                                position_type: '',
+                                                shifts: [],
+                                                _pos_project_code: selectedProj?.code || ''
+                                            });
+                                        }}
+                                        placeholder="Select Project..."
+                                        icon={FolderKanban}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            {(() => {
+                                const selectedProj = projects?.find(p => String(p.id) === String(formData._pos_project));
+                                const hasSegments = selectedProj?.has_segments || (selectedProj?.segments && selectedProj.segments.length > 0);
+                                if (!hasSegments) return null;
+                                return (
+                                    <div className="form-group">
+                                        <label className="premium-label"><Layers size={14} /> Segment <span style={{ color: '#ef4444' }}>*</span></label>
+                                        <div className="premium-input-wrapper">
+                                            <SearchableSelect
+                                                options={selectedProj?.segments?.map(s => ({ id: String(s.id), name: `${s.name} (${s.code})` })) || []}
+                                                value={formData._pos_segment || ''}
+                                                onChange={(e) => setFormData({ 
+                                                    ...formData, 
+                                                    _pos_segment: e.target.value,
+                                                    position_type: '',
+                                                    shifts: []
+                                                })}
+                                                placeholder="Select Segment..."
+                                                icon={Layers}
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            <div className="form-group">
                                 <label className="premium-label"><LayoutGrid size={14} /> Designation Rank / Level</label>
                                 <div className="premium-input-wrapper">
                                     <SearchableSelect
@@ -4390,7 +4703,21 @@ const ModalForm = () => {
                                 <label className="premium-label"><Settings size={14} /> Position Type</label>
                                 <div className="premium-input-wrapper">
                                     <SearchableSelect
-                                        options={positionTypes?.map(pt => ({ id: pt.id, name: pt.name })) || []}
+                                        options={(() => {
+                                            let filteredPt = positionTypes || [];
+                                            if (formData._pos_project) {
+                                                filteredPt = filteredPt.filter(pt => {
+                                                    const ptProjId = pt.project_id || (pt.project && typeof pt.project === 'object' ? pt.project.id : pt.project);
+                                                    const matchesProj = String(ptProjId) === String(formData._pos_project);
+                                                    if (formData._pos_segment) {
+                                                        const ptSegId = pt.segment_id || (pt.segment && typeof pt.segment === 'object' ? pt.segment.id : pt.segment);
+                                                        return matchesProj && String(ptSegId) === String(formData._pos_segment);
+                                                    }
+                                                    return matchesProj;
+                                                });
+                                            }
+                                            return filteredPt.map(pt => ({ id: pt.id, name: pt.name }));
+                                        })()}
                                         value={formData.position_type || ''}
                                         onChange={(e) => {
                                             const ptId = e.target.value;
@@ -4405,6 +4732,73 @@ const ModalForm = () => {
                                         placeholder="Select Position Type..."
                                         icon={Settings}
                                     />
+                                </div>
+                            </div>
+
+                            <div className="form-group full-width">
+                                <label className="premium-label"><Clock size={14} /> Mapped Shifts</label>
+                                <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', marginTop: '0.5rem' }}>
+                                    {(() => {
+                                        const ptObj = positionTypes?.find(pt => String(pt.id) === String(formData.position_type));
+                                        const projId = formData._pos_project || ptObj?.project || formData._pos_project_id;
+                                        const segId = formData._pos_segment || ptObj?.segment || formData._pos_segment_id;
+
+                                        let filteredShifts = shifts || [];
+                                        if (projId) {
+                                            filteredShifts = filteredShifts.filter(s => String(s.project) === String(projId));
+                                            if (segId) {
+                                                filteredShifts = filteredShifts.filter(s => String(s.segment) === String(segId));
+                                            }
+                                        }
+
+                                        if (filteredShifts.length === 0) {
+                                            return <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0, fontStyle: 'italic' }}>No available shifts. Please select a Project or configure Shifts in Shift Master.</p>;
+                                        }
+
+                                        return (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
+                                                {filteredShifts.map((shiftItem) => {
+                                                    const currentShifts = formData.shifts || [];
+                                                    const isChecked = currentShifts.some(sid => String(sid) === String(shiftItem.id));
+                                                    return (
+                                                        <label
+                                                            key={shiftItem.id}
+                                                            style={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '0.75rem',
+                                                                padding: '0.6rem 0.85rem',
+                                                                background: isChecked ? '#eff6ff' : '#ffffff',
+                                                                border: isChecked ? '1px solid #3b82f6' : '1px solid #cbd5e1',
+                                                                borderRadius: '12px',
+                                                                cursor: 'pointer',
+                                                                transition: 'all 0.2s ease',
+                                                            }}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={(e) => {
+                                                                    let nextShifts = [...currentShifts];
+                                                                    if (e.target.checked) {
+                                                                        nextShifts.push(shiftItem.id);
+                                                                    } else {
+                                                                        nextShifts = nextShifts.filter(sid => String(sid) !== String(shiftItem.id));
+                                                                    }
+                                                                    setFormData({ ...formData, shifts: nextShifts });
+                                                                }}
+                                                                style={{ width: '16px', height: '16px', accentColor: '#3b82f6' }}
+                                                            />
+                                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                                <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1e293b' }}>{shiftItem.name}</span>
+                                                                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>{shiftItem.start_time} - {shiftItem.end_time}</span>
+                                                            </div>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
 
@@ -4441,9 +4835,15 @@ const ModalForm = () => {
                                     <SearchableSelect
                                         options={(() => {
                                             const filteredOffices = (offices || []).filter(o => {
-                                                if (!formData._pos_level_filter) return true;
-                                                const officeLevelId = o.level_id || (typeof o.level === 'object' ? o.level?.id : o.level);
-                                                return String(officeLevelId) === String(formData._pos_level_filter);
+                                                if (formData._pos_level_filter) {
+                                                    const officeLevelId = o.level_id || (typeof o.level === 'object' ? o.level?.id : o.level);
+                                                    if (String(officeLevelId) !== String(formData._pos_level_filter)) return false;
+                                                }
+                                                if (formData._pos_project) {
+                                                    const projIds = o.project_ids?.map(String) || [];
+                                                    if (!projIds.includes(String(formData._pos_project))) return false;
+                                                }
+                                                return true;
                                             });
                                             return filteredOffices.map(o => ({ id: o.id, name: o.name }));
                                         })()}
@@ -4470,7 +4870,7 @@ const ModalForm = () => {
                                                 _pos_project_code: projCode
                                             });
                                         }}
-                                        disabled={!formData._pos_level_filter && !formData.id}
+                                        disabled={!formData._pos_level_filter && !formData._pos_project && !formData.id}
                                         placeholder="Select Office..."
                                         icon={Building2}
                                     />
@@ -4536,13 +4936,24 @@ const ModalForm = () => {
                                 <div className="premium-input-wrapper">
                                     <SearchableSelect
                                         options={(() => {
-                                            const selectedOffId = formData.office || formData._pos_office_filter;
-                                            const selectedOff = offices.find(o => String(o.id) === String(selectedOffId));
-                                            const officeProjIds = selectedOff?.project_ids?.map(id => String(id)) || [];
-                                            
                                             let filteredRoles = roles || [];
-                                            if (officeProjIds.length > 0) {
-                                                filteredRoles = filteredRoles.filter(r => officeProjIds.includes(String(r.project)));
+                                            if (formData._pos_project) {
+                                                filteredRoles = filteredRoles.filter(r => {
+                                                    const rProjId = r.project_id || (r.project && typeof r.project === 'object' ? r.project.id : r.project);
+                                                    const matchesProj = String(rProjId) === String(formData._pos_project);
+                                                    if (formData._pos_segment) {
+                                                        const rSegId = r.segment_id || (r.segment && typeof r.segment === 'object' ? r.segment.id : r.segment);
+                                                        return matchesProj && String(rSegId) === String(formData._pos_segment);
+                                                    }
+                                                    return matchesProj;
+                                                });
+                                            } else {
+                                                const selectedOffId = formData.office || formData._pos_office_filter;
+                                                const selectedOff = offices.find(o => String(o.id) === String(selectedOffId));
+                                                const officeProjIds = selectedOff?.project_ids?.map(id => String(id)) || [];
+                                                if (officeProjIds.length > 0) {
+                                                    filteredRoles = filteredRoles.filter(r => officeProjIds.includes(String(r.project)));
+                                                }
                                             }
                                             return filteredRoles.map(r => ({ id: r.id, name: r.name }));
                                         })()}
@@ -4554,7 +4965,6 @@ const ModalForm = () => {
                                                 ...formData,
                                                 role: roleId,
                                                 role_sub_group: '',
-                                                job: '',
                                                 name: selectedRoleObj ? selectedRoleObj.name : formData.name
                                             });
                                         }}
@@ -4585,123 +4995,10 @@ const ModalForm = () => {
                                     </div>
                                 );
                             })()}
-
-                            <div className="form-group full-width">
-                                <label className="premium-label"><Briefcase size={14} /> Job Profile (Specific Role) <span style={{ color: '#ef4444' }}>*</span></label>
-                                <div className="premium-input-wrapper">
-                                    <SearchableSelect
-                                        options={jobs.filter(j => String(j.role) === String(formData.role)).map(j => ({ id: j.id, name: j.name }))}
-                                        value={formData.job || ''}
-                                        onChange={(e) => setFormData({ ...formData, job: e.target.value })}
-                                        placeholder="Select Job Profile..."
-                                        icon={Briefcase}
-                                        required
-                                        disabled={!formData.role}
-                                    />
-                                </div>
-                            </div>
-
-                            {formData.job && (
-                                <div className="form-group full-width">
-                                    <label className="premium-label"><ClipboardList size={14} /> Scope of Work (Tasks)</label>
-                                    <div style={{
-                                        padding: '1.25rem',
-                                        background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                                        borderRadius: '20px',
-                                        border: '1px solid #e2e8f0',
-                                        maxHeight: '200px',
-                                        overflowY: 'auto'
-                                    }}>
-                                        {(() => {
-                                            const jobTasks = tasks.filter(t => String(t.job) === String(formData.job));
-                                            return jobTasks.length > 0 ? (
-                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
-                                                    {jobTasks.map((t) => (
-                                                        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
-                                                            <span style={{ fontSize: '0.8rem', color: '#1e293b', fontWeight: 500 }}>{t.name}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div style={{ textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8rem', padding: '1rem' }}>
-                                                    No specific tasks defined for this job profile.
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </div>
 
-                    {/* Section 4: Mapped Shifts */}
-                    <div className="premium-form-section">
-                        <div className="form-section-title" style={{ marginBottom: '1.5rem' }}><Clock size={18} /> Mapped Shifts</div>
-                        <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                            {(() => {
-                                const ptObj = positionTypes?.find(pt => String(pt.id) === String(formData.position_type));
-                                const projId = ptObj?.project || formData._pos_project_id;
-                                const segId = ptObj?.segment || formData._pos_segment_id;
 
-                                let filteredShifts = shifts || [];
-                                if (projId) {
-                                    filteredShifts = filteredShifts.filter(s => String(s.project) === String(projId));
-                                    if (segId) {
-                                        filteredShifts = filteredShifts.filter(s => String(s.segment) === String(segId));
-                                    }
-                                }
-
-                                if (filteredShifts.length === 0) {
-                                    return <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0, fontStyle: 'italic' }}>No available shifts. Please select a Position Type or configure Shifts in Shift Master.</p>;
-                                }
-
-                                return (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
-                                        {filteredShifts.map((shiftItem) => {
-                                            const currentShifts = formData.shifts || [];
-                                            const isChecked = currentShifts.some(sid => String(sid) === String(shiftItem.id));
-                                            return (
-                                                <label
-                                                    key={shiftItem.id}
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '0.75rem',
-                                                        padding: '0.75rem 1rem',
-                                                        background: isChecked ? '#eff6ff' : '#ffffff',
-                                                        border: isChecked ? '1px solid #3b82f6' : '1px solid #cbd5e1',
-                                                        borderRadius: '12px',
-                                                        cursor: 'pointer',
-                                                        transition: 'all 0.2s ease',
-                                                    }}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isChecked}
-                                                        onChange={(e) => {
-                                                            let nextShifts = [...currentShifts];
-                                                            if (e.target.checked) {
-                                                                nextShifts.push(shiftItem.id);
-                                                            } else {
-                                                                nextShifts = nextShifts.filter(sid => String(sid) !== String(shiftItem.id));
-                                                            }
-                                                            setFormData({ ...formData, shifts: nextShifts });
-                                                        }}
-                                                        style={{ width: '16px', height: '16px', accentColor: '#3b82f6' }}
-                                                    />
-                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                        <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b' }}>{shiftItem.name}</span>
-                                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{shiftItem.start_time} - {shiftItem.end_time}</span>
-                                                    </div>
-                                                </label>
-                                            );
-                                        })}
-                                    </div>
-                                );
-                            })()}
-                        </div>
-                    </div>
 
                     {/* Reporting Hierarchy */}
                     <div className="premium-form-section">

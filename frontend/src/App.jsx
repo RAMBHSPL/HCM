@@ -14,6 +14,7 @@ const Offices = React.lazy(() => import('./pages/Offices'));
 const Departments = React.lazy(() => import('./pages/Departments'));
 const Sections = React.lazy(() => import('./pages/Sections'));
 const Employees = React.lazy(() => import('./pages/Employees'));
+const WorkforceTracker = React.lazy(() => import('./pages/WorkforceTracker'));
 const Positions = React.lazy(() => import('./pages/Positions'));
 const PositionAssignments = React.lazy(() => import('./pages/PositionAssignments'));
 const PositionLevels = React.lazy(() => import('./pages/PositionLevels'));
@@ -27,6 +28,7 @@ const FacilityMasters = React.lazy(() => import('./pages/FacilityMasters'));
 const JobFamilies = React.lazy(() => import('./pages/JobFamilies'));
 const RoleTypes = React.lazy(() => import('./pages/RoleTypes'));
 const Roles = React.lazy(() => import('./pages/Roles'));
+const RoleSubGroups = React.lazy(() => import('./pages/RoleSubGroups'));
 const Jobs = React.lazy(() => import('./pages/Jobs'));
 const Tasks = React.lazy(() => import('./pages/Tasks'));
 const TaskUrlMapping = React.lazy(() => import('./pages/TaskUrlMapping'));
@@ -49,7 +51,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 const ProtectedRoute = ({ section, children }) => {
   const { canView } = useData();
   // Basic modules always allowed
-  if (['dashboard', 'users', 'api-keys', 'reactivations', 'position-assignments', 'profile', 'position-activity-logs', 'audit-logs', 'login-history', 'vehicle-swaps', 'vehicle-swap-requests', 'manager-screen-mappings', 'position-screen-mappings', 'shift-change-requests'].includes(section)) {
+  if (['dashboard', 'users', 'api-keys', 'reactivations', 'position-assignments', 'profile', 'position-activity-logs', 'audit-logs', 'login-history', 'vehicle-swaps', 'vehicle-swap-requests', 'manager-screen-mappings', 'position-screen-mappings', 'shift-change-requests', 'workforce-tracker', 'role-sub-groups'].includes(section)) {
     return children;
   }
 
@@ -115,12 +117,14 @@ const AppContent = () => {
             <Route path="/job-families/*" element={<ProtectedRoute section="job-families"><JobFamilies /></ProtectedRoute>} />
             <Route path="/role-types/*" element={<ProtectedRoute section="role-types"><RoleTypes /></ProtectedRoute>} />
             <Route path="/roles/*" element={<ProtectedRoute section="roles"><Roles /></ProtectedRoute>} />
+            <Route path="/role-sub-groups/*" element={<ProtectedRoute section="role-sub-groups"><RoleSubGroups /></ProtectedRoute>} />
             <Route path="/jobs/*" element={<ProtectedRoute section="jobs"><Jobs /></ProtectedRoute>} />
             <Route path="/tasks/*" element={<ProtectedRoute section="tasks"><Tasks /></ProtectedRoute>} />
             <Route path="/task-urls/*" element={<ProtectedRoute section="task-urls"><TaskUrlMapping /></ProtectedRoute>} />
 
             {/* Workforce */}
             <Route path="/employees/*" element={<ProtectedRoute section="employees"><Employees /></ProtectedRoute>} />
+            <Route path="/workforce-tracker/*" element={<ProtectedRoute section="workforce-tracker"><WorkforceTracker /></ProtectedRoute>} />
             <Route path="/positions/*" element={<ProtectedRoute section="positions"><Positions /></ProtectedRoute>} />
             <Route path="/position-assignments/*" element={<ProtectedRoute section="position-assignments"><PositionAssignments /></ProtectedRoute>} />
             <Route path="/position-levels/*" element={<ProtectedRoute section="position-levels"><PositionLevels /></ProtectedRoute>} />
