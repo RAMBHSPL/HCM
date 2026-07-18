@@ -773,6 +773,11 @@ class PositionDetailSerializer(serializers.ModelSerializer):
     role_type_id = serializers.SerializerMethodField()
     office_level_id = serializers.SerializerMethodField()
     project_name = serializers.SerializerMethodField()
+    project_id = serializers.SerializerMethodField()
+    segment_id = serializers.SerializerMethodField()
+    segment_name = serializers.SerializerMethodField()
+    position_type_id = serializers.ReadOnlyField(source='position_type.id', allow_null=True)
+    position_type_name = serializers.ReadOnlyField(source='position_type.name', allow_null=True)
     role_details = RoleSerializer(source='role', read_only=True)
     job_details = JobSerializer(source='job', read_only=True)
 
@@ -795,12 +800,34 @@ class PositionDetailSerializer(serializers.ModelSerializer):
             return obj.office.level.id
         return None
 
+    def get_project_id(self, obj):
+        project = None
+        if obj.section and obj.section.project:
+            project = obj.section.project
+        elif obj.department and obj.department.project:
+            project = obj.department.project
+        elif obj.office:
+            project = obj.office.projects.first()
+        return project.id if project else None
+
+    def get_segment_id(self, obj):
+        if obj.role and obj.role.segment:
+            return obj.role.segment.id
+        return None
+
+    def get_segment_name(self, obj):
+        if obj.role and obj.role.segment:
+            return obj.role.segment.name
+        return None
+
     def get_project_name(self, obj):
         project = None
         if obj.section and obj.section.project:
             project = obj.section.project
         elif obj.department and obj.department.project:
             project = obj.department.project
+        elif obj.office:
+            project = obj.office.projects.first()
         
         if project and project.is_currently_active:
             return project.name
@@ -814,7 +841,8 @@ class PositionDetailSerializer(serializers.ModelSerializer):
             'department_name', 'section_name', 'role_name', 'job_name', 'job_family_name',
             'job_family_id', 'role_type_id',
             'role_details', 'job_details', 'project_name', 'reporting_to', 'start_date',
-            'level', 'level_name', 'level_rank', 'rank'
+            'level', 'level_name', 'level_rank', 'rank',
+            'project_id', 'segment_id', 'segment_name', 'position_type_id', 'position_type_name'
         ]
 
     def to_representation(self, instance):
@@ -1465,6 +1493,8 @@ class EmployeeListSerializer(EmployeeSerializer):
                     'sac': off.sac,
                     'vehicle_code': off.vehicle_code,
                     'level': off.level.name if off.level else None,
+                    'parent': off.parent_id,
+                    'parent_name': off.parent.name if off.parent else None,
                     'geo_location': {
                         'country': off.country_name,
                         'state': off.state_name,
@@ -1563,6 +1593,7 @@ class EmployeeListSerializer(EmployeeSerializer):
 class LightEmployeePositionSerializer(serializers.ModelSerializer):
     """Position serializer with all fields required for WorkforceTracker filtering & grouping."""
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
+    office_level_id = serializers.IntegerField(source='office.level.id', allow_null=True, read_only=True)
     department_name = serializers.ReadOnlyField(source='department.name', allow_null=True)
     department_id = serializers.ReadOnlyField()
     section_id = serializers.ReadOnlyField()
@@ -1606,7 +1637,7 @@ class LightEmployeePositionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Position
         fields = [
-            'id', 'name', 'office_id', 'office_name',
+            'id', 'name', 'office_id', 'office_name', 'office_level_id',
             'department_id', 'department_name', 'section_id',
             'level', 'position_type_id', 'position_type_name',
             'role_id', 'role_name',

@@ -228,6 +228,7 @@ const ModalForm = () => {
         }
     }, [formData.level, formData.parent, formData.facility_master, orgLevels, offices, facilityMasters, modalType]);
 
+
     React.useEffect(() => {
         if (selectedProj && currentLevel?.level_code === 'L9') {
             const scope = selectedProj.geo_scope_level;

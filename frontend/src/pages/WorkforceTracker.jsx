@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Users, Search, FolderKanban, Layers, Settings,
     RotateCcw, Mail, Phone, ArrowUpRight,
-    ChevronDown, ChevronUp, TrendingUp, UserCheck, UserX
+    ChevronDown, ChevronUp, TrendingUp, UserCheck, UserX,
+    Building2, LayoutList
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import SearchableSelect from '../components/SearchableSelect';
@@ -242,7 +243,21 @@ const EmployeeCard = ({ emp, pos, onView }) => {
 // ─── Segment Block ────────────────────────────────────────────────────────────
 const SegmentBlock = ({ seg, onView }) => {
     const [open, setOpen] = useState(true);
+    const [page, setPage] = useState(1);
+    const pageSize = 24;
+
     const emps = [...seg.employees.values()];
+    const totalPages = Math.ceil(emps.length / pageSize);
+
+    useEffect(() => {
+        setPage(1);
+    }, [seg]);
+
+    const paginatedEmps = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return emps.slice(start, start + pageSize);
+    }, [emps, page]);
+
     return (
         <div style={{ marginBottom: '1rem' }}>
             <div
@@ -264,11 +279,92 @@ const SegmentBlock = ({ seg, onView }) => {
                 {open ? <ChevronUp size={14} color="#3b82f6" /> : <ChevronDown size={14} color="#3b82f6" />}
             </div>
             {open && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', paddingLeft: '0.5rem' }}>
-                    {emps.map(e => (
-                        <EmployeeCard key={e.id} emp={e} pos={e._matchedPosition} onView={onView} />
-                    ))}
-                </div>
+                <>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', paddingLeft: '0.5rem' }}>
+                        {paginatedEmps.map(e => (
+                            <EmployeeCard key={e.id} emp={e} pos={e._matchedPosition} onView={onView} />
+                        ))}
+                    </div>
+                    {totalPages > 1 && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginTop: '1.25rem',
+                            paddingTop: '0.75rem',
+                            borderTop: '1px solid #dbeafe',
+                            flexWrap: 'wrap',
+                            gap: 8,
+                            paddingLeft: '0.5rem'
+                        }}>
+                            <span style={{ fontSize: '0.72rem', color: '#1e3a8a', fontWeight: 600 }}>
+                                Showing {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, emps.length)} of {emps.length} employees
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <button
+                                    disabled={page === 1}
+                                    onClick={() => setPage(p => Math.max(p - 1, 1))}
+                                    style={{
+                                        border: '1.5px solid #dbeafe',
+                                        background: '#fff',
+                                        color: page === 1 ? '#94a3b8' : '#1e40af',
+                                        padding: '4px 10px',
+                                        borderRadius: 8,
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        cursor: page === 1 ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    Prev
+                                </button>
+                                {getPageNumbers(page, totalPages).map((pNum, idx) => {
+                                    if (pNum === '...') {
+                                        return <span key={`dots-${idx}`} style={{ padding: '0 4px', color: '#94a3b8', fontSize: '0.75rem' }}>...</span>;
+                                    }
+                                    return (
+                                        <button
+                                            key={pNum}
+                                            onClick={() => setPage(pNum)}
+                                            style={{
+                                                border: '1.5px solid',
+                                                borderColor: page === pNum ? '#1e40af' : '#dbeafe',
+                                                background: page === pNum ? '#1e40af' : '#fff',
+                                                color: page === pNum ? '#fff' : '#1e40af',
+                                                padding: '4px 10px',
+                                                borderRadius: 8,
+                                                fontSize: '0.72rem',
+                                                fontWeight: 700,
+                                                minWidth: 28,
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            {pNum}
+                                        </button>
+                                    );
+                                })}
+                                <button
+                                    disabled={page === totalPages}
+                                    onClick={() => setPage(p => Math.min(p + 1, totalPages))}
+                                    style={{
+                                        border: '1.5px solid #dbeafe',
+                                        background: '#fff',
+                                        color: page === totalPages ? '#94a3b8' : '#1e40af',
+                                        padding: '4px 10px',
+                                        borderRadius: 8,
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        cursor: page === totalPages ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
@@ -334,16 +430,252 @@ const ProjectBlock = ({ proj, onView }) => {
     );
 };
 
+// ─── Section Block ────────────────────────────────────────────────────────────
+const SectionBlock = ({ sec, onView }) => {
+    const [open, setOpen] = useState(true);
+    const [page, setPage] = useState(1);
+    const pageSize = 24;
+
+    const emps = [...sec.employees.values()];
+    const totalPages = Math.ceil(emps.length / pageSize);
+
+    useEffect(() => {
+        setPage(1);
+    }, [sec]);
+
+    const paginatedEmps = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return emps.slice(start, start + pageSize);
+    }, [emps, page]);
+
+    return (
+        <div style={{ marginBottom: '0.75rem' }}>
+            <div
+                onClick={() => setOpen(o => !o)}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                    padding: '0.5rem 0.8rem',
+                    background: '#f8fafc',
+                    borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: open ? 8 : 0,
+                    userSelect: 'none'
+                }}
+            >
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#64748b' }} />
+                <span style={{ fontWeight: 600, fontSize: '0.78rem', color: '#334155', flex: 1 }}>{sec.name}</span>
+                <span style={{
+                    background: '#64748b', color: '#fff', borderRadius: 20,
+                    padding: '1px 8px', fontSize: '0.65rem', fontWeight: 700
+                }}>{emps.length}</span>
+                {open ? <ChevronUp size={12} color="#64748b" /> : <ChevronDown size={12} color="#64748b" />}
+            </div>
+            {open && (
+                <>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', paddingLeft: '0.5rem', paddingTop: '4px' }}>
+                        {paginatedEmps.map(e => (
+                            <EmployeeCard key={e.id} emp={e} pos={e._matchedPosition} onView={onView} />
+                        ))}
+                    </div>
+                    {totalPages > 1 && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginTop: '1.25rem',
+                            paddingTop: '0.75rem',
+                            borderTop: '1px solid #e2e8f0',
+                            flexWrap: 'wrap',
+                            gap: 8,
+                            paddingLeft: '0.5rem'
+                        }}>
+                            <span style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 600 }}>
+                                Showing {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, emps.length)} of {emps.length} employees
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <button
+                                    disabled={page === 1}
+                                    onClick={() => setPage(p => Math.max(p - 1, 1))}
+                                    style={{
+                                        border: '1.5px solid #e2e8f0',
+                                        background: '#fff',
+                                        color: page === 1 ? '#94a3b8' : '#475569',
+                                        padding: '4px 10px',
+                                        borderRadius: 8,
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        cursor: page === 1 ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    Prev
+                                </button>
+                                {getPageNumbers(page, totalPages).map((pNum, idx) => {
+                                    if (pNum === '...') {
+                                        return <span key={`dots-${idx}`} style={{ padding: '0 4px', color: '#94a3b8', fontSize: '0.75rem' }}>...</span>;
+                                    }
+                                    return (
+                                        <button
+                                            key={pNum}
+                                            onClick={() => setPage(pNum)}
+                                            style={{
+                                                border: '1.5px solid',
+                                                borderColor: page === pNum ? '#475569' : '#e2e8f0',
+                                                background: page === pNum ? '#475569' : '#fff',
+                                                color: page === pNum ? '#fff' : '#475569',
+                                                padding: '4px 10px',
+                                                borderRadius: 8,
+                                                fontSize: '0.72rem',
+                                                fontWeight: 700,
+                                                minWidth: 28,
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            {pNum}
+                                        </button>
+                                    );
+                                })}
+                                <button
+                                    disabled={page === totalPages}
+                                    onClick={() => setPage(p => Math.min(p + 1, totalPages))}
+                                    style={{
+                                        border: '1.5px solid #e2e8f0',
+                                        background: '#fff',
+                                        color: page === totalPages ? '#94a3b8' : '#475569',
+                                        padding: '4px 10px',
+                                        borderRadius: 8,
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        cursor: page === totalPages ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+};
+
+// ─── Department Block ─────────────────────────────────────────────────────────
+const DepartmentBlock = ({ dept, onView }) => {
+    const [open, setOpen] = useState(true);
+    const secs = [...dept.sections.values()];
+    const total = secs.reduce((sum, s) => sum + s.employees.size, 0);
+
+    return (
+        <div style={{
+            background: '#faf5ff',
+            borderRadius: 14,
+            border: '1px solid #e9d5ff',
+            padding: '0.85rem',
+            marginBottom: '1rem'
+        }}>
+            <div
+                onClick={() => setOpen(o => !o)}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                    paddingBottom: open ? 10 : 0,
+                    userSelect: 'none'
+                }}
+            >
+                <Layers size={14} color="#7c3aed" />
+                <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#5b21b6', flex: 1 }}>{dept.name}</span>
+                <span style={{
+                    background: '#7c3aed', color: '#fff', borderRadius: 20,
+                    padding: '1px 10px', fontSize: '0.7rem', fontWeight: 700
+                }}>{total}</span>
+                {open ? <ChevronUp size={14} color="#7c3aed" /> : <ChevronDown size={14} color="#7c3aed" />}
+            </div>
+            {open && (
+                <div>
+                    {secs.map(sec => (
+                        <SectionBlock key={sec.id} sec={sec} onView={onView} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ─── Office Block ─────────────────────────────────────────────────────────────
+const OfficeBlock = ({ office, onView }) => {
+    const [open, setOpen] = useState(true);
+    const depts = [...office.departments.values()];
+    const total = depts.reduce((sum, d) => sum + [...d.sections.values()].reduce((sSum, s) => sSum + s.employees.size, 0), 0);
+    const isNone = office.id === '__none__';
+
+    return (
+        <div style={{
+            background: '#fff',
+            borderRadius: 20,
+            overflow: 'hidden',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+            border: '1px solid #e8edf2',
+            marginBottom: '1.5rem'
+        }}>
+            {/* Office header */}
+            <div
+                onClick={() => setOpen(o => !o)}
+                style={{
+                    background: isNone
+                        ? 'linear-gradient(135deg, #374151 0%, #1f2937 100%)'
+                        : 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+                    padding: '1.1rem 1.5rem',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    cursor: 'pointer', userSelect: 'none'
+                }}
+            >
+                <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: 'rgba(255,255,255,0.2)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                    <Building2 size={18} color="#fff" />
+                </div>
+                <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#fff', letterSpacing: '-0.2px' }}>{office.name}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
+                        {depts.length} Department{depts.length !== 1 ? 's' : ''} · {total} Employee{total !== 1 ? 's' : ''}
+                    </div>
+                </div>
+                <span style={{
+                    background: 'rgba(255,255,255,0.2)', color: '#fff',
+                    borderRadius: 20, padding: '3px 14px', fontWeight: 800, fontSize: '0.8rem'
+                }}>{total}</span>
+                {open ? <ChevronUp size={16} color="rgba(255,255,255,0.8)" /> : <ChevronDown size={16} color="rgba(255,255,255,0.8)" />}
+            </div>
+
+            {/* Departments */}
+            {open && (
+                <div style={{ padding: '1.25rem 1.5rem' }}>
+                    {depts.map(dept => (
+                        <DepartmentBlock key={dept.id} dept={dept} onView={onView} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const WorkforceTracker = () => {
     const {
-        allEmployees, projects, positionTypes, roles, roleSubGroups,
-        loading, handleViewProfile
+        allEmployees, projects, offices, departments, sections, positionTypes, roles, roleSubGroups,
+        loading, handleViewProfile, orgLevels
     } = useData();
 
+    const [segregationPattern, setSegregationPattern] = useState('project');
     const [search, setSearch] = useState('');
     const [selProject, setSelProject] = useState('');
     const [selSegment, setSelSegment] = useState('');
+    const [selOffice, setSelOffice] = useState('');
+    const [selOfficeLevel, setSelOfficeLevel] = useState('');
+    const [selDepartment, setSelDepartment] = useState('');
+    const [selSection, setSelSection] = useState('');
     const [selPosType, setSelPosType] = useState('');
     const [selRole, setSelRole] = useState('');
     const [selSubGroup, setSelSubGroup] = useState('');
@@ -355,6 +687,20 @@ const WorkforceTracker = () => {
         return proj?.segments?.map(s => ({ id: String(s.id), name: s.name })) || [];
     }, [selProject, projects]);
 
+    // Departments for selected office
+    const departmentOptions = useMemo(() => {
+        if (!selOffice) return [];
+        return departments?.filter(d => String(d.office) === selOffice || String(d.office_id) === selOffice)
+                          .map(d => ({ id: String(d.id), name: d.name })) || [];
+    }, [selOffice, departments]);
+
+    // Sections for selected department
+    const sectionOptions = useMemo(() => {
+        if (!selDepartment) return [];
+        return sections?.filter(s => String(s.department) === selDepartment || String(s.department_id) === selDepartment)
+                        .map(s => ({ id: String(s.id), name: s.name })) || [];
+    }, [selDepartment, sections]);
+
     // Filter employees
     const filtered = useMemo(() => {
         return (allEmployees || []).filter(emp => {
@@ -365,12 +711,16 @@ const WorkforceTracker = () => {
                     !emp.email?.toLowerCase().includes(t) &&
                     !emp.phone?.toLowerCase().includes(t)) return false;
             }
-            const anyFilter = selProject || selSegment || selPosType || selRole || selSubGroup;
+            const anyFilter = selProject || selSegment || selOffice || selOfficeLevel || selDepartment || selSection || selPosType || selRole || selSubGroup;
             if (anyFilter) {
                 if (!emp.positions_details?.length) return false;
                 return emp.positions_details.some(pos => {
                     if (selProject && String(pos.project_id) !== selProject) return false;
                     if (selSegment && String(pos.segment_id) !== selSegment) return false;
+                    if (selOffice && String(pos.office_id) !== selOffice) return false;
+                    if (selOfficeLevel && String(pos.office_level_id) !== selOfficeLevel) return false;
+                    if (selDepartment && String(pos.department_id) !== selDepartment) return false;
+                    if (selSection && String(pos.section_id) !== selSection) return false;
                     if (selPosType && String(pos.position_type_id) !== selPosType) return false;
                     if (selRole && String(pos.role_id) !== selRole) return false;
                     if (selSubGroup && String(pos.role_sub_group_id) !== selSubGroup) return false;
@@ -379,58 +729,121 @@ const WorkforceTracker = () => {
             }
             return true;
         });
-    }, [allEmployees, search, selProject, selSegment, selPosType, selRole, selSubGroup]);
+    }, [allEmployees, search, selProject, selSegment, selOffice, selOfficeLevel, selDepartment, selSection, selPosType, selRole, selSubGroup]);
 
-    // Build hierarchy: Project → Segment → Employees
+    // Build hierarchy:
+    // - If Project-wise: Project → Segment → Employees
+    // - If Office-wise: Office → Department → Section → Employees
     const hierarchy = useMemo(() => {
-        const projectMap = new Map();
-        filtered.forEach(emp => {
-            const positions = emp.positions_details || [];
-            const matching = positions.filter(pos => {
-                if (selProject && String(pos.project_id) !== selProject) return false;
-                if (selSegment && String(pos.segment_id) !== selSegment) return false;
-                if (selPosType && String(pos.position_type_id) !== selPosType) return false;
-                if (selRole && String(pos.role_id) !== selRole) return false;
-                if (selSubGroup && String(pos.role_sub_group_id) !== selSubGroup) return false;
-                return true;
+        if (segregationPattern === 'project') {
+            const projectMap = new Map();
+            filtered.forEach(emp => {
+                const positions = emp.positions_details || [];
+                const matching = positions.filter(pos => {
+                    if (selProject && String(pos.project_id) !== selProject) return false;
+                    if (selSegment && String(pos.segment_id) !== selSegment) return false;
+                    if (selOfficeLevel && String(pos.office_level_id) !== selOfficeLevel) return false;
+                    if (selPosType && String(pos.position_type_id) !== selPosType) return false;
+                    if (selRole && String(pos.role_id) !== selRole) return false;
+                    if (selSubGroup && String(pos.role_sub_group_id) !== selSubGroup) return false;
+                    return true;
+                });
+                const toGroup = matching.length > 0 ? matching : positions.length > 0 ? [positions[0]] : [{}];
+                const seen = new Set();
+                toGroup.forEach(pos => {
+                    const pk = String(pos.project_id || '__none__');
+                    const sk = String(pos.segment_id || '__none__');
+                    const dk = `${pk}:${sk}:${emp.id}`;
+                    if (seen.has(dk)) return;
+                    seen.add(dk);
+                    if (!projectMap.has(pk)) {
+                        projectMap.set(pk, {
+                            id: pk,
+                            name: pos.project_name || (pk === '__none__' ? 'No Project Assigned' : pk),
+                            segments: new Map()
+                        });
+                    }
+                    const proj = projectMap.get(pk);
+                    if (!proj.segments.has(sk)) {
+                        proj.segments.set(sk, {
+                            id: sk,
+                            name: pos.segment_name || (sk === '__none__' ? 'General' : sk),
+                            employees: new Map()
+                        });
+                    }
+                    proj.segments.get(sk).employees.set(emp.id, { ...emp, _matchedPosition: pos });
+                });
             });
-            const toGroup = matching.length > 0 ? matching : positions.length > 0 ? [positions[0]] : [{}];
-            const seen = new Set();
-            toGroup.forEach(pos => {
-                const pk = String(pos.project_id || '__none__');
-                const sk = String(pos.segment_id || '__none__');
-                const dk = `${pk}:${sk}:${emp.id}`;
-                if (seen.has(dk)) return;
-                seen.add(dk);
-                if (!projectMap.has(pk)) {
-                    projectMap.set(pk, {
-                        id: pk,
-                        name: pos.project_name || (pk === '__none__' ? 'No Project Assigned' : pk),
-                        segments: new Map()
-                    });
-                }
-                const proj = projectMap.get(pk);
-                if (!proj.segments.has(sk)) {
-                    proj.segments.set(sk, {
-                        id: sk,
-                        name: pos.segment_name || (sk === '__none__' ? 'General' : sk),
-                        employees: new Map()
-                    });
-                }
-                proj.segments.get(sk).employees.set(emp.id, { ...emp, _matchedPosition: pos });
+            return [...projectMap.values()];
+        } else {
+            // Office-wise: Office → Department → Section → Employees
+            const officeMap = new Map();
+            filtered.forEach(emp => {
+                const positions = emp.positions_details || [];
+                const matching = positions.filter(pos => {
+                    if (selProject && String(pos.project_id) !== selProject) return false;
+                    if (selOfficeLevel && String(pos.office_level_id) !== selOfficeLevel) return false;
+                    if (selOffice && String(pos.office_id) !== selOffice) return false;
+                    if (selDepartment && String(pos.department_id) !== selDepartment) return false;
+                    if (selSection && String(pos.section_id) !== selSection) return false;
+                    if (selPosType && String(pos.position_type_id) !== selPosType) return false;
+                    if (selRole && String(pos.role_id) !== selRole) return false;
+                    if (selSubGroup && String(pos.role_sub_group_id) !== selSubGroup) return false;
+                    return true;
+                });
+                const toGroup = matching.length > 0 ? matching : positions.length > 0 ? [positions[0]] : [{}];
+                const seen = new Set();
+                toGroup.forEach(pos => {
+                    const ok = String(pos.office_id || '__none__');
+                    const dk = String(pos.department_id || '__none__');
+                    const sk = String(pos.section_id || '__none__');
+                    const key = `${ok}:${dk}:${sk}:${emp.id}`;
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    if (!officeMap.has(ok)) {
+                        officeMap.set(ok, {
+                            id: ok,
+                            name: pos.office_name || (ok === '__none__' ? 'No Office Assigned' : ok),
+                            departments: new Map()
+                        });
+                    }
+                    const officeObj = officeMap.get(ok);
+                    if (!officeObj.departments.has(dk)) {
+                        officeObj.departments.set(dk, {
+                            id: dk,
+                            name: pos.department_name || (dk === '__none__' ? 'General Department' : dk),
+                            sections: new Map()
+                        });
+                    }
+                    const deptObj = officeObj.departments.get(dk);
+                    if (!deptObj.sections.has(sk)) {
+                        deptObj.sections.set(sk, {
+                            id: sk,
+                            name: pos.section_name || (sk === '__none__' ? 'General Section' : sk),
+                            employees: new Map()
+                        });
+                    }
+                    deptObj.sections.get(sk).employees.set(emp.id, { ...emp, _matchedPosition: pos });
+                });
             });
-        });
-        return [...projectMap.values()];
-    }, [filtered, selProject, selSegment, selPosType, selRole, selSubGroup]);
+            return [...officeMap.values()];
+        }
+    }, [filtered, segregationPattern, selProject, selSegment, selOffice, selOfficeLevel, selDepartment, selSection, selPosType, selRole, selSubGroup]);
 
     const totalEmp = useMemo(() => {
         const ids = new Set();
-        hierarchy.forEach(p => p.segments.forEach(s => s.employees.forEach((_, id) => ids.add(id))));
+        if (segregationPattern === 'project') {
+            hierarchy.forEach(p => p.segments.forEach(s => s.employees.forEach((_, id) => ids.add(id))));
+        } else {
+            hierarchy.forEach(o => o.departments.forEach(d => d.sections.forEach(s => s.employees.forEach((_, id) => ids.add(id)))));
+        }
         return ids.size;
-    }, [hierarchy]);
+    }, [hierarchy, segregationPattern]);
 
     const reset = () => {
-        setSearch(''); setSelProject(''); setSelSegment('');
+        setSearch('');
+        setSelProject(''); setSelSegment('');
+        setSelOffice(''); setSelOfficeLevel(''); setSelDepartment(''); setSelSection('');
         setSelPosType(''); setSelRole(''); setSelSubGroup('');
     };
 
@@ -464,15 +877,75 @@ const WorkforceTracker = () => {
                                 Workforce Tracker
                             </h1>
                             <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b', marginTop: 2 }}>
-                                Project → Segment → Position Type → Role → Sub Group
+                                {segregationPattern === 'project'
+                                    ? 'Project → Segment → Position Type → Role → Sub Group'
+                                    : 'Office → Department → Section → Position Type → Role → Sub Group'}
                             </p>
                         </div>
                     </div>
                 </div>
                 {/* Stats */}
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <StatBadge icon={<FolderKanban size={13} />} label="Projects" value={hierarchy.length} color="#881337" />
+                    <StatBadge
+                        icon={segregationPattern === 'project' ? <FolderKanban size={13} /> : <Building2 size={13} />}
+                        label={segregationPattern === 'project' ? 'Projects' : 'Offices'}
+                        value={hierarchy.length}
+                        color={segregationPattern === 'project' ? '#881337' : '#1e3a8a'}
+                    />
                     <StatBadge icon={<UserCheck size={13} />} label="Employees" value={totalEmp} color="#10b981" />
+                    
+                    {/* Segregation Pattern Toggle */}
+                    <div style={{
+                        display: 'flex',
+                        background: '#f1f5f9',
+                        padding: '3px',
+                        borderRadius: '10px',
+                        border: '1.5px solid #e2e8f0',
+                        alignItems: 'center',
+                        gap: '2px'
+                    }}>
+                        <button
+                            onClick={() => { setSegregationPattern('project'); reset(); }}
+                            style={{
+                                border: 'none',
+                                padding: '5px 12px',
+                                borderRadius: '7px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: segregationPattern === 'project' ? '#881337' : 'transparent',
+                                color: segregationPattern === 'project' ? '#fff' : '#64748b',
+                                boxShadow: segregationPattern === 'project' ? '0 2px 6px rgba(136,19,55,0.2)' : 'none'
+                            }}
+                        >
+                            <FolderKanban size={11} /> Project-wise
+                        </button>
+                        <button
+                            onClick={() => { setSegregationPattern('office'); reset(); }}
+                            style={{
+                                border: 'none',
+                                padding: '5px 12px',
+                                borderRadius: '7px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: segregationPattern === 'office' ? '#1e3a8a' : 'transparent',
+                                color: segregationPattern === 'office' ? '#fff' : '#64748b',
+                                boxShadow: segregationPattern === 'office' ? '0 2px 6px rgba(30,58,138,0.2)' : 'none'
+                            }}
+                        >
+                            <Building2 size={11} /> Office-wise
+                        </button>
+                    </div>
+
                     <button onClick={reset} style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         padding: '7px 14px', borderRadius: 10,
@@ -523,7 +996,7 @@ const WorkforceTracker = () => {
                     placeholder="All Projects"
                 />
 
-                {segmentOptions.length > 0 && (
+                {segregationPattern === 'project' && segmentOptions.length > 0 && (
                     <FilterSelect
                         icon={<Layers size={13} color="#1e40af" />}
                         value={selSegment}
@@ -531,6 +1004,46 @@ const WorkforceTracker = () => {
                         options={segmentOptions}
                         placeholder="All Segments"
                     />
+                )}
+
+                <FilterSelect
+                    icon={<LayoutList size={13} color="#1e3a8a" />}
+                    value={selOfficeLevel}
+                    onChange={setSelOfficeLevel}
+                    options={orgLevels?.map(ol => ({ id: String(ol.id), name: ol.name })) || []}
+                    placeholder="All Office Levels"
+                />
+
+                {segregationPattern === 'office' && (
+                    <>
+                        <FilterSelect
+                            icon={<Building2 size={13} color="#1e3a8a" />}
+                            value={selOffice}
+                            onChange={v => { setSelOffice(v); setSelDepartment(''); setSelSection(''); }}
+                            options={offices?.map(o => ({ id: String(o.id), name: o.name })) || []}
+                            placeholder="All Offices"
+                        />
+
+                        {departmentOptions.length > 0 && (
+                            <FilterSelect
+                                icon={<Layers size={13} color="#7c3aed" />}
+                                value={selDepartment}
+                                onChange={v => { setSelDepartment(v); setSelSection(''); }}
+                                options={departmentOptions}
+                                placeholder="All Departments"
+                            />
+                        )}
+
+                        {sectionOptions.length > 0 && (
+                            <FilterSelect
+                                icon={<Settings size={13} color="#10b981" />}
+                                value={selSection}
+                                onChange={setSelSection}
+                                options={sectionOptions}
+                                placeholder="All Sections"
+                            />
+                        )}
+                    </>
                 )}
 
                 <FilterSelect
@@ -562,11 +1075,17 @@ const WorkforceTracker = () => {
 
             {/* ── Content ── */}
             {hierarchy.length === 0 ? (
-                <EmptyState hasFilters={!!(search || selProject || selSegment || selPosType || selRole || selSubGroup)} onReset={reset} />
+                <EmptyState hasFilters={!!(search || selProject || selSegment || selOffice || selDepartment || selSection || selPosType || selRole || selSubGroup)} onReset={reset} />
             ) : (
-                hierarchy.map(proj => (
-                    <ProjectBlock key={proj.id} proj={proj} onView={handleViewProfile} />
-                ))
+                segregationPattern === 'project' ? (
+                    hierarchy.map(proj => (
+                        <ProjectBlock key={proj.id} proj={proj} onView={handleViewProfile} />
+                    ))
+                ) : (
+                    hierarchy.map(office => (
+                        <OfficeBlock key={office.id} office={office} onView={handleViewProfile} />
+                    ))
+                )
             )}
         </div>
     );
@@ -633,3 +1152,19 @@ const EmptyState = ({ hasFilters, onReset }) => (
 );
 
 export default WorkforceTracker;
+
+const getPageNumbers = (current, total) => {
+    const pages = [];
+    if (total <= 5) {
+        for (let i = 1; i <= total; i++) pages.push(i);
+    } else {
+        if (current <= 3) {
+            pages.push(1, 2, 3, 4, '...', total);
+        } else if (current >= total - 2) {
+            pages.push(1, '...', total - 3, total - 2, total - 1, total);
+        } else {
+            pages.push(1, '...', current - 1, current, current + 1, '...', total);
+        }
+    }
+    return pages;
+};

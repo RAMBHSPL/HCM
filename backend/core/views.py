@@ -1997,7 +1997,7 @@ class DepartmentViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVi
         return queryset
 
 class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
-    queryset = Section.objects.all()
+    queryset = Section.objects.select_related('department__office__level', 'project').all()
     serializer_class = SectionSerializer
     upsert_lookup_fields = ['department', 'name']
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -2479,7 +2479,14 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
             queryset = queryset.filter(role_sub_group_id=role_sub_group_id)
 
         if office and office != 'all':
-            queryset = queryset.filter(office_id=office)
+            if ',' in str(office):
+                try:
+                    office_ids = [int(x) for x in str(office).split(',') if x.strip().isdigit()]
+                    queryset = queryset.filter(office_id__in=office_ids)
+                except ValueError:
+                    queryset = queryset.filter(office_id=office)
+            else:
+                queryset = queryset.filter(office_id=office)
         if department and department != 'all':
             queryset = queryset.filter(department_id=department)
         if section and section != 'all':
@@ -3063,8 +3070,8 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
             queryset = queryset.prefetch_related(
                 Prefetch(
                     'positions',
-                    queryset=Position.objects.select_related('office', 'office__level', 'department').only(
-                        'id', 'name', 'office_id', 'office__name', 'office__level__id', 'department_id', 'department__name', 'section_id', 'level_id'
+                    queryset=Position.objects.select_related('office', 'office__level', 'office__parent', 'department').only(
+                        'id', 'name', 'office_id', 'office__name', 'office__parent_id', 'office__parent__name', 'office__level__id', 'department_id', 'department__name', 'section_id', 'level_id'
                     )
                 )
             )

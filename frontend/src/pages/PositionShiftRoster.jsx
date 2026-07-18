@@ -12,7 +12,9 @@ import {
     FolderKanban,
     Search,
     AlertCircle,
-    CheckCircle
+    CheckCircle,
+    ArrowLeft,
+    Tag
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import BavyaSpinner from '../components/BavyaSpinner';
@@ -37,6 +39,10 @@ const PositionShiftRoster = () => {
     const [selectedOffice, setSelectedOffice] = useState('all');
     const [selectedProject, setSelectedProject] = useState('all');
 
+    // Premium Concept States
+    const [selectedPosition, setSelectedPosition] = useState(null);
+    const [myOfficesOnly, setMyOfficesOnly] = useState(false);
+
     const [positions, setPositions] = useState([]);
     const [rosters, setRosters] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -45,6 +51,32 @@ const PositionShiftRoster = () => {
     const [totalPagesCount, setTotalPagesCount] = useState(0);
     const [totalPositionsCount, setTotalPositionsCount] = useState(0);
     const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    const userOfficeIds = useMemo(() => {
+        const ids = new Set();
+        if (user?.positions_details && Array.isArray(user.positions_details)) {
+            user.positions_details.forEach(p => {
+                if (p.office_id) ids.add(p.office_id);
+            });
+        }
+        if (user?.office_ids && Array.isArray(user.office_ids)) {
+            user.office_ids.forEach(id => ids.add(id));
+        }
+        if (user?.office_id) {
+            ids.add(user.office_id);
+        }
+        // Also include offices of subordinates
+        if (employeesList && Array.isArray(employeesList)) {
+            employeesList.forEach(emp => {
+                if (emp.positions_details && Array.isArray(emp.positions_details)) {
+                    emp.positions_details.forEach(p => {
+                        if (p.office_id) ids.add(p.office_id);
+                    });
+                }
+            });
+        }
+        return Array.from(ids).map(String);
+    }, [user, employeesList]);
 
     // Helper to calculate hours difference
     const calculateHoursDifference = (startStr, endStr) => {
@@ -154,10 +186,11 @@ const PositionShiftRoster = () => {
         return () => clearTimeout(timer);
     }, [tableSearch]);
 
-    // Reset pagination to page 1 on filter or search changes
+    // Reset pagination and selected position on filter or search changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [debouncedSearch, selectedOffice, selectedProject]);
+        setSelectedPosition(null);
+    }, [debouncedSearch, selectedOffice, selectedProject, myOfficesOnly]);
 
     const paginatedPositions = positions;
 
@@ -250,7 +283,13 @@ const PositionShiftRoster = () => {
             if (user && !user.is_superuser) {
                 params.push('reports_to_me=true');
             }
-            if (selectedOffice !== 'all') {
+            if (myOfficesOnly) {
+                if (userOfficeIds.length > 0) {
+                    params.push(`office=${userOfficeIds.join(',')}`);
+                } else {
+                    params.push('office=0');
+                }
+            } else if (selectedOffice !== 'all') {
                 params.push(`office=${selectedOffice}`);
             }
             if (selectedProject !== 'all') {
@@ -303,7 +342,7 @@ const PositionShiftRoster = () => {
 
     useEffect(() => {
         fetchRosterData();
-    }, [startDate, durationDays, selectedOffice, selectedProject, user, currentPage, debouncedSearch]);
+    }, [startDate, durationDays, selectedOffice, selectedProject, user, currentPage, debouncedSearch, myOfficesOnly]);
 
     // Navigate dates
     const handlePrevWeek = () => {
@@ -1356,6 +1395,595 @@ const PositionShiftRoster = () => {
                     font-weight: 900;
                     box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
                 }
+
+                /* ────────────────────────────────────────────────────────
+                   PREMIUM PREMIUM CARDS DESIGN & TIMELINE VIEW
+                   ──────────────────────────────────────────────────────── */
+                .position-cards-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                    gap: 1.5rem;
+                    margin-top: 1rem;
+                    margin-bottom: 2rem;
+                }
+                .premium-position-card {
+                    background: rgba(255, 255, 255, 0.85);
+                    backdrop-filter: blur(20px);
+                    border: 1px solid rgba(226, 232, 240, 0.8);
+                    border-left: 6px solid #881337;
+                    border-radius: 20px;
+                    padding: 1.25rem;
+                    cursor: pointer;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.75rem;
+                    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                    box-shadow: 0 4px 15px -5px rgba(15, 23, 42, 0.03);
+                    position: relative;
+                    overflow: hidden;
+                }
+                .premium-position-card::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    width: 100px;
+                    height: 100px;
+                    background: radial-gradient(circle, rgba(136, 19, 55, 0.02) 0%, transparent 70%);
+                    pointer-events: none;
+                }
+                .premium-position-card:hover {
+                    transform: translateY(-4px);
+                    box-shadow: 0 16px 36px -12px rgba(136, 19, 55, 0.12);
+                    border-color: rgba(136, 19, 55, 0.3);
+                    background: #ffffff;
+                }
+                .premium-position-card .card-top {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .card-office-badge {
+                    font-size: 0.68rem;
+                    font-weight: 850;
+                    background: #eff6ff;
+                    color: #1e40af;
+                    border: 1px solid #dbeafe;
+                    padding: 3px 8px;
+                    border-radius: 6px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.03em;
+                    max-width: 170px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                .card-shifts-badge {
+                    font-size: 0.68rem;
+                    font-weight: 800;
+                    background: rgba(136, 19, 55, 0.06);
+                    color: #881337;
+                    padding: 3px 8px;
+                    border-radius: 6px;
+                }
+                .card-position-name {
+                    font-size: 1.125rem;
+                    font-weight: 900;
+                    color: #0f172a;
+                    margin: 0;
+                    line-height: 1.25;
+                    letter-spacing: -0.02em;
+                }
+                .card-position-code {
+                    font-family: monospace;
+                    font-size: 0.78rem;
+                    color: #64748b;
+                    font-weight: 700;
+                    background: #f1f5f9;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    align-self: flex-start;
+                }
+                .card-meta-row {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.35rem;
+                    border-top: 1px solid #f1f5f9;
+                    padding-top: 0.6rem;
+                    margin-top: 0.25rem;
+                }
+                .card-meta-item {
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 0.78rem;
+                }
+                .card-meta-item .meta-label {
+                    color: #64748b;
+                    font-weight: 600;
+                }
+                .card-meta-item .meta-value {
+                    color: #334155;
+                    font-weight: 800;
+                    max-width: 180px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    text-align: right;
+                }
+                .card-footer-stats {
+                    border-top: 1px solid #f1f5f9;
+                    padding-top: 0.75rem;
+                    margin-top: 0.25rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.65rem;
+                }
+                .stats-progress-container {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.3rem;
+                }
+                .stats-progress-header {
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 0.72rem;
+                    font-weight: 800;
+                    color: #475569;
+                }
+                .stats-progress-bar {
+                    height: 6px;
+                    background: #e2e8f0;
+                    border-radius: 3px;
+                    overflow: hidden;
+                }
+                .stats-progress-fill {
+                    height: 100%;
+                    border-radius: 3px;
+                    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .assigned-avatars-section {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-top: 0.25rem;
+                }
+                .avatars-label {
+                    font-size: 0.72rem;
+                    font-weight: 800;
+                    color: #64748b;
+                }
+                .avatars-stack {
+                    display: flex;
+                    align-items: center;
+                }
+                .avatar-stack-item {
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 50%;
+                    background: linear-gradient(135deg, #881337 0%, #be185d 100%);
+                    color: #ffffff;
+                    border: 2px solid #ffffff;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 0.68rem;
+                    font-weight: 900;
+                    margin-left: -6px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+                }
+                .avatar-stack-item:first-child {
+                    margin-left: 0;
+                }
+                .avatar-stack-item.count {
+                    background: #f1f5f9;
+                    color: #475569;
+                    font-weight: 800;
+                    border-color: #ffffff;
+                }
+                .card-action-btn {
+                    margin-top: auto;
+                    background: #f8fafc;
+                    border: 1.5px solid #e2e8f0;
+                    color: #475569;
+                    border-radius: 12px;
+                    padding: 0.55rem;
+                    font-size: 0.82rem;
+                    font-weight: 800;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.4rem;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                .premium-position-card:hover .card-action-btn {
+                    background: #881337;
+                    color: #ffffff;
+                    border-color: #881337;
+                }
+
+                /* Focused schedule view */
+                .focused-roster-view {
+                    background: rgba(255, 255, 255, 0.85);
+                    backdrop-filter: blur(20px);
+                    border: 1px solid rgba(226, 232, 240, 0.8);
+                    border-radius: 24px;
+                    padding: 1.75rem;
+                    box-shadow: 0 8px 32px -10px rgba(15, 23, 42, 0.04);
+                    margin-bottom: 2rem;
+                    animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                }
+                @keyframes slideUp {
+                    from { opacity: 0; transform: translateY(12px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .focused-roster-header {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.75rem;
+                    border-bottom: 1.5px solid #f1f5f9;
+                    padding-bottom: 1.25rem;
+                    margin-bottom: 1.5rem;
+                }
+                .btn-back-cards {
+                    background: #ffffff;
+                    border: 1.5px solid #e2e8f0;
+                    color: #475569;
+                    padding: 0.45rem 1rem;
+                    border-radius: 10px;
+                    font-size: 0.8rem;
+                    font-weight: 800;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 0.4rem;
+                    align-self: flex-start;
+                    transition: all 0.2s;
+                }
+                .btn-back-cards:hover {
+                    background: #f8fafc;
+                    color: #0f172a;
+                    border-color: #cbd5e1;
+                    transform: translateX(-2px);
+                }
+                .focused-roster-title-block h2 {
+                    margin: 0 0 0.4rem 0;
+                    font-size: 1.5rem;
+                    font-weight: 900;
+                    color: #0f172a;
+                    letter-spacing: -0.03em;
+                }
+                .focused-roster-meta {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 0.5rem;
+                }
+                .focused-meta-badge {
+                    font-size: 0.72rem;
+                    font-weight: 800;
+                    padding: 3px 10px;
+                    border-radius: 6px;
+                }
+                .focused-meta-badge.office {
+                    background: #eff6ff;
+                    color: #1e40af;
+                }
+                .focused-meta-badge.dept {
+                    background: #faf5ff;
+                    color: #6b21a8;
+                }
+                .focused-meta-badge.section {
+                    background: #ecfdf5;
+                    color: #065f46;
+                }
+                .focused-meta-badge.code {
+                    background: #f1f5f9;
+                    color: #475569;
+                    font-family: monospace;
+                }
+
+                /* Grid of planner date cards */
+                .planner-dates-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                    gap: 1.25rem;
+                }
+                .planner-date-card {
+                    background: #ffffff;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 16px;
+                    padding: 1rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.85rem;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.01);
+                    transition: all 0.2s;
+                }
+                .planner-date-card.today {
+                    border: 2px solid #881337;
+                    box-shadow: 0 8px 24px -10px rgba(136, 19, 55, 0.15);
+                    background: rgba(136, 19, 55, 0.005);
+                }
+                .planner-date-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 1.5px solid #f1f5f9;
+                    padding-bottom: 0.5rem;
+                }
+                .planner-date-card.today .planner-date-header {
+                    border-color: rgba(136, 19, 55, 0.15);
+                }
+                .planner-date-header .day-name {
+                    font-size: 0.72rem;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    color: #64748b;
+                }
+                .planner-date-card.today .planner-date-header .day-name {
+                    color: #881337;
+                }
+                .planner-date-header .date-val {
+                    font-size: 0.95rem;
+                    font-weight: 900;
+                    color: #0f172a;
+                }
+                .planner-date-card.today .planner-date-header .date-val {
+                    background: #881337;
+                    color: #ffffff;
+                    padding: 2px 8px;
+                    border-radius: 6px;
+                    box-shadow: 0 2px 5px rgba(136, 19, 55, 0.2);
+                }
+                .planner-shifts-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.85rem;
+                }
+                .no-shifts-info {
+                    font-size: 0.78rem;
+                    color: #94a3b8;
+                    font-style: italic;
+                    text-align: center;
+                    padding: 1.5rem 0;
+                }
+                .planner-shift-item {
+                    background: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 12px;
+                    padding: 0.75rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                }
+                .planner-shift-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 1px dashed #e2e8f0;
+                    padding-bottom: 0.35rem;
+                }
+                .planner-shift-header .shift-name {
+                    font-size: 0.75rem;
+                    font-weight: 850;
+                    color: #1e293b;
+                }
+                .planner-shift-header .shift-time {
+                    font-size: 0.7rem;
+                    color: #64748b;
+                    font-weight: 650;
+                    display: flex;
+                    align-items: center;
+                    gap: 2px;
+                }
+                .planner-shift-assignees {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.4rem;
+                }
+                .planner-btn-assign {
+                    background: #ffffff;
+                    border: 1.5px dashed #cbd5e1;
+                    color: #64748b;
+                    border-radius: 8px;
+                    padding: 0.45rem;
+                    font-size: 0.75rem;
+                    font-weight: 800;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.3rem;
+                    width: 100%;
+                    transition: all 0.2s;
+                }
+                .planner-btn-assign:hover {
+                    background: rgba(136, 19, 55, 0.04);
+                    border-color: #881337;
+                    color: #881337;
+                    border-style: solid;
+                }
+                .planner-btn-assign.another {
+                    background: #f8fafc;
+                    margin-top: 0.15rem;
+                }
+                
+                .planner-assignee-card {
+                    background: #ffffff;
+                    border: 1.5px solid #e2e8f0;
+                    border-radius: 10px;
+                    padding: 0.55rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.45rem;
+                    position: relative;
+                }
+                .planner-assignee-card.present {
+                    border: 1.5px solid #a7f3d0;
+                    border-left: 4px solid #10b981;
+                    background: #f0fdf4;
+                }
+                .planner-assignee-card.left_early {
+                    border: 1.5px solid #fed7aa;
+                    border-left: 4px solid #f97316;
+                    background: #fff7ed;
+                }
+                .planner-assignee-card.late {
+                    border: 1.5px solid #fde68a;
+                    border-left: 4px solid #f59e0b;
+                    background: #fffbeb;
+                }
+                .planner-assignee-card.absent {
+                    border: 1.5px solid #fecaca;
+                    border-left: 4px solid #ef4444;
+                    background: #fef2f2;
+                }
+                .planner-assignee-card.partial {
+                    border: 1.5px solid #bfdbfe;
+                    border-left: 4px solid #3b82f6;
+                    background: #eff6ff;
+                }
+                .planner-assignee-card.pending {
+                    border: 1.5px solid #e2e8f0;
+                    border-left: 4px solid #94a3b8;
+                    background: #f8fafc;
+                }
+                
+                .assignee-emp-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.45rem;
+                }
+                .assignee-avatar {
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 50%;
+                    background: linear-gradient(135deg, #881337 0%, #be185d 100%);
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 0.68rem;
+                    font-weight: 900;
+                    box-shadow: 0 1px 4px rgba(136, 19, 55, 0.15);
+                }
+                .assignee-emp-details {
+                    display: flex;
+                    flex-direction: column;
+                    min-width: 0;
+                }
+                .assignee-emp-details .emp-name {
+                    font-size: 0.78rem;
+                    font-weight: 850;
+                    color: #0f172a;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    max-width: 140px;
+                }
+                .assignee-emp-details .emp-code {
+                    font-size: 0.65rem;
+                    color: #64748b;
+                    font-family: monospace;
+                    font-weight: 700;
+                }
+                .assignee-actuals {
+                    font-size: 0.68rem;
+                    color: #475569;
+                    font-weight: 700;
+                    background: #f1f5f9;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    display: flex;
+                    justify-content: space-between;
+                }
+                .assignee-actuals .hours {
+                    color: #64748b;
+                    font-weight: 550;
+                }
+                .assignee-status-row {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-top: 1.5px solid #f1f5f9;
+                    padding-top: 0.4rem;
+                }
+                .planner-assignee-card.present .assignee-status-row,
+                .planner-assignee-card.absent .assignee-status-row,
+                .planner-assignee-card.late .assignee-status-row,
+                .planner-assignee-card.left_early .assignee-status-row,
+                .planner-assignee-card.partial .assignee-status-row {
+                    border-top-color: rgba(0,0,0,0.02);
+                }
+                .assignee-status-row .status-pill {
+                    font-size: 0.58rem;
+                    font-weight: 900;
+                    padding: 1px 5px;
+                    border-radius: 4px;
+                    text-transform: uppercase;
+                }
+                .assignee-actions {
+                    display: flex;
+                    gap: 0.25rem;
+                }
+                .btn-assignee-action {
+                    background: transparent;
+                    border: none;
+                    color: #64748b;
+                    cursor: pointer;
+                    padding: 2px 4px;
+                    display: flex;
+                    align-items: center;
+                    border-radius: 4px;
+                    transition: all 0.2s;
+                }
+                .btn-assignee-action:hover {
+                    background: #f1f5f9;
+                    color: #0f172a;
+                }
+                .btn-assignee-action.delete:hover {
+                    background: #fee2e2;
+                    color: #ef4444;
+                }
+                
+                /* Filter Tagging Switch */
+                .my-offices-badge {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-size: 0.7rem;
+                    font-weight: 800;
+                    background: #fdf2f8;
+                    color: #db2777;
+                    border: 1px solid #fbcfe8;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                }
+                .premium-cards-empty {
+                    background: #ffffff;
+                    border: 1px dashed #cbd5e1;
+                    border-radius: 20px;
+                    padding: 3rem;
+                    text-align: center;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 0.75rem;
+                    color: #64748b;
+                    margin-top: 1rem;
+                }
+                .premium-cards-empty h3 {
+                    margin: 0;
+                    font-size: 1.15rem;
+                    font-weight: 900;
+                    color: #1e293b;
+                }
+                .premium-cards-empty p {
+                    margin: 0;
+                    font-size: 0.85rem;
+                    max-width: 400px;
+                }
             `}</style>
 
             <div className="roster-header-section">
@@ -1415,11 +2043,37 @@ const PositionShiftRoster = () => {
                     </select>
                 </div>
                 <div className="filter-group">
+                    <label>Office Scope</label>
+                    <button
+                        type="button"
+                        onClick={() => setMyOfficesOnly(prev => !prev)}
+                        style={{
+                            background: myOfficesOnly ? 'rgba(136,19,55,0.06)' : '#ffffff',
+                            border: `1.5px solid ${myOfficesOnly ? '#881337' : '#e2e8f0'}`,
+                            color: myOfficesOnly ? '#881337' : '#475569',
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: 10,
+                            fontSize: '0.82rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.4rem',
+                            height: 38,
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        <Tag size={13} /> {myOfficesOnly ? 'My Tagged Offices' : 'All Available Offices'}
+                    </button>
+                </div>
+                <div className="filter-group">
                     <label>Office Unit</label>
                     <select
                         value={selectedOffice}
                         onChange={(e) => setSelectedOffice(e.target.value)}
                         className="filter-select"
+                        disabled={myOfficesOnly}
                     >
                         <option value="all">All Offices</option>
                         {offices && offices.map(off => (
@@ -1456,7 +2110,7 @@ const PositionShiftRoster = () => {
                     </p>
                 </div>
             ) : (
-                <div className="grid-container" style={{ position: 'relative' }}>
+                <div className="grid-container" style={{ position: 'relative', border: 'none', background: 'transparent', boxShadow: 'none', padding: 0 }}>
                     {loading && (
                         <div style={{
                             position: 'absolute',
@@ -1477,159 +2131,118 @@ const PositionShiftRoster = () => {
                             </div>
                         </div>
                     )}
-                    <table className="roster-table">
-                        <thead>
-                            <tr>
-                                <th className="pos-col-header">Positions & Shifts</th>
+
+                    {selectedPosition ? (
+                        /* Focused Roster View for Selected Position */
+                        <div className="focused-roster-view">
+                            <div className="focused-roster-header">
+                                <button type="button" className="btn-back-cards" onClick={() => setSelectedPosition(null)}>
+                                    <ArrowLeft size={16} /> Back to Positions
+                                </button>
+                                <div className="focused-roster-title-block">
+                                    <h2>{selectedPosition.name}</h2>
+                                    <div className="focused-roster-meta">
+                                        <span className="focused-meta-badge office">{selectedPosition.office_name || 'No Office'}</span>
+                                        {selectedPosition.department_name && <span className="focused-meta-badge dept">{selectedPosition.department_name}</span>}
+                                        {selectedPosition.section_name && <span className="focused-meta-badge section">{selectedPosition.section_name}</span>}
+                                        <span className="focused-meta-badge code">{selectedPosition.code || 'NO CODE'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="planner-dates-grid">
                                 {dates.map(dateStr => {
                                     const { day, date } = formatHeaderDate(dateStr);
                                     const isDayToday = isToday(dateStr);
+                                    const positionShifts = selectedPosition.shifts_details || [];
+
                                     return (
-                                        <th key={dateStr} className={`date-col-header ${isDayToday ? 'today-header' : ''}`}>
-                                            <div className="date-header-day">{day}</div>
-                                            <div className="date-header-val">{date}</div>
-                                        </th>
-                                    );
-                                })}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {paginatedPositions.map(position => {
-                                const positionShifts = position.shifts_details || [];
-                                return (
-                                    <tr key={position.id}>
-                                        <td className="position-info-cell">
-                                            <div className="position-info">
-                                                <span className="position-name">{position.name}</span>
-                                                <span className="position-code">{position.code || 'NO CODE'}</span>
-                                                <div className="position-meta">
-                                                    <span className="meta-badge office-badge">{position.office_name || 'No Office'}</span>
-                                                    {(position.department_name || position.section_name) && (
-                                                        <span className="meta-badge project-badge">
-                                                            {position.section_name || position.department_name}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                        <div key={dateStr} className={`planner-date-card ${isDayToday ? 'today' : ''}`}>
+                                            <div className="planner-date-header">
+                                                <span className="day-name">{day}</span>
+                                                <span className="date-val">{date}</span>
                                             </div>
-                                        </td>
-                                        {dates.map(dateStr => {
-                                            const isDayToday = isToday(dateStr);
-                                            return (
-                                                <td key={dateStr} className={isDayToday ? 'today-cell' : ''}>
-                                                    <div className="shifts-container">
-                                                        {positionShifts.length === 0 ? (
-                                                            <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '0.5rem 0' }}>
-                                                                No shifts configured
-                                                            </div>
-                                                        ) : (
-                                                            positionShifts.map(shift => {
-                                                                // O(1) Map lookup — replaces O(n) rosters.find()
-                                                                const activeRosters = rosterMap.get(`${position.id}|${shift.id}|${dateStr}`) || [];
+                                            
+                                            <div className="planner-shifts-list">
+                                                {positionShifts.length === 0 ? (
+                                                    <div className="no-shifts-info">
+                                                        No shifts configured
+                                                    </div>
+                                                ) : (
+                                                    positionShifts.map(shift => {
+                                                        const activeRosters = rosterMap.get(`${selectedPosition.id}|${shift.id}|${dateStr}`) || [];
+                                                        const startTimeStr = shift.start_time ? shift.start_time.substring(0, 5) : '';
+                                                        const endTimeStr = shift.end_time ? shift.end_time.substring(0, 5) : '';
 
-                                                                const startTimeStr = shift.start_time ? shift.start_time.substring(0, 5) : '';
-                                                                const endTimeStr = shift.end_time ? shift.end_time.substring(0, 5) : '';
+                                                        return (
+                                                            <div key={shift.id} className="planner-shift-item">
+                                                                <div className="planner-shift-header">
+                                                                    <span className="shift-name">{shift.name}</span>
+                                                                    <span className="shift-time"><Clock size={10} /> {startTimeStr}-{endTimeStr}</span>
+                                                                </div>
 
-                                                                return (
-                                                                    <div key={shift.id} className="shift-cell-block" style={{ gap: '0.4rem', height: 'auto', minHeight: '80px' }}>
-                                                                        <div className="shift-title-info" style={{ marginBottom: '0.2rem' }}>
-                                                                            <span>{shift.name}</span>
-                                                                            <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                                                                <Clock size={10} /> {startTimeStr}-{endTimeStr}
-                                                                            </span>
-                                                                        </div>
+                                                                <div className="planner-shift-assignees">
+                                                                    {activeRosters.map(roster => {
+                                                                        const actualStart = roster.actual_start_time ? roster.actual_start_time.substring(0, 5) : '';
+                                                                        const actualEnd = roster.actual_end_time ? roster.actual_end_time.substring(0, 5) : '';
+                                                                        const hasActuals = actualStart || actualEnd;
 
-                                                                        {activeRosters.map(roster => {
-                                                                            const actualStart = roster.actual_start_time ? roster.actual_start_time.substring(0, 5) : '';
-                                                                            const actualEnd = roster.actual_end_time ? roster.actual_end_time.substring(0, 5) : '';
-                                                                            const hasActuals = actualStart || actualEnd;
+                                                                        let statusBg = '#e2e8f0';
+                                                                        let statusColor = '#475569';
+                                                                        if (roster.attendance_status === 'PRESENT') {
+                                                                            statusBg = '#d1fae5';
+                                                                            statusColor = '#065f46';
+                                                                        } else if (roster.attendance_status === 'LEFT_EARLY') {
+                                                                            statusBg = '#ffedd5';
+                                                                            statusColor = '#9a3412';
+                                                                        } else if (roster.attendance_status === 'LATE') {
+                                                                            statusBg = '#fef3c7';
+                                                                            statusColor = '#92400e';
+                                                                        } else if (roster.attendance_status === 'ABSENT') {
+                                                                            statusBg = '#fee2e2';
+                                                                            statusColor = '#991b1b';
+                                                                        } else if (roster.attendance_status === 'PARTIAL') {
+                                                                            statusBg = '#dbeafe';
+                                                                            statusColor = '#1e40af';
+                                                                        }
 
-                                                                            let statusBg = '#e2e8f0';
-                                                                            let statusColor = '#475569';
-                                                                            if (roster.attendance_status === 'PRESENT') {
-                                                                                statusBg = '#d1fae5';
-                                                                                statusColor = '#065f46';
-                                                                            } else if (roster.attendance_status === 'LEFT_EARLY') {
-                                                                                statusBg = '#ffedd5';
-                                                                                statusColor = '#9a3412';
-                                                                            } else if (roster.attendance_status === 'LATE') {
-                                                                                statusBg = '#fef3c7';
-                                                                                statusColor = '#92400e';
-                                                                            } else if (roster.attendance_status === 'ABSENT') {
-                                                                                statusBg = '#fee2e2';
-                                                                                statusColor = '#991b1b';
-                                                                            } else if (roster.attendance_status === 'PARTIAL') {
-                                                                                statusBg = '#dbeafe';
-                                                                                statusColor = '#1e40af';
-                                                                            }
-
-                                                                            return (
-                                                                                <div key={roster.id} className={`assigned-card ${roster.attendance_status ? roster.attendance_status.toLowerCase() : 'pending'}`}>
-                                                                                    <div className="employee-info-block">
-                                                                                        <div className="emp-avatar">
-                                                                                            {roster.employee_name ? roster.employee_name.charAt(0) : 'E'}
-                                                                                        </div>
-                                                                                        <div>
-                                                                                            <div className="emp-name" title={roster.employee_name}>
-                                                                                                {roster.employee_name}
-                                                                                            </div>
-                                                                                            <div className="emp-code">
-                                                                                                {roster.employee_code || 'N/A'}
-                                                                                            </div>
-                                                                                        </div>
+                                                                        return (
+                                                                            <div key={roster.id} className={`planner-assignee-card ${roster.attendance_status ? roster.attendance_status.toLowerCase() : 'pending'}`}>
+                                                                                <div className="assignee-emp-row">
+                                                                                    <div className="assignee-avatar">
+                                                                                        {roster.employee_name ? roster.employee_name.charAt(0) : 'E'}
                                                                                     </div>
+                                                                                    <div className="assignee-emp-details">
+                                                                                        <span className="emp-name" title={roster.employee_name}>{roster.employee_name}</span>
+                                                                                        <span className="emp-code">{roster.employee_code || 'N/A'}</span>
+                                                                                    </div>
+                                                                                </div>
 
-                                                                                    <div style={{ marginTop: '0.35rem', paddingTop: '0.35rem', borderTop: '1px solid #f1f5f9', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                                                        {hasActuals && (
-                                                                                            <div style={{ color: '#475569', fontWeight: 650, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                                                                                <span style={{ color: '#6366f1' }}>⏱️</span> {actualStart || '--:--'} - {actualEnd || '--:--'}
-                                                                                                {roster.hours_worked !== null && (
-                                                                                                    <span style={{ color: '#64748b', fontWeight: 500 }}>
-                                                                                                        ({parseFloat(roster.hours_worked).toFixed(1)}h)
-                                                                                                    </span>
-                                                                                                )}
-                                                                                            </div>
+                                                                                {hasActuals && (
+                                                                                    <div className="assignee-actuals">
+                                                                                        <span>⏱️ {actualStart || '--:--'} - {actualEnd || '--:--'}</span>
+                                                                                        {roster.hours_worked !== null && (
+                                                                                            <span className="hours">({parseFloat(roster.hours_worked).toFixed(1)}h)</span>
                                                                                         )}
-                                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                                                                                            <span style={{ 
-                                                                                                backgroundColor: statusBg, 
-                                                                                                color: statusColor, 
-                                                                                                padding: '1px 5px', 
-                                                                                                borderRadius: '5px', 
-                                                                                                fontSize: '0.6rem', 
-                                                                                                fontWeight: 800,
-                                                                                                textTransform: 'uppercase'
-                                                                                            }}>
-                                                                                                {roster.attendance_status?.replace('_', ' ') || 'PENDING'}
-                                                                                            </span>
-                                                                                            {roster.remarks && (
-                                                                                                <span 
-                                                                                                    title={roster.remarks} 
-                                                                                                    style={{ 
-                                                                                                        color: '#94a3b8', 
-                                                                                                        fontSize: '0.62rem',
-                                                                                                        fontStyle: 'italic',
-                                                                                                        maxWidth: '70px',
-                                                                                                        whiteSpace: 'nowrap',
-                                                                                                        overflow: 'hidden',
-                                                                                                        textOverflow: 'ellipsis'
-                                                                                                    }}
-                                                                                                >
-                                                                                                    💬 Note
-                                                                                                </span>
-                                                                                            )}
-                                                                                        </div>
                                                                                     </div>
+                                                                                )}
 
-                                                                                    <div className="card-actions" style={{ top: '6px', right: '6px' }}>
+                                                                                <div className="assignee-status-row">
+                                                                                    <span className="status-pill" style={{ backgroundColor: statusBg, color: statusColor }}>
+                                                                                        {roster.attendance_status?.replace('_', ' ') || 'PENDING'}
+                                                                                    </span>
+                                                                                    <div className="assignee-actions">
                                                                                         <button
-                                                                                            className="btn-card-action edit"
-                                                                                            onClick={() => handleOpenAssignModal(position, shift, dateStr, roster)}
+                                                                                            type="button"
+                                                                                            className="btn-assignee-action edit"
+                                                                                            onClick={() => handleOpenAssignModal(selectedPosition, shift, dateStr, roster)}
                                                                                             title="Re-assign employee / edit actuals"
                                                                                         >
                                                                                             <User size={12} />
                                                                                         </button>
                                                                                         <button
-                                                                                            className="btn-card-action delete"
+                                                                                            type="button"
+                                                                                            className="btn-assignee-action delete"
                                                                                             onClick={() => handleRemoveAllocation(roster.id)}
                                                                                             title="Remove assignment"
                                                                                         >
@@ -1637,72 +2250,148 @@ const PositionShiftRoster = () => {
                                                                                         </button>
                                                                                     </div>
                                                                                 </div>
-                                                                            );
-                                                                        })}
+                                                                            </div>
+                                                                        );
+                                                                    })}
 
-                                                                        {activeRosters.length === 0 ? (
+                                                                    {activeRosters.length === 0 ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            className="planner-btn-assign"
+                                                                            onClick={() => handleOpenAssignModal(selectedPosition, shift, dateStr, null)}
+                                                                        >
+                                                                            <Plus size={12} /> Assign Shift
+                                                                        </button>
+                                                                    ) : (
+                                                                        activeRosters.some(r => r.attendance_status !== 'PENDING' || r.actual_start_time || r.actual_end_time) &&
+                                                                        !activeRosters.some(r => r.attendance_status === 'PRESENT' || r.attendance_status === 'LATE') && (
                                                                             <button
-                                                                                className="btn-add-assignment"
-                                                                                onClick={() => handleOpenAssignModal(position, shift, dateStr, null)}
+                                                                                type="button"
+                                                                                className="planner-btn-assign another"
+                                                                                onClick={() => handleOpenAssignModal(selectedPosition, shift, dateStr, null)}
+                                                                                title="Assign another employee"
                                                                             >
-                                                                                <Plus size={12} /> Assign
+                                                                                <Plus size={10} /> Assign Another
                                                                             </button>
-                                                                        ) : (
-                                                                            // Only show Assign Another if the existing assignment is edited/not PENDING AND they did not complete the shift properly (PRESENT/LATE)
-                                                                            activeRosters.some(r => r.attendance_status !== 'PENDING' || r.actual_start_time || r.actual_end_time) &&
-                                                                            !activeRosters.some(r => r.attendance_status === 'PRESENT' || r.attendance_status === 'LATE') && (
-                                                                                <button
-                                                                                    className="btn-add-assignment"
-                                                                                    onClick={() => handleOpenAssignModal(position, shift, dateStr, null)}
-                                                                                    title="Assign another employee"
-                                                                                    style={{
-                                                                                        padding: '0.25rem',
-                                                                                        fontSize: '0.72rem',
-                                                                                        borderStyle: 'dashed',
-                                                                                        marginTop: '0.2rem',
-                                                                                        background: '#f8fafc',
-                                                                                        borderColor: '#cbd5e1'
-                                                                                    }}
-                                                                                >
-                                                                                    <Plus size={10} /> Assign Another
-                                                                                </button>
-                                                                            )
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-
-                    {/* Pagination Bar */}
-                    {totalPagesCount > 1 && (
-                        <div className="pagination-bar" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1.25rem', marginTop: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.02)' }}>
-                            <button
-                                disabled={currentPage === 1}
-                                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                                style={{ background: '#ffffff', color: '#475569', border: '1.5px solid #cbd5e1', padding: '0.6rem 1.25rem', borderRadius: '12px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', opacity: currentPage === 1 ? 0.55 : 1, fontWeight: '800', fontSize: '0.85rem', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', transition: 'all 0.2s' }}
-                            >
-                                <ChevronLeft size={16} /> Prev
-                            </button>
-                            <span style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: '600' }}>
-                                Page <strong style={{ color: '#0f172a', fontWeight: '900' }}>{currentPage}</strong> of <strong style={{ color: '#0f172a', fontWeight: '900' }}>{totalPagesCount}</strong> (showing {totalPositionsCount} positions)
-                            </span>
-                            <button
-                                disabled={currentPage === totalPagesCount}
-                                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPagesCount))}
-                                style={{ background: '#ffffff', color: '#475569', border: '1.5px solid #cbd5e1', padding: '0.6rem 1.25rem', borderRadius: '12px', cursor: currentPage === totalPagesCount ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', opacity: currentPage === totalPagesCount ? 0.55 : 1, fontWeight: '800', fontSize: '0.85rem', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', transition: 'all 0.2s' }}
-                            >
-                                Next <ChevronRight size={16} />
-                            </button>
+                                                                        )
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
+                    ) : (
+                        /* Default Cards Grid Mode */
+                        <>
+                            <div className="position-cards-grid">
+                                {paginatedPositions.map(pos => {
+                                    const shiftsCount = pos.shifts_details?.length || 0;
+                                    const posRostersCount = rosters.filter(r => r.position === pos.id).length;
+                                    const totalPossibleSlots = shiftsCount * dates.length;
+                                    const fullnessPercent = totalPossibleSlots > 0 ? Math.round((posRostersCount / totalPossibleSlots) * 100) : 0;
+                                    
+                                    const assignedEmpMap = new Map();
+                                    rosters.filter(r => r.position === pos.id).forEach(r => {
+                                        if (r.employee && r.employee_name) {
+                                            assignedEmpMap.set(r.employee, { name: r.employee_name, code: r.employee_code });
+                                        }
+                                    });
+                                    const assignedEmpList = Array.from(assignedEmpMap.values());
+
+                                    return (
+                                        <div key={pos.id} className="premium-position-card" onClick={() => setSelectedPosition(pos)}>
+                                            <div className="card-top">
+                                                <span className="card-office-badge" title={pos.office_name}>{pos.office_name || 'No Office'}</span>
+                                                <span className="card-shifts-badge">{shiftsCount} {shiftsCount === 1 ? 'Shift' : 'Shifts'}</span>
+                                            </div>
+                                            
+                                            <h3 className="card-position-name">{pos.name}</h3>
+                                            <code className="card-position-code">{pos.code || 'NO CODE'}</code>
+                                            
+                                            <div className="card-meta-row">
+                                                {pos.department_name && (
+                                                    <div className="card-meta-item">
+                                                        <span className="meta-label">Dept</span>
+                                                        <span className="meta-value" title={pos.department_name}>{pos.department_name}</span>
+                                                    </div>
+                                                )}
+                                                {pos.section_name && (
+                                                    <div className="card-meta-item">
+                                                        <span className="meta-label">Section</span>
+                                                        <span className="meta-value" title={pos.section_name}>{pos.section_name}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="card-footer-stats">
+                                                <div className="stats-progress-container">
+                                                    <div className="stats-progress-header">
+                                                        <span>Roster Coverage</span>
+                                                        <span>{posRostersCount} / {totalPossibleSlots} ({fullnessPercent}%)</span>
+                                                    </div>
+                                                    <div className="stats-progress-bar">
+                                                        <div className="stats-progress-fill" style={{ width: `${fullnessPercent}%`, background: fullnessPercent > 80 ? '#10b981' : fullnessPercent > 40 ? '#f59e0b' : '#ef4444' }}></div>
+                                                    </div>
+                                                </div>
+
+                                                {assignedEmpList.length > 0 && (
+                                                    <div className="assigned-avatars-section">
+                                                        <span className="avatars-label">Scheduled:</span>
+                                                        <div className="avatars-stack">
+                                                            {assignedEmpList.slice(0, 4).map((emp, index) => (
+                                                                <div key={index} className="avatar-stack-item" title={`${emp.name} (${emp.code || 'N/A'})`}>
+                                                                    {emp.name.charAt(0)}
+                                                                </div>
+                                                            ))}
+                                                            {assignedEmpList.length > 4 && (
+                                                                <div className="avatar-stack-item count" title={`${assignedEmpList.length} total employees`}>
+                                                                    +{assignedEmpList.length - 4}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <button type="button" className="card-action-btn">
+                                                <Calendar size={13} /> Manage Roster
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Pagination Bar */}
+                            {totalPagesCount > 1 && (
+                                <div className="pagination-bar" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1.25rem', marginTop: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.02)' }}>
+                                    <button
+                                        type="button"
+                                        disabled={currentPage === 1}
+                                        onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                                        style={{ background: '#ffffff', color: '#475569', border: '1.5px solid #cbd5e1', padding: '0.6rem 1.25rem', borderRadius: '12px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', opacity: currentPage === 1 ? 0.55 : 1, fontWeight: '800', fontSize: '0.85rem', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', transition: 'all 0.2s' }}
+                                    >
+                                        <ChevronLeft size={16} /> Prev
+                                    </button>
+                                    <span style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: '600' }}>
+                                        Page <strong style={{ color: '#0f172a', fontWeight: '900' }}>{currentPage}</strong> of <strong style={{ color: '#0f172a', fontWeight: '900' }}>{totalPagesCount}</strong> (showing {totalPositionsCount} positions)
+                                    </span>
+                                    <button
+                                        type="button"
+                                        disabled={currentPage === totalPagesCount}
+                                        onClick={() => setCurrentPage(p => Math.min(p + 1, totalPagesCount))}
+                                        style={{ background: '#ffffff', color: '#475569', border: '1.5px solid #cbd5e1', padding: '0.6rem 1.25rem', borderRadius: '12px', cursor: currentPage === totalPagesCount ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', opacity: currentPage === totalPagesCount ? 0.55 : 1, fontWeight: '800', fontSize: '0.85rem', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', transition: 'all 0.2s' }}
+                                    >
+                                        Next <ChevronRight size={16} />
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             )}
