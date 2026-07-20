@@ -1222,8 +1222,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
     def get_reporting_to_details(self, obj):
         boss = None
+        boss_pos = None
         if obj.reporting_to:
             boss = obj.reporting_to
+            boss_pos = boss.positions.first()
         else:
             pos = obj.positions.first()
             if pos:
@@ -1231,12 +1233,16 @@ class EmployeeSerializer(serializers.ModelSerializer):
                 if boss_pos:
                     boss = boss_pos.employees.filter(status='Active').first()
         
-        if boss:
+        if boss or boss_pos:
             return {
-                "id": boss.id,
-                "name": boss.name,
-                "employee_code": boss.employee_code,
-                "email": boss.email
+                "id": boss.id if boss else None,
+                "name": boss.name if boss else None,
+                "employee_code": boss.employee_code if boss else None,
+                "email": boss.email if boss else None,
+                "position_id": boss_pos.id if boss_pos else None,
+                "position_name": boss_pos.name if boss_pos else None,
+                "position_code": boss_pos.code if boss_pos else None,
+                "role_name": boss_pos.role.name if (boss_pos and boss_pos.role) else None
             }
         return None
 
