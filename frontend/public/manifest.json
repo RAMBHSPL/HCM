@@ -1,0 +1,22 @@
+{
+  "short_name": "BAVYA HCM",
+  "name": "BAVYA Enterprise Management System",
+  "icons": [
+    {
+      "src": "/Bavya.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/Bavya.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0B0F19",
+  "theme_color": "#4F46E5",
+  "display": "standalone",
+  "orientation": "portrait",
+  "description": "BAVYA Enterprise HCM - Workforce Management Mobile Application"
+}

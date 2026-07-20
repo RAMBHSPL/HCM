@@ -6,10 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "cap:sync": "cap sync",
+    "cap:copy": "cap copy",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
+    "@capacitor/core": "^8.4.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.562.0",
     "puppeteer": "^24.38.0",

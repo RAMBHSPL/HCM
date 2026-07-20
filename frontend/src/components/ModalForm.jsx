@@ -52,7 +52,7 @@ import {
 } from 'lucide-react';
 import SearchableSelect from './SearchableSelect';
 import { useData } from '../context/DataContext';
-import api from '../api';
+import api, { BACKEND_BASE_URL } from '../api';
 import GeoMapPicker from './GeoMapPicker';
 
 const ModalForm = () => {
@@ -3489,7 +3489,7 @@ const ModalForm = () => {
                                                     ? URL.createObjectURL(formData.photo)
                                                     : (formData.photo.startsWith('http') || formData.photo.startsWith('data:image'))
                                                         ? formData.photo
-                                                        : `http://${window.location.hostname}:8000${formData.photo.startsWith('/') ? '' : '/'}${formData.photo}`
+                                                        : `${BACKEND_BASE_URL}${formData.photo.startsWith('/') ? '' : '/'}${formData.photo}`
                                             }
                                             alt="Preview"
                                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}

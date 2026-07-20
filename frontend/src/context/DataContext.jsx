@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import api, { fileToBase64 } from '../api';
+import api, { fileToBase64, BACKEND_BASE_URL } from '../api';
 
 // SECURITY: ID Obfuscation to prevent ID enumeration in URL
 const ID_SALT = 'ERPS-V1-SECURE';
@@ -189,8 +189,8 @@ export const SECTION_GROUPS = [
 const getPhotoUrl = (photo) => {
     if (!photo) return null;
     if (photo.startsWith('http') || photo.startsWith('data:image')) return photo;
-    const hostname = window.location.hostname === 'localhost' ? '127.0.0.1' : window.location.hostname;
-    return `http://${hostname}:8000${photo}`;
+    const cleanPhoto = photo.startsWith('/') ? photo : `/${photo}`;
+    return `${BACKEND_BASE_URL}${cleanPhoto}`;
 };
 
 export const DataProvider = ({ children }) => {

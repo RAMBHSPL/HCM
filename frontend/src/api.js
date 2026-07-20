@@ -1,17 +1,25 @@
-let API_BASE_URL;
+// Centralized dynamic resolution for API and Backend Base URLs
+const getResolvedApiBaseUrl = () => {
+    // 1. Prioritize environment variable if provided
+    if (import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim()) {
+        return import.meta.env.VITE_API_BASE_URL.trim().replace(/\/+$/, '');
+    }
 
-if (import.meta.env.VITE_API_BASE_URL) {
-    API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-} else if (import.meta.env.DEV) {
-    // Always use the same hostname the browser is on so it works via localhost OR network IP
-    const hostname = window.location.hostname;
-    API_BASE_URL = `http://${hostname}:8000/api`;
-} else {
-    // Dynamic production fallback using current browser location
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname;
-    API_BASE_URL = `${protocol}//${hostname}:8000/api`;
-}
+    // 2. Dynamic web/mobile fallback using current window origin
+    const origin = window.location.origin;
+    if (origin && origin !== 'null' && !origin.startsWith('file:')) {
+        return `${origin.replace(/\/+$/, '')}/api`;
+    }
+
+    return '/api';
+};
+
+export const API_BASE_URL = getResolvedApiBaseUrl();
+
+// Centralized dynamic resolution for Static Media / Backend Base URL
+export const BACKEND_BASE_URL = (import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL.trim())
+    ? import.meta.env.VITE_BACKEND_URL.trim().replace(/\/+$/, '')
+    : API_BASE_URL.replace(/\/api\/?$/, '');
 
 const getHeaders = (contentType = 'application/json') => {
     const headers = {};
