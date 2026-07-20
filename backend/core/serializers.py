@@ -1214,13 +1214,35 @@ class EmployeeSerializer(serializers.ModelSerializer):
                     return boss.name
         return None
 
+    reporting_to_details = serializers.SerializerMethodField()
+
+    def get_reporting_to_details(self, obj):
+        boss = None
+        if obj.reporting_to:
+            boss = obj.reporting_to
+        else:
+            pos = obj.positions.first()
+            if pos:
+                boss_pos = pos.reporting_to.first()
+                if boss_pos:
+                    boss = boss_pos.employees.filter(status='Active').first()
+        
+        if boss:
+            return {
+                "id": boss.id,
+                "name": boss.name,
+                "employee_code": boss.employee_code,
+                "email": boss.email
+            }
+        return None
+
     class Meta:
         model = Employee
         fields = [
             'id', 'user', 'name', 'employee_code', 'email', 'phone', 'positions', 'reporting_to',
             'hire_date', 'address', 'father_name', 'mother_name', 'personal_email', 'date_of_birth',
             'gender', 'blood_group', 'employment_start_date', 'employment_end_date', 'employment_type',
-            'status', 'status_date', 'photo', 'created_at', 'is_blocked', 'primary_position', 'reporting_to_name',
+            'status', 'status_date', 'photo', 'created_at', 'is_blocked', 'primary_position', 'reporting_to_name', 'reporting_to_details',
             'project_name', 'location_details', 'positions_details', 'education_records',
             'experience_records', 'employment_history', 'bank_details', 'epfo_details',
             'health_details', 'salary_details', 'url_permissions', 'user_details',
