@@ -1181,8 +1181,11 @@ class EmployeeSerializer(serializers.ModelSerializer):
             return None
         
         office = pos.office
+        parent_office = office.parent
         return {
             "office_name": office.name,
+            "reporting_office_id": parent_office.id if parent_office else None,
+            "reporting_office_name": parent_office.name if parent_office else None,
             "country": office.country_name,
             "state": office.state_name,
             "district": office.district_name,
@@ -1371,6 +1374,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
 class LightEmployeePositionListSerializer(serializers.ModelSerializer):
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
+    reporting_office_id = serializers.IntegerField(source='office.parent.id', allow_null=True, read_only=True)
+    reporting_office_name = serializers.ReadOnlyField(source='office.parent.name', allow_null=True)
     department_name = serializers.ReadOnlyField(source='department.name', allow_null=True)
     level_id = serializers.IntegerField(source='level.id', allow_null=True, read_only=True)
     office_level_id = serializers.IntegerField(source='office.level.id', allow_null=True, read_only=True)
@@ -1399,6 +1404,8 @@ class LightEmployeePositionListSerializer(serializers.ModelSerializer):
     role_sub_group_id = serializers.IntegerField(source='role_sub_group.id', allow_null=True, read_only=True)
     role_sub_group_name = serializers.ReadOnlyField(source='role_sub_group.name', allow_null=True)
 
+    section_name = serializers.ReadOnlyField(source='section.name', allow_null=True)
+
     def get_project_id(self, obj):
         project = None
         if obj.section and obj.section.project:
@@ -1416,20 +1423,24 @@ class LightEmployeePositionListSerializer(serializers.ModelSerializer):
         return project.name if project else None
 
     def get_segment_id(self, obj):
-        if obj.role and obj.role.segment:
+        if obj.role and hasattr(obj.role, 'segment') and obj.role.segment:
             return obj.role.segment.id
+        if obj.position_type and hasattr(obj.position_type, 'segment') and obj.position_type.segment:
+            return obj.position_type.segment.id
         return None
 
     def get_segment_name(self, obj):
-        if obj.role and obj.role.segment:
+        if obj.role and hasattr(obj.role, 'segment') and obj.role.segment:
             return obj.role.segment.name
+        if obj.position_type and hasattr(obj.position_type, 'segment') and obj.position_type.segment:
+            return obj.position_type.segment.name
         return None
 
     class Meta:
         model = Position
         fields = [
-            'id', 'name', 'office_id', 'office_name', 'department_id', 'department_name', 
-            'section_id', 'level_id', 'office_level_id',
+            'id', 'name', 'office_id', 'office_name', 'reporting_office_id', 'reporting_office_name',
+            'department_id', 'department_name', 'section_id', 'section_name', 'level_id', 'office_level_id',
             'project_id', 'project_name', 'segment_id', 'segment_name',
             'position_type_id', 'position_type_name', 'role_id', 'role_name',
             'role_sub_group_id', 'role_sub_group_name'
@@ -1457,8 +1468,11 @@ class EmployeeListSerializer(EmployeeSerializer):
         pos = obj.positions.first()
         if not pos or not pos.office: return None
         off = pos.office
+        parent_office = off.parent
         return {
             "office_name": off.name,
+            "reporting_office_id": parent_office.id if parent_office else None,
+            "reporting_office_name": parent_office.name if parent_office else None,
             "country": off.country_name,
             "state": off.state_name,
             "district": off.district_name,
