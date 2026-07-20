@@ -1379,7 +1379,14 @@ class LightEmployeePositionListSerializer(serializers.ModelSerializer):
     segment_id = serializers.SerializerMethodField()
     segment_name = serializers.SerializerMethodField()
     position_type_id = serializers.IntegerField(source='position_type.id', allow_null=True, read_only=True)
-    position_type_name = serializers.ReadOnlyField(source='position_type.name', allow_null=True)
+    position_type_name = serializers.SerializerMethodField()
+
+    def get_position_type_name(self, obj):
+        if obj.position_type:
+            return obj.position_type.name
+        if obj.role and obj.role.role_type:
+            return obj.role.role_type.name
+        return None
     role_id = serializers.IntegerField(source='role.id', allow_null=True, read_only=True)
     role_name = serializers.ReadOnlyField(source='role.name', allow_null=True)
     role_sub_group_id = serializers.IntegerField(source='role_sub_group.id', allow_null=True, read_only=True)
