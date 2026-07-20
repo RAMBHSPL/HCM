@@ -1,11 +1,16 @@
 let API_BASE_URL;
 
-if (import.meta.env.DEV) {
+if (import.meta.env.VITE_API_BASE_URL) {
+    API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+} else if (import.meta.env.DEV) {
     // Always use the same hostname the browser is on so it works via localhost OR network IP
     const hostname = window.location.hostname;
     API_BASE_URL = `http://${hostname}:8000/api`;
 } else {
-    API_BASE_URL = 'http://103.174.161.68:8000/api';
+    // Dynamic production fallback using current browser location
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    API_BASE_URL = `${protocol}//${hostname}:8000/api`;
 }
 
 const getHeaders = (contentType = 'application/json') => {

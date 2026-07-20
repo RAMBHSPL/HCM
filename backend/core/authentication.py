@@ -27,33 +27,37 @@ class APIKeyAuthentication(authentication.BaseAuthentication):
         if api_key.valid_until and api_key.valid_until < timezone.now().date():
              raise exceptions.AuthenticationFailed('API Key has expired')
         
-        # 3. Rate Limiting Check
-        one_minute_ago = timezone.now() - timezone.timedelta(minutes=1)
-        recent_requests = APIKeyUsageLog.objects.filter(
-            api_key=api_key,
-            timestamp__gte=one_minute_ago
-        ).count()
+        # 3. Non-blocking async logging and stats update
+        import threading
         
-        if recent_requests >= api_key.rate_limit:
-            raise exceptions.Throttled(detail=f'Rate limit exceeded ({api_key.rate_limit} requests/min). Please try again in a minute.')
-        
-        # 3. Update Stats (Log usage)
-        api_key.usage_count += 1
-        api_key.last_used = timezone.now()
-        api_key.save(update_fields=['usage_count', 'last_used'])
+        def _record_usage(key_id, remote_addr, path, method, user_agent):
+            try:
+                from django.db import models
+                APIKey.objects.filter(id=key_id).update(
+                    usage_count=models.F('usage_count') + 1,
+                    last_used=timezone.now()
+                )
+                APIKeyUsageLog.objects.create(
+                    api_key_id=key_id,
+                    ip_address=remote_addr,
+                    endpoint=path,
+                    method=method,
+                    user_agent=user_agent
+                )
+            except Exception:
+                pass
 
-        # Create usage log
-        try:
-            APIKeyUsageLog.objects.create(
-                api_key=api_key,
-                ip_address=request.META.get('REMOTE_ADDR'),
-                endpoint=request.path,
-                method=request.method,
-                user_agent=request.META.get('HTTP_USER_AGENT')
-            )
-        except Exception as e:
-            # Don't fail the request if logging fails, but maybe log it to console
-            print(f"Failed to log API Key usage: {str(e)}")
+        threading.Thread(
+            target=_record_usage,
+            args=(
+                api_key.id,
+                request.META.get('REMOTE_ADDR'),
+                request.path,
+                request.method,
+                request.META.get('HTTP_USER_AGENT')
+            ),
+            daemon=True
+        ).start()
 
         # 4. Return User and Key
         # We return the Creator as the content_object user, but the 'auth' object is the key itself

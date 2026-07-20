@@ -30,7 +30,7 @@ def _build_signature(payload_str: str, secret: str) -> str:
 
 def _dispatch(webhook_url: str, event: str, payload: dict, api_key_id: int):
     """Blocking send — called in a daemon thread."""
-    from core.models import APIKey  # local import to avoid circular deps
+    from core.models import APIKey, APIKeyUsageLog  # local import to avoid circular deps
     try:
         api_key = APIKey.objects.get(id=api_key_id)
     except APIKey.DoesNotExist:
@@ -60,6 +60,7 @@ def _dispatch(webhook_url: str, event: str, payload: dict, api_key_id: int):
         "User-Agent": "HCM-Webhook/1.0",
     }
 
+    status_code = None
     max_retries = 3
     for attempt in range(max_retries):
         try:
@@ -69,16 +70,29 @@ def _dispatch(webhook_url: str, event: str, payload: dict, api_key_id: int):
                 headers=headers,
                 timeout=10,
             )
+            status_code = resp.status_code
             resp.raise_for_status()
             print(f"[Webhook] ✓ {event} → {webhook_url} [{resp.status_code}]")
-            return
+            break
         except requests.RequestException as e:
+            if hasattr(e, 'response') and getattr(e, 'response', None) is not None:
+                status_code = e.response.status_code
             wait = 2 ** attempt  # exponential backoff: 1s, 2s, 4s
             print(f"[Webhook] ✗ Attempt {attempt + 1}/{max_retries} failed for {event} → {webhook_url}: {e}")
             if attempt < max_retries - 1:
                 time.sleep(wait)
 
-    print(f"[Webhook] ✗ All retries exhausted for {event} → {webhook_url}")
+    # Record delivery log for full tracking & audits in API Key Management UI
+    try:
+        APIKeyUsageLog.objects.create(
+            api_key=api_key,
+            endpoint=f"[WEBHOOK {event}] {webhook_url}",
+            method="POST",
+            status_code=status_code or 500,
+            user_agent="HCM-Webhook-Engine/1.0"
+        )
+    except Exception:
+        pass
 
 
 def is_in_api_key_scope(api_key, payload) -> bool:
@@ -177,22 +191,60 @@ def is_in_api_key_scope(api_key, payload) -> bool:
     return False
 
 
+def _dispatch_direct(webhook_url: str, event: str, payload: dict):
+    """Direct send for global DEFAULT_WEBHOOK_URL configured in settings/.env."""
+    body = {
+        "event": event,
+        "timestamp": timezone.now().isoformat(),
+        "source": "HCM Shift Roster",
+        "data": payload,
+    }
+    body_str = json.dumps(body, default=str)
+    headers = {
+        "Content-Type": "application/json",
+        "X-HCM-Event": event,
+        "User-Agent": "HCM-Webhook/1.0",
+    }
+    try:
+        resp = requests.post(webhook_url, data=body_str, headers=headers, timeout=10)
+        print(f"[Webhook Direct] ✓ {event} → {webhook_url} [{resp.status_code}]")
+    except Exception as e:
+        print(f"[Webhook Direct] ✗ Failed for {event} → {webhook_url}: {e}")
+
+
 def fire_shift_webhook(event: str, payload: dict):
     """
     Find all active API keys that have a webhook_url configured and
     include `event` in their webhook_events list, then dispatch asynchronously.
-
-    Args:
-        event:   One of: shift.assigned, shift.unassigned,
-                         shift.bulk_assigned, shift.bulk_deleted
-        payload: Dict of roster data to include in the webhook body
+    Also supports global DEFAULT_WEBHOOK_URL from settings/.env.
+    Flushes cache to guarantee zero-latency updated data on API reads.
     """
     from core.models import APIKey  # local import
+    from django.conf import settings
+    from django.core.cache import cache
 
-    keys = APIKey.objects.filter(
+    # Instantly invalidate cache on roster/shift changes
+    try:
+        cache.clear()
+    except Exception:
+        pass
+
+    keys = list(APIKey.objects.filter(
         is_active=True,
         webhook_url__isnull=False,
-    ).exclude(webhook_url='')
+    ).exclude(webhook_url=''))
+
+    default_url = getattr(settings, 'DEFAULT_WEBHOOK_URL', None) or getattr(settings, 'WEBHOOK_URL', None)
+
+    # If no custom API keys with webhook URLs are registered, but a DEFAULT_WEBHOOK_URL is set in .env
+    if not keys and default_url:
+        t = threading.Thread(
+            target=_dispatch_direct,
+            args=(default_url, event, payload),
+            daemon=True,
+        )
+        t.start()
+        return
 
     for api_key in keys:
         # Check if this key has subscribed to the event
@@ -205,9 +257,12 @@ def fire_shift_webhook(event: str, payload: dict):
         if not is_in_api_key_scope(api_key, payload):
             continue
 
-        t = threading.Thread(
-            target=_dispatch,
-            args=(api_key.webhook_url, event, payload, api_key.id),
-            daemon=True,
-        )
-        t.start()
+        # Support comma-separated URLs in a single API key
+        urls = [u.strip() for u in api_key.webhook_url.split(',') if u.strip()]
+        for target_url in urls:
+            t = threading.Thread(
+                target=_dispatch,
+                args=(target_url, event, payload, api_key.id),
+                daemon=True,
+            )
+            t.start()

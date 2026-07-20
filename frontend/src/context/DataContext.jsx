@@ -664,10 +664,16 @@ export const DataProvider = ({ children }) => {
     // Permission Helpers
     const getPermissions = () => user?.permissions || {};
 
-    const checkPermission = (path, action = 'view') => {
-        if (user?.is_superuser) return true;
-        const perms = getPermissions();
+    const checkPermission = (path, action) => {
+        if (!user) return false;
+        if (user.is_superuser) return true;
 
+        // Shift management and roster pages are viewable by all logged-in employees
+        if (['position-shift-rosters', 'shift-change-requests', 'shifts', 'position-assignments', 'dashboard'].includes(path) && action === 'view') {
+            return true;
+        }
+
+        const perms = getPermissions();
         let targetPattern = resolveEndpointHelper(path);
 
 
@@ -738,9 +744,13 @@ export const DataProvider = ({ children }) => {
             }
 
             const fetchPromise = (async () => {
-                const res = await api.get(endpoint, { force });
-                const data = Array.isArray(res) ? res : (res?.results || []);
-                return data;
+                try {
+                    const res = await api.get(endpoint, { force });
+                    const data = Array.isArray(res) ? res : (res?.results || []);
+                    return data;
+                } catch (err) {
+                    return [];
+                }
             })();
 
             activeSafeRequests.current.set(endpoint, fetchPromise);
@@ -810,8 +820,12 @@ export const DataProvider = ({ children }) => {
                     .then(data => setData(data))
                     .catch(err => console.error(err))
                     .finally(() => setLoading(false));
-            } else if (activeSection === 'workforce-tracker') {
-                // Custom page, does not use GenericTable's fetchData; data is loaded via Wave 2 dropdowns
+            } else if ([
+                'workforce-tracker', 'position-shift-rosters', 'position-shift-roster',
+                'shift-change-requests', 'shift-requests', 'position-assignments',
+                'delegate-activity', 'audit-logs', 'vehicle-swap-logs', 'vehicle-swap-requests'
+            ].includes(activeSection)) {
+                // Custom pages do not use GenericTable's fetchData; data is self-managed by the page component
                 setLoading(false);
             } else {
                 // UNIVERSAL FIX FOR STANDARD SECTIONS
@@ -846,8 +860,8 @@ export const DataProvider = ({ children }) => {
         const pathParts = location.pathname.substring(1).split('/');
         const currentPath = pathParts[0] || 'dashboard';
 
-        // High-vis log for user to see the app is responding to clicks
-        console.log(`%c[Navigation] 👉 Transitioning to: ${id.toUpperCase()}`, 'color: #be185d; font-weight: bold; background: #fff1f2; padding: 2px 5px; border-radius: 4px;');
+        // Navigation state transition
+        console.log(`[Navigation] Transitioning to: ${id.toUpperCase()}`);
 
         // BOUNCE PROTECTION: If already on the base path of this section, ignore double-taps
         // If on a sub-page (edit/view), navigate back but don't clear everything
@@ -861,7 +875,7 @@ export const DataProvider = ({ children }) => {
         // PERFORMANCE: ⚡ INSTANT LOAD pattern
         const cachedData = pageCache.current.get(id);
         if (cachedData && Array.isArray(cachedData) && cachedData.length > 0) {
-            console.log(`%c[InstantLoad] ⚡ Showing cached data for: ${id}`, 'color: #0d9488; font-weight: bold;');
+            console.log(`[InstantLoad] Showing cached data for: ${id}`);
             setData(cachedData);
             setLoading(false);
         } else {
@@ -2048,6 +2062,9 @@ export const DataProvider = ({ children }) => {
 export const useData = () => {
     const context = useContext(DataContext);
     if (!context) {
+        if (typeof window !== 'undefined' && window.__dataContext) {
+            return window.__dataContext;
+        }
         throw new Error('useData must be used within a DataProvider');
     }
     return context;

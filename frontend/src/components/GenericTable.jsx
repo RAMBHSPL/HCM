@@ -4,8 +4,6 @@ import { useData, SECTIONS } from '../context/DataContext';
 import BavyaSpinner from './BavyaSpinner';
 import BulkUploadModal from './BulkUploadModal';
 
-console.log('%c[BUILD] 🚀 GenericTable.jsx - VERSION 3.0', 'color: #7c3aed; font-weight: bold; font-size: 14px;');
-
 const GenericTable = ({ renderTableData, customData = null }) => {
     const {
         loading,

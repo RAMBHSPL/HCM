@@ -1011,6 +1011,19 @@ class PositionSerializer(serializers.ModelSerializer):
             }
         return None
 
+    assigned_employees_details = serializers.SerializerMethodField()
+
+    def get_assigned_employees_details(self, obj):
+        return [
+            {
+                'id': emp.id,
+                'name': emp.name,
+                'code': emp.employee_code,
+                'status': emp.status
+            }
+            for emp in obj.employees.all()
+        ]
+
     reporting_to = serializers.PrimaryKeyRelatedField(many=True, queryset=Position.objects.all(), required=False)
     reporting_to_details = LightPositionSerializer(source='reporting_to', many=True, read_only=True)
 
@@ -1023,7 +1036,7 @@ class PositionSerializer(serializers.ModelSerializer):
             'office_hierarchy', 'department_name', 'section_name', 'role_name', 
             'job_name', 'job_family_name', 'job_family_id', 'role_type_id', 
             'project_name', 'status', 'created_at', 'start_date', 'role_details', 'additional_roles_details', 'is_vacant', 
-            'assigned_employee', 'level', 'level_name', 'level_rank',
+            'assigned_employee', 'assigned_employees_details', 'level', 'level_name', 'level_rank',
             'position_type', 'position_type_name', 'shifts', 'shifts_details',
             'role_sub_group', 'role_sub_group_name', 'role_sub_group_details',
             'project_id', 'segment_id', 'segment_name'
@@ -1039,6 +1052,18 @@ class PositionDropdownSerializer(serializers.ModelSerializer):
     level_id = serializers.IntegerField(source='level.id', allow_null=True, read_only=True)
     role_name = serializers.ReadOnlyField(source='role.name', allow_null=True)
     shifts_details = serializers.SerializerMethodField()
+    assigned_employees_details = serializers.SerializerMethodField()
+
+    def get_assigned_employees_details(self, obj):
+        return [
+            {
+                'id': emp.id,
+                'name': emp.name,
+                'code': emp.employee_code,
+                'status': emp.status
+            }
+            for emp in obj.employees.all()
+        ]
 
     class Meta:
         model = Position
@@ -1046,7 +1071,7 @@ class PositionDropdownSerializer(serializers.ModelSerializer):
             'id', 'name', 'code', 'status',
             'office_id', 'department_id', 'section_id',
             'office_name', 'department_name', 'section_name', 'office_level_id',
-            'level_id', 'role_name', 'shifts_details'
+            'level_id', 'role_name', 'shifts_details', 'assigned_employees_details'
         ]
 
     def get_office_level_id(self, obj):
@@ -1397,12 +1422,53 @@ class EmployeeListSerializer(EmployeeSerializer):
 
     class Meta:
         model = Employee
-        # Filter out heavy fields like 'photo' to keep list responses fast and avoid duplication errors
-        fields = [f for f in EmployeeSerializer.Meta.fields if f != 'photo']
+        fields = [
+            'id', 'name', 'employee_code', 'email', 'phone', 'personal_email', 'date_of_birth',
+            'gender', 'blood_group', 'employment_type', 'status', 'created_at',
+            'primary_position', 'project_name', 'location_details', 'positions_details'
+        ]
 
     def to_representation(self, instance):
-        # Inherit from EmployeeSerializer (which now handles pan/aadhar)
-        ret = super().to_representation(instance)
+        # Optimized lightweight representation
+        request = self.context.get('request')
+        from .models import APIKey
+        auth = getattr(request, 'auth', None)
+        
+        if request and auth and isinstance(auth, APIKey):
+            perms = getattr(auth, 'data_permissions', {}) or {}
+            ret = super().to_representation(instance)
+            
+            # 1. Identity & Profile
+            employee_data = {
+                'id': ret.get('id'),
+                'name': ret.get('name'),
+                'employee_code': ret.get('employee_code'),
+                'status': ret.get('status'),
+            }
+            if perms.get('personal', False):
+                bank = getattr(instance, 'bank_details', None)
+                employee_data.update({
+                    'dob': ret.get('date_of_birth'),
+                    'gender': ret.get('gender'),
+                    'pan_number': bank.pan_number if bank else '',
+                    'aadhaar_number': bank.aadhaar_number if bank else '',
+                })
+            if perms.get('contact', False):
+                employee_data.update({
+                    'email': ret.get('email'),
+                    'phone': ret.get('phone'),
+                    'personal_email': ret.get('personal_email'),
+                })
+            if perms.get('assignment', True):
+                employee_data.update({
+                    'primary_position': ret.get('primary_position'),
+                    'project_name': ret.get('project_name'),
+                    'location_details': ret.get('location_details'),
+                    'positions_details': ret.get('positions_details'),
+                })
+            return employee_data
+
+        return super().to_representation(instance)
 
         request = self.context.get('request')
         

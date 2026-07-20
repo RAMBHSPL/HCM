@@ -620,26 +620,23 @@ const PositionShiftRoster = () => {
         if (employeeSearch.trim()) {
             const query = employeeSearch.toLowerCase();
             list = list.filter(emp =>
-                emp.name.toLowerCase().includes(query) ||
+                (emp.name && emp.name.toLowerCase().includes(query)) ||
                 (emp.employee_code && emp.employee_code.toLowerCase().includes(query))
             );
         }
 
-        // Filter out employees already assigned to this specific position, shift, and date (for "Assign Another" coverage)
-        if (modalData.position && modalData.shift && modalData.date && !modalData.rosterId) {
-            const cellRosters = rosterMap.get(`${modalData.position.id}|${modalData.shift.id}|${modalData.date}`) || [];
-            const alreadyAssignedIds = new Set(cellRosters.map(r => String(r.employee)));
-            list = list.filter(emp => !alreadyAssignedIds.has(String(emp.id)));
-        }
-
-        // STRICT: Only allow employees tagged/assigned to this position
+        // STRICT: Only allow employees tagged/assigned to this specific position
         if (modalData.position) {
-            const positionId = modalData.position.id;
-            const primaryList = list.filter(emp =>
-                emp.positions && emp.positions.includes(positionId)
-            );
+            const targetPosId = String(modalData.position.id);
+            list = list.filter(emp => {
+                const posArray = emp.positions || [];
+                const posDetails = emp.positions_details || [];
 
-            return primaryList.map(e => ({ ...e, isRecommended: true }));
+                const matchPos = posArray.some(p => String(typeof p === 'object' ? (p.id || p.position_id) : p) === targetPosId);
+                const matchDetails = posDetails.some(p => String(p.id || p.position_id) === targetPosId);
+
+                return matchPos || matchDetails;
+            });
         }
 
         return list;
@@ -2009,12 +2006,12 @@ const PositionShiftRoster = () => {
 
             <div className="filters-container">
                 <div className="filter-group" style={{ gridColumn: 'span 2' }}>
-                    <label>Search Positions</label>
+                    <label>Universal Roster Search</label>
                     <div className="search-box" style={{ margin: 0 }}>
                         <Search size={14} className="search-icon-inside" />
                         <input
                             type="text"
-                            placeholder="Filter positions by name or code..."
+                            placeholder="Search position name, code, employee name, or employee ID..."
                             value={tableSearch}
                             onChange={(e) => setTableSearch(e.target.value)}
                             className="filter-input search-input-inside"
@@ -2329,6 +2326,39 @@ const PositionShiftRoster = () => {
                                                 )}
                                             </div>
 
+                                            {/* Position Employee(s) Highlight Box */}
+                                            <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '0.55rem 0.75rem', marginTop: '0.4rem' }}>
+                                                <div style={{ fontSize: '0.68rem', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <User size={11} color="#4338ca" /> Position Employee(s):
+                                                </div>
+                                                {pos.assigned_employees_details && pos.assigned_employees_details.length > 0 ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                        {pos.assigned_employees_details.map((emp, idx) => (
+                                                            <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 850, color: '#0f172a' }}>
+                                                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }}>{emp.name}</span>
+                                                                <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: '#4338ca', background: '#e0e7ff', border: '1px solid #c7d2fe', padding: '1px 6px', borderRadius: '6px', fontWeight: 800 }}>{emp.code || 'N/A'}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : assignedEmpList.length > 0 ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                        {assignedEmpList.map((emp, idx) => (
+                                                            <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 850, color: '#0f172a' }}>
+                                                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }}>{emp.name}</span>
+                                                                <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: '#4338ca', background: '#e0e7ff', border: '1px solid #c7d2fe', padding: '1px 6px', borderRadius: '6px', fontWeight: 800 }}>{emp.code || 'N/A'}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : pos.assigned_employee ? (
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 850, color: '#0f172a' }}>
+                                                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }}>{pos.assigned_employee.name}</span>
+                                                        <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: '#4338ca', background: '#e0e7ff', border: '1px solid #c7d2fe', padding: '1px 6px', borderRadius: '6px', fontWeight: 800 }}>{pos.assigned_employee.code || 'N/A'}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', fontWeight: 600 }}>No employee assigned</span>
+                                                )}
+                                            </div>
+
                                             <div className="card-footer-stats">
                                                 <div className="stats-progress-container">
                                                     <div className="stats-progress-header">
@@ -2339,24 +2369,6 @@ const PositionShiftRoster = () => {
                                                         <div className="stats-progress-fill" style={{ width: `${fullnessPercent}%`, background: fullnessPercent > 80 ? '#10b981' : fullnessPercent > 40 ? '#f59e0b' : '#ef4444' }}></div>
                                                     </div>
                                                 </div>
-
-                                                {assignedEmpList.length > 0 && (
-                                                    <div className="assigned-avatars-section">
-                                                        <span className="avatars-label">Scheduled:</span>
-                                                        <div className="avatars-stack">
-                                                            {assignedEmpList.slice(0, 4).map((emp, index) => (
-                                                                <div key={index} className="avatar-stack-item" title={`${emp.name} (${emp.code || 'N/A'})`}>
-                                                                    {emp.name.charAt(0)}
-                                                                </div>
-                                                            ))}
-                                                            {assignedEmpList.length > 4 && (
-                                                                <div className="avatar-stack-item count" title={`${assignedEmpList.length} total employees`}>
-                                                                    +{assignedEmpList.length - 4}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )}
                                             </div>
 
                                             <button type="button" className="card-action-btn">

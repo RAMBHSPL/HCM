@@ -12,6 +12,19 @@ dist
 dist-ssr
 *.local
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+*.html
+*.png
+*.jpg
+artifacts/
+scratch/
+frontend/test-results/
+frontend/screenshots/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

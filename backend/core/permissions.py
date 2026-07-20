@@ -43,12 +43,21 @@ class DynamicSecurityPermission(permissions.BasePermission):
             if getattr(request.user, 'is_superuser', False) or getattr(request.user, 'is_staff', False):
                 return True
             
-            # 2. Get Employee Profile
-            if not hasattr(request.user, 'employee_profile'):
+            # 2. Get Employee Profile (with auto-sync fallback)
+            employee = getattr(request.user, 'employee_profile', None)
+            if not employee and request.user.username:
+                from .models import Employee
+                employee = Employee.objects.filter(employee_code=request.user.username).first()
+                if employee:
+                    try:
+                        request.user.employee_profile = employee
+                        request.user.save(update_fields=['employee_profile'])
+                    except Exception:
+                        pass
+            
+            if not employee:
                 print(f"PERMISSION DENIED: User {request.user} has no employee profile and is not superuser/staff")
                 return False
-            
-            employee = request.user.employee_profile
             
             # 3. Determine required action
             if request.method in permissions.SAFE_METHODS:
@@ -69,12 +78,10 @@ class DynamicSecurityPermission(permissions.BasePermission):
             # 5. Check against the request path
             path = request.path.lower()
 
-            # Allow positions/all_data and employees/all_data lookup if user has related screen permissions
+            # Allow read-only access to roster, shift request, shift, and all_data endpoints for authenticated users
             if request.method in permissions.SAFE_METHODS:
-                if 'positions/all_data' in path or 'employees/all_data' in path:
-                    related_patterns = ['position-shift-rosters', 'position-assignments', 'employees', 'positions']
-                    if any(perms.get(pat, {}).get('view') and perms.get(pat, {}).get('enabled', True) for pat in related_patterns):
-                        return True
+                if any(k in path for k in ['/all_data', 'position-shift-rosters', 'shift-change-requests', 'shifts']):
+                    return True
             
             # Check wildcard first
             if '*' in perms:

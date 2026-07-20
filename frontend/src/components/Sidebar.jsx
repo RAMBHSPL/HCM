@@ -23,7 +23,10 @@ const Sidebar = () => {
         }
     };
 
-    const isInternalSection = (id) => ['permission-matrix', 'position-assignments'].includes(id);
+    const isInternalSection = (id) => [
+        'permission-matrix', 'position-assignments', 'shifts', 
+        'position-shift-rosters', 'shift-change-requests', 'shift-requests'
+    ].includes(id);
 
     return (
         <aside className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>

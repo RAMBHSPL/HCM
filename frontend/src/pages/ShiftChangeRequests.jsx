@@ -1,25 +1,32 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Calendar, Search, RefreshCw, User, Shield, Info, Users, CheckCircle, Ban, Send, FileText, ArrowRight, CheckCircle2, XCircle, Clock, Eye, AlertTriangle, Layers
+    Calendar, Search, RefreshCw, User, Shield, Info, Users, CheckCircle, Ban, Send, FileText, ArrowRight, CheckCircle2, XCircle, Clock, Eye, AlertTriangle, Layers, Filter, CheckSquare, Sparkles
 } from 'lucide-react';
 import api from '../api';
 import { useData } from '../context/DataContext';
 import BavyaSpinner from '../components/BavyaSpinner';
 
 const ShiftChangeRequests = () => {
-    const { user } = useData();
+    const dataContext = useData() || {};
+    const user = dataContext.user;
+    const globalShifts = dataContext.shifts || [];
+    const globalEmployees = dataContext.allEmployees || [];
+    const globalPositions = dataContext.positions || [];
     const [requests, setRequests] = useState([]);
     const [employees, setEmployees] = useState([]);
     const [positions, setPositions] = useState([]);
     const [shifts, setShifts] = useState([]);
-    
+
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [actioningId, setActioningId] = useState(null);
 
+    // Day-by-day roster cards for employee
+    const [myRosterCards, setMyRosterCards] = useState([]);
+
     // Selected Request for detailed view
     const [selectedRequest, setSelectedRequest] = useState(null);
-    const [rightTab, setRightTab] = useState('details'); // 'details' or 'create'
+    const [rightTab, setRightTab] = useState('create'); // 'create', 'details', 'approvals'
 
     // Form states
     const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -27,6 +34,23 @@ const ShiftChangeRequests = () => {
     const [selectedShift, setSelectedShift] = useState(null);
     const [reqDate, setReqDate] = useState('');
     const [reqReason, setReqReason] = useState('');
+
+    const availableTargetShifts = useMemo(() => {
+        const fallback = shifts.length > 0 ? shifts : globalShifts;
+        if (selectedPosition && selectedPosition.shifts_details && selectedPosition.shifts_details.length > 0) {
+            return selectedPosition.shifts_details;
+        }
+        if (selectedPosition && selectedPosition.shifts && selectedPosition.shifts.length > 0 && fallback.length > 0) {
+            const posShiftIds = selectedPosition.shifts.map(s => typeof s === 'object' ? s.id : s);
+            const matched = fallback.filter(s => posShiftIds.includes(s.id));
+            if (matched.length > 0) return matched;
+        }
+        return fallback;
+    }, [selectedPosition, shifts, globalShifts]);
+
+    // Current shift lookup for selected date
+    const [currentShiftInfo, setCurrentShiftInfo] = useState(null);
+    const [fetchingCurrentShift, setFetchingCurrentShift] = useState(false);
 
     // Search/filter states
     const [employeeSearch, setEmployeeSearch] = useState('');
@@ -56,27 +80,146 @@ const ShiftChangeRequests = () => {
 
     const fetchDropdowns = async () => {
         try {
+            if (globalEmployees.length > 0 && globalPositions.length > 0) {
+                setEmployees(globalEmployees);
+                setPositions(globalPositions);
+                setShifts(globalShifts);
+                return;
+            }
             const [empRes, posRes, shiftRes] = await Promise.all([
-                api.get('employees/all_data/'),
-                api.get('positions/all_data/'),
-                api.get('shifts/')
+                api.get('employees/all_data/').catch(() => []),
+                api.get('positions/all_data/').catch(() => []),
+                api.get('shifts/').catch(() => [])
             ]);
-            setEmployees(Array.isArray(empRes) ? empRes : empRes.results || []);
-            setPositions(Array.isArray(posRes) ? posRes : posRes.results || []);
-            setShifts(Array.isArray(shiftRes) ? shiftRes : shiftRes.results || []);
+            const empList = Array.isArray(empRes) ? empRes : empRes?.results || [];
+            const posList = Array.isArray(posRes) ? posRes : posRes?.results || [];
+            if (empList.length > 0) setEmployees(empList);
+            if (posList.length > 0) setPositions(posList);
+            if (Array.isArray(shiftRes) && shiftRes.length > 0) setShifts(shiftRes);
         } catch (err) {
             console.error("Error loading dropdown data:", err);
         }
     };
 
+    const fetchMyRosterCards = async (empId) => {
+        if (!empId) return;
+        try {
+            const res = await api.get(`position-shift-rosters/?employee=${empId}`);
+            const data = res.data || res;
+            const list = Array.isArray(data) ? data : data.results || [];
+            const sorted = list.sort((a, b) => new Date(a.date) - new Date(b.date));
+            setMyRosterCards(sorted.slice(0, 14)); // Show next 14 days
+        } catch (err) {
+            console.error("Error fetching roster cards:", err);
+        }
+    };
+
+    // Reactively sync global data context lists as they complete loading
+    useEffect(() => {
+        if (employees.length === 0 && globalEmployees.length > 0) setEmployees(globalEmployees);
+        if (positions.length === 0 && globalPositions.length > 0) setPositions(globalPositions);
+        if (shifts.length === 0 && globalShifts.length > 0) setShifts(globalShifts);
+    }, [globalEmployees, globalPositions, globalShifts]);
+
     useEffect(() => {
         const loadAll = async () => {
             setLoading(true);
-            await Promise.all([fetchRequests(), fetchDropdowns()]);
-            setLoading(false);
+            try {
+                await fetchRequests();
+                fetchDropdowns(); // Non-blocking background fetch
+            } catch (err) {
+                console.error("Error loading dashboard data:", err);
+            } finally {
+                setLoading(false);
+            }
         };
         loadAll();
     }, []);
+
+    // Auto-fill logged-in employee & position directly from user object
+    useEffect(() => {
+        if (user && user.employee_profile_id && !selectedEmployee) {
+            let myEmp = employees.find(e => String(e.id) === String(user.employee_profile_id));
+            if (!myEmp) {
+                myEmp = {
+                    id: user.employee_profile_id,
+                    name: user.employee_name || user.username,
+                    employee_code: user.username,
+                    positions_details: user.positions_details || []
+                };
+            }
+            setSelectedEmployee(myEmp);
+        }
+    }, [user, employees, selectedEmployee]);
+
+    // Fetch roster cards when selectedEmployee changes
+    useEffect(() => {
+        if (selectedEmployee) {
+            fetchMyRosterCards(selectedEmployee.id);
+        } else if (user && user.employee_profile_id) {
+            fetchMyRosterCards(user.employee_profile_id);
+        }
+    }, [user, selectedEmployee]);
+
+    // Auto-fill position when selectedEmployee changes
+    useEffect(() => {
+        if (selectedEmployee && !selectedPosition) {
+            if (selectedEmployee.positions_details && selectedEmployee.positions_details.length > 0) {
+                setSelectedPosition(selectedEmployee.positions_details[0]);
+            } else if (selectedEmployee.positions && selectedEmployee.positions.length > 0) {
+                const firstP = selectedEmployee.positions[0];
+                const targetId = typeof firstP === 'object' ? firstP.id : firstP;
+                const matchedPos = positions.find(p => String(p.id) === String(targetId) || p.name === targetId);
+                if (matchedPos) {
+                    setSelectedPosition(matchedPos);
+                } else if (typeof firstP === 'object' && firstP.name) {
+                    setSelectedPosition(firstP);
+                }
+            } else if (positions.length > 0) {
+                setSelectedPosition(positions[0]);
+            }
+        }
+    }, [selectedEmployee, positions, selectedPosition]);
+
+    // Auto-fetch current shift when employee & date are selected
+    useEffect(() => {
+        if (selectedEmployee && reqDate) {
+            // Instant lookup from already loaded myRosterCards
+            const matchCard = myRosterCards.find(r => String(r.date) === String(reqDate));
+            if (matchCard && matchCard.shift_name) {
+                const startT = matchCard.shift_start_time?.substring(0, 5) || '';
+                const endT = matchCard.shift_end_time?.substring(0, 5) || '';
+                setCurrentShiftInfo(`${matchCard.shift_name}${startT ? ` (${startT} - ${endT})` : ''}`);
+                setFetchingCurrentShift(false);
+                return;
+            }
+
+            const lookupCurrentShift = async () => {
+                setFetchingCurrentShift(true);
+                try {
+                    const res = await api.get(`position-shift-rosters/?employee=${selectedEmployee.id}&date=${reqDate}`);
+                    const data = res.data || res;
+                    const results = data.results || data;
+                    if (Array.isArray(results) && results.length > 0) {
+                        const rost = results[0];
+                        const startT = rost.shift_start_time?.substring(0, 5) || '';
+                        const endT = rost.shift_end_time?.substring(0, 5) || '';
+                        setCurrentShiftInfo(rost.shift_name ? `${rost.shift_name}${startT ? ` (${startT} - ${endT})` : ''}` : 'Morning Shift (Default Assigned)');
+                    } else {
+                        setCurrentShiftInfo('Morning Shift (Default Assigned)');
+                    }
+                } catch (err) {
+                    setCurrentShiftInfo('Morning Shift (Default Assigned)');
+                } finally {
+                    setFetchingCurrentShift(false);
+                }
+            };
+            lookupCurrentShift();
+        } else {
+            setCurrentShiftInfo('Morning Shift (Default Assigned)');
+            setFetchingCurrentShift(false);
+        }
+    }, [selectedEmployee, reqDate, myRosterCards]);
 
     // Summary statistics
     const stats = useMemo(() => {
@@ -86,6 +229,16 @@ const ShiftChangeRequests = () => {
         const approved = requests.filter(r => r.status === 'APPROVED').length;
         return { total, pendingConsent, pendingApproval, approved };
     }, [requests]);
+
+    // Filter requests needing action from current user
+    const actionableRequests = useMemo(() => {
+        return requests.filter(req => {
+            const isTargetEmp = user && String(req.employee) === String(user.employee_profile_id);
+            if (req.status === 'PENDING_CONSENT' && isTargetEmp) return true;
+            if ((req.status === 'PENDING_APPROVAL' || req.status === 'PENDING_CONSENT') && (!isTargetEmp || user?.is_superuser)) return true;
+            return false;
+        });
+    }, [requests, user]);
 
     // Form search filters
     const filteredEmployees = useMemo(() => {
@@ -138,13 +291,13 @@ const ShiftChangeRequests = () => {
                 date: reqDate,
                 reason: reqReason
             });
-            setSelectedEmployee(null);
-            setSelectedPosition(null);
             setSelectedShift(null);
             setReqDate('');
             setReqReason('');
+            setCurrentShiftInfo(null);
             alert("Shift Change Request submitted successfully!");
             await fetchRequests();
+            if (selectedEmployee) fetchMyRosterCards(selectedEmployee.id);
             setRightTab('details');
         } catch (err) {
             console.error("Submission failed:", err);
@@ -164,6 +317,7 @@ const ShiftChangeRequests = () => {
             await api.post(`shift-change-requests/${id}/consent/`, { action: actionVal, reason: comment });
             alert(`Consent ${actionVal === 'accept' ? 'accepted' : 'declined'} successfully!`);
             await fetchRequests();
+            if (selectedEmployee) fetchMyRosterCards(selectedEmployee.id);
         } catch (err) {
             console.error("Consent failed:", err);
             alert("Failed to submit consent: " + (err.response?.data?.error || err.message));
@@ -180,6 +334,7 @@ const ShiftChangeRequests = () => {
             await api.post(`shift-change-requests/${id}/approve/`);
             alert("Request approved and shift updated in roster!");
             await fetchRequests();
+            if (selectedEmployee) fetchMyRosterCards(selectedEmployee.id);
         } catch (err) {
             console.error("Approval failed:", err);
             alert("Failed to approve request: " + (err.response?.data?.error || err.message));
@@ -200,22 +355,6 @@ const ShiftChangeRequests = () => {
         } catch (err) {
             console.error("Rejection failed:", err);
             alert("Failed to reject request: " + (err.response?.data?.error || err.message));
-        } finally {
-            setActioningId(null);
-        }
-    };
-
-    // Admin/Manager Override Action
-    const handleOverride = async (id) => {
-        if (!window.confirm("Override will bypass employee consent and immediately apply the shift change. Proceed?")) return;
-        setActioningId(id);
-        try {
-            await api.post(`shift-change-requests/${id}/override/`);
-            alert("Request overridden and shift updated directly!");
-            await fetchRequests();
-        } catch (err) {
-            console.error("Override failed:", err);
-            alert("Failed to override request: " + (err.response?.data?.error || err.message));
         } finally {
             setActioningId(null);
         }
@@ -254,12 +393,22 @@ const ShiftChangeRequests = () => {
                     background: #f1f5f9;
                 }
                 .tab-btn {
-                    padding: 0.8rem 1.5rem; border: none; border-bottom: 3px solid transparent;
-                    background: none; font-weight: 750; font-size: 0.9rem; cursor: pointer;
-                    color: #64748b; transition: all 0.2s; display: flex; alignItems: center; gap: 8px;
+                    padding: 0.8rem 1.4rem; border: none; border-bottom: 3px solid transparent;
+                    background: none; font-weight: 750; font-size: 0.88rem; cursor: pointer;
+                    color: #64748b; transition: all 0.2s; display: flex; align-items: center; gap: 8px;
                 }
                 .tab-btn.active {
-                    color: #4f46e5; border-bottom-color: #4f46e5;
+                    color: #4f46e5; border-bottom-color: #4f46e5; background: #eef2ff; border-radius: 8px 8px 0 0;
+                }
+                .roster-card {
+                    background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 1rem;
+                    min-width: 175px; cursor: pointer; transition: all 0.25s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+                }
+                .roster-card:hover {
+                    transform: translateY(-3px); border-color: #6366f1; box-shadow: 0 8px 16px rgba(99, 102, 241, 0.12);
+                }
+                .roster-card.active-card {
+                    background: #eef2ff; border: 2px solid #4f46e5; box-shadow: 0 6px 12px rgba(79, 70, 229, 0.15);
                 }
                 .timeline-node {
                     position: relative; padding-left: 28px; margin-bottom: 24px;
@@ -289,7 +438,7 @@ const ShiftChangeRequests = () => {
             </style>
 
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1.5rem' }}>
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', marginBottom: '4px' }}>
                         <Calendar size={18} />
@@ -298,9 +447,58 @@ const ShiftChangeRequests = () => {
                     <h2 style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.03em' }}>Shift Change Requests</h2>
                 </div>
                 <div>
-                    <button onClick={() => { fetchRequests(); fetchDropdowns(); }} style={{ background: 'white', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.65rem 1.3rem', cursor: 'pointer', fontWeight: 750, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                    <button onClick={() => { fetchRequests(); fetchDropdowns(); if (selectedEmployee) fetchMyRosterCards(selectedEmployee.id); }} style={{ background: 'white', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.65rem 1.3rem', cursor: 'pointer', fontWeight: 750, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
                         <RefreshCw size={14} /> Refresh Roster Data
                     </button>
+                </div>
+            </div>
+
+            {/* Visual Day-by-Day Roster Shift Cards Carousel */}
+            <div style={{ marginBottom: '2rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a' }}>
+                        <Sparkles size={18} color="#4f46e5" />
+                        <span style={{ fontSize: '1rem', fontWeight: 850 }}>My Assigned Shift Roster (Click any day to request a shift change)</span>
+                    </div>
+                    <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>Showing upcoming 14 days schedule</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '10px' }}>
+                    {myRosterCards.length > 0 ? (
+                        myRosterCards.map(card => {
+                            const isCardSelected = reqDate === card.date;
+                            return (
+                                <div 
+                                    key={card.id} 
+                                    className={`roster-card ${isCardSelected ? 'active-card' : ''}`}
+                                    onClick={() => {
+                                        setReqDate(card.date);
+                                        setCurrentShiftInfo(card.shift_name ? `${card.shift_name} (${card.shift_start_time?.substring(0,5) || ''} - ${card.shift_end_time?.substring(0,5) || ''})` : 'Morning Shift');
+                                        setRightTab('create');
+                                    }}
+                                >
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 850, color: '#64748b', textTransform: 'uppercase' }}>
+                                        {new Date(card.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                    </div>
+                                    <div style={{ fontSize: '0.92rem', fontWeight: 900, color: '#0f172a', margin: '4px 0' }}>
+                                        {card.shift_name || 'Morning Shift'}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                                        <span style={{ fontSize: '0.68rem', color: '#15803d', background: '#dcfce7', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                            Assigned
+                                        </span>
+                                        <span style={{ fontSize: '0.72rem', color: '#4f46e5', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                            Change <ArrowRight size={10} />
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <div style={{ padding: '1rem', background: 'white', border: '1px dashed #cbd5e1', borderRadius: '12px', fontSize: '0.82rem', color: '#64748b', width: '100%' }}>
+                            No active shift cards found for the selected employee. Select an employee to view their day-by-day shift roster.
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -345,14 +543,14 @@ const ShiftChangeRequests = () => {
             </div>
 
             {/* Split Screen Workspace */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '2rem', alignItems: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2rem', alignItems: 'start' }}>
                 
                 {/* Left Side: Requests Registry */}
                 <div className="dashboard-card" style={{ padding: '2rem', minHeight: '600px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <Layers size={20} color="#4f46e5" />
-                            <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 850, color: '#0f172a' }}>Registry & Logs</h3>
+                            <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 850, color: '#0f172a' }}>Registry & Audit Logs</h3>
                         </div>
                         
                         <div style={{ display: 'flex', gap: '12px' }}>
@@ -368,7 +566,7 @@ const ShiftChangeRequests = () => {
                                 <option value="REJECTED">Rejected</option>
                             </select>
 
-                            <div style={{ width: '260px', display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '8px 14px' }}>
+                            <div style={{ width: '240px', display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '8px 14px' }}>
                                 <Search size={14} color="#94a3b8" style={{ marginRight: '8px' }} />
                                 <input
                                     type="text"
@@ -390,7 +588,7 @@ const ShiftChangeRequests = () => {
                                         <th>Employee Details</th>
                                         <th>Target Change</th>
                                         <th>Roster Status</th>
-                                        <th style={{ textAlign: 'center' }}>Details</th>
+                                        <th style={{ textAlign: 'center' }}>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -413,7 +611,7 @@ const ShiftChangeRequests = () => {
                                                 <td>
                                                     <div style={{ fontWeight: 850, color: '#4f46e5' }}>{new Date(req.date).toLocaleDateString()}</div>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
-                                                        <span>{req.from_shift_name || 'None'}</span>
+                                                        <span>{req.from_shift_name || 'Morning Shift'}</span>
                                                         <ArrowRight size={10} />
                                                         <span style={{ fontWeight: 700, color: '#0f172a' }}>{req.to_shift_name}</span>
                                                     </div>
@@ -428,8 +626,8 @@ const ShiftChangeRequests = () => {
                                                     </span>
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    <button style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', padding: '4px' }}>
-                                                        <Eye size={16} />
+                                                    <button style={{ background: '#eef2ff', border: 'none', color: '#6366f1', cursor: 'pointer', padding: '6px 10px', borderRadius: '8px', fontWeight: 750, fontSize: '0.75rem' }}>
+                                                        View
                                                     </button>
                                                 </td>
                                             </tr>
@@ -439,34 +637,215 @@ const ShiftChangeRequests = () => {
                             </table>
                         </div>
                     ) : (
-                        <div style={{ padding: '6rem 2rem', textAlign: 'center', border: '2px dashed #e2e8f0', borderRadius: '12px' }}>
+                        <div style={{ padding: '5rem 2rem', textAlign: 'center', border: '2px dashed #e2e8f0', borderRadius: '12px' }}>
                             <FileText size={48} color="#cbd5e1" style={{ margin: '0 auto 14px' }} />
-                            <h4 style={{ margin: 0, color: '#94a3b8', fontSize: '0.95rem', fontWeight: 700 }}>No requests match the selection filter.</h4>
-                            <p style={{ margin: '4px 0 0', color: '#cbd5e1', fontSize: '0.8rem' }}>Toggle status filter or search parameters.</p>
+                            <h4 style={{ margin: 0, color: '#64748b', fontSize: '1rem', fontWeight: 800 }}>No requests logged yet</h4>
+                            <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: '0.85rem' }}>Click any shift day card above or use the <strong>Initiate Request</strong> tab to submit a shift change!</p>
                         </div>
                     )}
                 </div>
 
-                {/* Right Side: Tabbed Action & Initiation Centre */}
+                {/* Right Side: Tabbed Workspace */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     
-                    {/* Tabs Header */}
+                    {/* Workspace Header Tabs */}
                     <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', background: 'white', borderRadius: '12px 12px 0 0', padding: '0 8px' }}>
-                        <button 
-                            className={`tab-btn ${rightTab === 'details' ? 'active' : ''}`}
-                            onClick={() => setRightTab('details')}
-                        >
-                            <Eye size={16} /> Workflow Details
-                        </button>
                         <button 
                             className={`tab-btn ${rightTab === 'create' ? 'active' : ''}`}
                             onClick={() => setRightTab('create')}
                         >
                             <Send size={16} /> Initiate Request
                         </button>
+                        <button 
+                            className={`tab-btn ${rightTab === 'details' ? 'active' : ''}`}
+                            onClick={() => setRightTab('details')}
+                        >
+                            <Eye size={16} /> Request Details
+                        </button>
+                        <button 
+                            className={`tab-btn ${rightTab === 'approvals' ? 'active' : ''}`}
+                            onClick={() => setRightTab('approvals')}
+                        >
+                            <CheckSquare size={16} /> Approvals Queue ({actionableRequests.length})
+                        </button>
                     </div>
 
-                    {/* Tab 1: Workflow Details & Actions */}
+                    {/* Tab 1: Initiate Shift Request Form */}
+                    {rightTab === 'create' && (
+                        <div className="dashboard-card" style={{ padding: '2rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '1.25rem' }}>
+                                <Send size={16} color="#4f46e5" />
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 850, color: '#0f172a' }}>Initiate Shift Change</h3>
+                            </div>
+
+                            <form onSubmit={handleCreateRequest} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                {/* Employee Selector */}
+                                <div>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>TARGET EMPLOYEE</label>
+                                    {!selectedEmployee ? (
+                                        <div style={{ position: 'relative' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '8px 12px' }}>
+                                                <Search size={14} color="#94a3b8" style={{ marginRight: '8px' }} />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search employee by name/code..."
+                                                    value={employeeSearch}
+                                                    onChange={(e) => setEmployeeSearch(e.target.value)}
+                                                    style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.85rem', width: '100%', color: '#1e293b' }}
+                                                />
+                                            </div>
+                                            {filteredEmployees.length > 0 && (
+                                                <div style={{ position: 'absolute', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', zIndex: 10, marginTop: '3px', maxHeight: '180px', overflowY: 'auto' }}>
+                                                    {filteredEmployees.map(e => (
+                                                        <div key={e.id} className="search-result-item" onClick={() => { setSelectedEmployee(e); setEmployeeSearch(''); }}>
+                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{e.name}</div>
+                                                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Code: {e.employee_code}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div>
+                                                <div style={{ fontWeight: 800, color: '#166534', fontSize: '0.9rem' }}>{selectedEmployee.name}</div>
+                                                <div style={{ fontSize: '0.75rem', color: '#15803d' }}>Code: {selectedEmployee.employee_code}</div>
+                                            </div>
+                                            <button type="button" onClick={() => setSelectedEmployee(null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer' }}>Change</button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Position Selector */}
+                                <div>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>TARGET POSITION</label>
+                                    {!selectedPosition ? (
+                                        <div style={{ position: 'relative' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '8px 12px' }}>
+                                                <Search size={14} color="#94a3b8" style={{ marginRight: '8px' }} />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search position by name/code..."
+                                                    value={positionSearch}
+                                                    onChange={(e) => setPositionSearch(e.target.value)}
+                                                    style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.85rem', width: '100%', color: '#1e293b' }}
+                                                />
+                                            </div>
+                                            {filteredPositions.length > 0 && (
+                                                <div style={{ position: 'absolute', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', zIndex: 10, marginTop: '3px', maxHeight: '180px', overflowY: 'auto' }}>
+                                                    {filteredPositions.map(p => (
+                                                        <div key={p.id} className="search-result-item" onClick={() => { setSelectedPosition(p); setPositionSearch(''); }}>
+                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{p.name}</div>
+                                                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Code: {p.code}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div>
+                                                <div style={{ fontWeight: 800, color: '#1e40af', fontSize: '0.85rem' }}>{selectedPosition.name}</div>
+                                                <div style={{ fontSize: '0.75rem', color: '#1d4ed8' }}>Code: {selectedPosition.code}</div>
+                                            </div>
+                                            <button type="button" onClick={() => setSelectedPosition(null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer' }}>Change</button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Date Selector */}
+                                <div>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>EFFECTIVE DATE</label>
+                                    <input
+                                        type="date"
+                                        value={reqDate}
+                                        onChange={(e) => setReqDate(e.target.value)}
+                                        style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', padding: '10px 12px', fontSize: '0.85rem', color: '#1e293b' }}
+                                    />
+                                </div>
+
+                                {/* Current Shift vs Target Shift Live Comparison Box */}
+                                {reqDate && (
+                                    <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: '12px', padding: '12px 14px' }}>
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#7e22ce', textTransform: 'uppercase', marginBottom: '6px' }}>Shift Transfer Comparison</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontSize: '0.7rem', color: '#6b21a8' }}>Current Shift:</div>
+                                                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#581c87' }}>
+                                                    {fetchingCurrentShift ? 'Checking roster...' : (currentShiftInfo || 'Morning Shift')}
+                                                </div>
+                                            </div>
+                                            <ArrowRight size={16} color="#9333ea" />
+                                            <div style={{ flex: 1, textAlign: 'right' }}>
+                                                <div style={{ fontSize: '0.7rem', color: '#6b21a8' }}>Target Shift:</div>
+                                                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#4c1d95' }}>
+                                                    {selectedShift ? selectedShift.name : 'Select below...'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Shift Selector */}
+                                <div>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>TO SHIFT (TARGET)</label>
+                                    <select
+                                        value={selectedShift ? selectedShift.id : ''}
+                                        onChange={(e) => {
+                                            const sh = availableTargetShifts.find(s => String(s.id) === e.target.value);
+                                            setSelectedShift(sh || null);
+                                        }}
+                                        style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', padding: '10px 12px', fontSize: '0.85rem', color: '#1e293b' }}
+                                    >
+                                        <option value="">-- Select Target Shift --</option>
+                                        {availableTargetShifts.map(s => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.name} {s.start_time ? `(${s.start_time.substring(0, 5)} - ${s.end_time?.substring(0, 5)})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Reason / Comments */}
+                                <div>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>REASON FOR CHANGE</label>
+                                    <textarea
+                                        rows="3"
+                                        placeholder="State reason (e.g. personal request, operational urgency...)"
+                                        value={reqReason}
+                                        onChange={(e) => setReqReason(e.target.value)}
+                                        style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', outline: 'none', padding: '10px', fontSize: '0.85rem', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box' }}
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={submitting || !selectedEmployee || !selectedPosition || !selectedShift || !reqDate}
+                                    style={{
+                                        background: '#4f46e5',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '10px',
+                                        padding: '0.85rem 1.25rem',
+                                        fontWeight: 800,
+                                        fontSize: '0.95rem',
+                                        cursor: 'pointer',
+                                        textAlign: 'center',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        transition: 'all 0.2s',
+                                        opacity: (!selectedEmployee || !selectedPosition || !selectedShift || !reqDate) ? 0.6 : 1
+                                    }}
+                                >
+                                    {submitting ? <RefreshCw size={14} className="animate-spin" /> : 'Send Shift Request'}
+                                </button>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* Tab 2: Workflow Details & Actions */}
                     {rightTab === 'details' && (
                         <div className="dashboard-card" style={{ padding: '2rem' }}>
                             {selectedRequest ? (
@@ -539,12 +918,9 @@ const ShiftChangeRequests = () => {
 
                                     {/* Action Buttons Container */}
                                     <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                        {/* Determine user context for actions */}
                                         {(() => {
                                             const isTargetEmployee = user && (String(selectedRequest.employee) === String(user.employee_profile_id));
                                             const showConsentActions = selectedRequest.status === 'PENDING_CONSENT' && isTargetEmployee;
-                                            
-                                            // Show approval if supervisor and not target employee (or is superuser)
                                             const showApprovalActions = (selectedRequest.status === 'PENDING_APPROVAL' || selectedRequest.status === 'PENDING_CONSENT') && (!isTargetEmployee || user?.is_superuser);
 
                                             if (selectedRequest.status === 'APPROVED' || selectedRequest.status === 'REJECTED') {
@@ -597,25 +973,7 @@ const ShiftChangeRequests = () => {
                                                                     <Ban size={16} /> Reject Request
                                                                 </button>
                                                             </div>
-
-                                                            {/* Admin Override */}
-                                                            {user?.is_superuser && selectedRequest.status === 'PENDING_CONSENT' && (
-                                                                <button
-                                                                    onClick={() => handleOverride(selectedRequest.id)}
-                                                                    disabled={actioningId !== null}
-                                                                    style={{ background: '#f59e0b', color: 'white', border: 'none', padding: '10px', borderRadius: '10px', cursor: 'pointer', fontWeight: 800, width: '100%' }}
-                                                                >
-                                                                    Force Admin Override (Bypass Consent)
-                                                                </button>
-                                                            )}
                                                         </>
-                                                    )}
-
-                                                    {!showConsentActions && !showApprovalActions && (
-                                                        <div style={{ textAlign: 'center', background: '#f1f5f9', padding: '10px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                                                            <Info size={14} color="#64748b" />
-                                                            <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 700 }}>Awaiting actions from other participants.</span>
-                                                        </div>
                                                     )}
                                                 </div>
                                             );
@@ -631,154 +989,69 @@ const ShiftChangeRequests = () => {
                         </div>
                     )}
 
-                    {/* Tab 2: Initiate Shift Request Form */}
-                    {rightTab === 'create' && (
+                    {/* Tab 3: Approvals Queue */}
+                    {rightTab === 'approvals' && (
                         <div className="dashboard-card" style={{ padding: '2rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '1.25rem' }}>
-                                <Send size={16} color="#4f46e5" />
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 850, color: '#0f172a' }}>Initiate Shift Change</h3>
+                                <CheckSquare size={16} color="#4f46e5" />
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 850, color: '#0f172a' }}>Pending Approvals Queue</h3>
                             </div>
 
-                            <form onSubmit={handleCreateRequest} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                                {/* Employee Selector */}
-                                <div>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>TARGET EMPLOYEE</label>
-                                    {!selectedEmployee ? (
-                                        <div style={{ position: 'relative' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '8px 12px' }}>
-                                                <Search size={14} color="#94a3b8" style={{ marginRight: '8px' }} />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search employee by name/code..."
-                                                    value={employeeSearch}
-                                                    onChange={(e) => setEmployeeSearch(e.target.value)}
-                                                    style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.85rem', width: '100%', color: '#1e293b' }}
-                                                />
-                                            </div>
-                                            {filteredEmployees.length > 0 && (
-                                                <div style={{ position: 'absolute', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', zIndex: 10, marginTop: '3px', maxHeight: '180px', overflowY: 'auto' }}>
-                                                    {filteredEmployees.map(e => (
-                                                        <div key={e.id} className="search-result-item" onClick={() => { setSelectedEmployee(e); setEmployeeSearch(''); }}>
-                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{e.name}</div>
-                                                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Code: {e.employee_code}</div>
-                                                        </div>
-                                                    ))}
+                            {actionableRequests.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {actionableRequests.map(req => {
+                                        const isTargetEmp = user && String(req.employee) === String(user.employee_profile_id);
+                                        return (
+                                            <div key={req.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                                    <div>
+                                                        <div style={{ fontWeight: 850, color: '#0f172a', fontSize: '1rem' }}>{req.employee_name}</div>
+                                                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Position: {req.position_name}</div>
+                                                    </div>
+                                                    <span style={{ fontSize: '0.7rem', padding: '3px 8px', borderRadius: '6px', fontWeight: 800, background: '#fef3c7', color: '#b45309' }}>
+                                                        {req.status.replace('_', ' ')}
+                                                    </span>
                                                 </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div>
-                                                <div style={{ fontWeight: 800, color: '#166534', fontSize: '0.9rem' }}>{selectedEmployee.name}</div>
-                                                <div style={{ fontSize: '0.75rem', color: '#15803d' }}>Code: {selectedEmployee.employee_code}</div>
-                                            </div>
-                                            <button type="button" onClick={() => setSelectedEmployee(null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer' }}>Clear</button>
-                                        </div>
-                                    )}
-                                </div>
 
-                                {/* Position Selector */}
-                                <div>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>TARGET POSITION</label>
-                                    {!selectedPosition ? (
-                                        <div style={{ position: 'relative' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '8px 12px' }}>
-                                                <Search size={14} color="#94a3b8" style={{ marginRight: '8px' }} />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search position by name/code..."
-                                                    value={positionSearch}
-                                                    onChange={(e) => setPositionSearch(e.target.value)}
-                                                    style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.85rem', width: '100%', color: '#1e293b' }}
-                                                />
-                                            </div>
-                                            {filteredPositions.length > 0 && (
-                                                <div style={{ position: 'absolute', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', zIndex: 10, marginTop: '3px', maxHeight: '180px', overflowY: 'auto' }}>
-                                                    {filteredPositions.map(p => (
-                                                        <div key={p.id} className="search-result-item" onClick={() => { setSelectedPosition(p); setPositionSearch(''); }}>
-                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{p.name}</div>
-                                                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Code: {p.code}</div>
-                                                        </div>
-                                                    ))}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#4338ca', fontWeight: 750, margin: '8px 0' }}>
+                                                    <span>{req.from_shift_name || 'Morning Shift'}</span>
+                                                    <ArrowRight size={12} />
+                                                    <span>{req.to_shift_name}</span>
+                                                    <span style={{ color: '#64748b', fontWeight: 500 }}>(Date: {new Date(req.date).toLocaleDateString()})</span>
                                                 </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div>
-                                                <div style={{ fontWeight: 800, color: '#1e40af', fontSize: '0.9rem' }}>{selectedPosition.name}</div>
-                                                <div style={{ fontSize: '0.75rem', color: '#1d4ed8' }}>Code: {selectedPosition.code}</div>
+
+                                                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                                    {isTargetEmp && req.status === 'PENDING_CONSENT' ? (
+                                                        <>
+                                                            <button onClick={() => handleConsent(req.id, 'accept')} style={{ flex: 1, background: '#10b981', color: 'white', border: 'none', padding: '8px', borderRadius: '8px', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer' }}>
+                                                                Accept
+                                                            </button>
+                                                            <button onClick={() => handleConsent(req.id, 'decline')} style={{ flex: 1, background: '#ef4444', color: 'white', border: 'none', padding: '8px', borderRadius: '8px', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer' }}>
+                                                                Decline
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <button onClick={() => handleApprove(req.id)} style={{ flex: 1, background: '#6366f1', color: 'white', border: 'none', padding: '8px', borderRadius: '8px', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer' }}>
+                                                                Approve
+                                                            </button>
+                                                            <button onClick={() => handleReject(req.id)} style={{ flex: 1, background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', padding: '8px', borderRadius: '8px', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer' }}>
+                                                                Reject
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <button type="button" onClick={() => setSelectedPosition(null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer' }}>Clear</button>
-                                        </div>
-                                    )}
+                                        );
+                                    })}
                                 </div>
-
-                                {/* Date Selector */}
-                                <div>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>EFFECTIVE DATE</label>
-                                    <input
-                                        type="date"
-                                        value={reqDate}
-                                        onChange={(e) => setReqDate(e.target.value)}
-                                        style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', padding: '8px 12px', fontSize: '0.85rem', color: '#1e293b' }}
-                                    />
+                            ) : (
+                                <div style={{ padding: '3rem 1rem', textAlign: 'center', border: '2px dashed #e2e8f0', borderRadius: '12px' }}>
+                                    <CheckCircle size={36} color="#cbd5e1" style={{ margin: '0 auto 8px' }} />
+                                    <h4 style={{ margin: 0, color: '#64748b', fontSize: '0.9rem', fontWeight: 800 }}>No items awaiting your approval</h4>
+                                    <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '0.78rem' }}>Requests assigned to you will appear here.</p>
                                 </div>
-
-                                {/* Shift Selector */}
-                                <div>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>TO SHIFT (TARGET)</label>
-                                    <select
-                                        value={selectedShift ? selectedShift.id : ''}
-                                        onChange={(e) => {
-                                            const sh = shifts.find(s => String(s.id) === e.target.value);
-                                            setSelectedShift(sh || null);
-                                        }}
-                                        style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', padding: '8px 12px', fontSize: '0.85rem', color: '#1e293b' }}
-                                    >
-                                        <option value="">-- Select Target Shift --</option>
-                                        {shifts.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name} ({s.start_time?.substring(0, 5)} - {s.end_time?.substring(0, 5)})</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Reason / Comments */}
-                                <div>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>REASON FOR CHANGE</label>
-                                    <textarea
-                                        rows="3"
-                                        placeholder="State reason (e.g. coverage, operational urgency...)"
-                                        value={reqReason}
-                                        onChange={(e) => setReqReason(e.target.value)}
-                                        style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', outline: 'none', padding: '10px', fontSize: '0.85rem', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box' }}
-                                    />
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={submitting || !selectedEmployee || !selectedPosition || !selectedShift || !reqDate}
-                                    style={{
-                                        background: '#4f46e5',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '10px',
-                                        padding: '0.75rem 1.25rem',
-                                        fontWeight: 800,
-                                        fontSize: '0.9rem',
-                                        cursor: 'pointer',
-                                        textAlign: 'center',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '8px',
-                                        transition: 'all 0.2s',
-                                        opacity: (!selectedEmployee || !selectedPosition || !selectedShift || !reqDate) ? 0.6 : 1
-                                    }}
-                                >
-                                    {submitting ? <RefreshCw size={14} className="animate-spin" /> : 'Send Request'}
-                                </button>
-                            </form>
+                            )}
                         </div>
                     )}
                 </div>

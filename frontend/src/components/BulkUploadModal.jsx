@@ -4,8 +4,6 @@ import * as XLSX from 'xlsx';
 import { useData } from '../context/DataContext';
 import api from '../api';
 
-console.log('%c[PREMIUM UI] ✨ BulkUploadModal.jsx - STATE OF THE ART REDESIGN', 'color: #7c3aed; font-weight: bold; font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);');
-
 const BulkUploadModal = ({ isOpen, onClose, section }) => {
     const { showNotification, fetchDropdownData, fetchData, activeSection } = useData();
 

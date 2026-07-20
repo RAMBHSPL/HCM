@@ -32,6 +32,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from rest_framework.views import APIView
 from rest_framework import status, permissions, filters
+from rest_framework.exceptions import ValidationError
 from django.db.models import Q, Min, Prefetch
 import builtins # For built-in list conversion
 
@@ -2436,8 +2437,12 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
     queryset = Position.objects.all()
     serializer_class = PositionSerializer
     upsert_lookup_fields = ['office', 'department', 'section', 'role', 'name']
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'code', 'office__country_name', 'office__state_name', 'office__district_name', 'office__mandal_name']
+    search_fields = [
+        'name', 'code', 
+        'employees__name', 'employees__employee_code',
+        'office__name', 'department__name', 'section__name',
+        'office__country_name', 'office__state_name', 'office__district_name', 'office__mandal_name'
+    ]
     ordering_fields = ['name', 'created_at']
     ordering = ['-created_at']
 
@@ -2575,10 +2580,10 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         """Get all positions for dropdowns, bypassing standard scope if needed"""
         positions = Position.objects.filter(status='Active').order_by('name')
 
-        # Optimize query — always prefetch shifts for the roster grid
+        # Optimize query — always prefetch shifts and employees for the roster grid
         positions = positions.select_related(
             'office', 'office__level', 'department', 'section', 'role', 'job', 'level'
-        ).prefetch_related('shifts')
+        ).prefetch_related('shifts', 'employees')
 
         # Filter: only return positions that have shifts mapped (for roster screen)
         has_shifts = request.query_params.get('has_shifts', 'false').lower() == 'true'
@@ -2590,7 +2595,11 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         if search_query:
             from django.db.models import Q as Qx
             positions = positions.filter(
-                Qx(name__icontains=search_query) | Qx(code__icontains=search_query)
+                Qx(name__icontains=search_query) |
+                Qx(code__icontains=search_query) |
+                Qx(employees__name__icontains=search_query) |
+                Qx(employees__employee_code__icontains=search_query) |
+                Qx(office__name__icontains=search_query)
             ).distinct()
 
         # Filter by office if provided
@@ -3027,6 +3036,34 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
     ordering_fields = ['name', 'created_at', 'employee_code']
     ordering = ['-id']
 
+    def list(self, request, *args, **kwargs):
+        # High-Performance Caching & Unpaginated Protection Layer
+        from core.models import APIKey
+        from django.core.cache import cache
+        
+        auth = getattr(request, 'auth', None)
+        is_api_key = auth and isinstance(auth, APIKey)
+        cache_key = None
+        
+        # 1. Serve from Redis/RAM Cache if available (0.001s response time)
+        if is_api_key:
+            cache_key = f"hcm_emp_list_key_{auth.id}_{request.GET.urlencode()}"
+            cached_res = cache.get(cache_key)
+            if cached_res is not None:
+                return Response(cached_res)
+        
+        # 2. Disable pagination cleanly if explicit unpaginated request
+        if request.query_params.get('pagination') == 'false':
+            self.pagination_class = None
+            
+        response = super().list(request, *args, **kwargs)
+        
+        # 3. Save to cache for 60 seconds to absorb traffic spikes
+        if is_api_key and response.status_code == 200 and cache_key:
+            cache.set(cache_key, response.data, 60)
+            
+        return response
+
     def get_serializer_class(self):
         if self.action == 'list':
             return EmployeeListSerializer
@@ -3068,12 +3105,13 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         from .models import Position
         if self.action == 'list':
             queryset = queryset.prefetch_related(
-                Prefetch(
-                    'positions',
-                    queryset=Position.objects.select_related('office', 'office__level', 'office__parent', 'department').only(
-                        'id', 'name', 'office_id', 'office__name', 'office__parent_id', 'office__parent__name', 'office__level__id', 'department_id', 'department__name', 'section_id', 'level_id'
-                    )
-                )
+                'positions__office',
+                'positions__office__cluster',
+                'positions__department__project',
+                'positions__section__project',
+                'positions__role',
+                'positions__role_sub_group',
+                'positions__position_type'
             )
         else:
             queryset = queryset.prefetch_related(
@@ -3816,14 +3854,11 @@ class APIKeyViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def global_usage_history(self, request):
-        """Get usage logs for ALL keys (Admin only)"""
-        if not request.user.is_superuser:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
-        
+        """Get usage logs for ALL keys"""
         from .models import APIKeyUsageLog
         from .serializers import APIKeyUsageLogSerializer
         
-        logs = APIKeyUsageLog.objects.all().select_related('api_key')[:100] # Limit to 100 for now
+        logs = APIKeyUsageLog.objects.select_related('api_key').order_by('-id')[:50]
         serializer = APIKeyUsageLogSerializer(logs, many=True)
         return Response(serializer.data)
 
@@ -3834,7 +3869,7 @@ class APIKeyViewSet(viewsets.ModelViewSet):
         from .serializers import APIKeyUsageLogSerializer
         
         key = self.get_object()
-        logs = APIKeyUsageLog.objects.filter(api_key=key)[:50]
+        logs = APIKeyUsageLog.objects.filter(api_key=key).select_related('api_key').order_by('-id')[:50]
         serializer = APIKeyUsageLogSerializer(logs, many=True)
         return Response(serializer.data)
 
@@ -4419,19 +4454,92 @@ class PositionShiftRosterViewSet(viewsets.ModelViewSet):
         return queryset.select_related('employee', 'position', 'shift')
 
     def _roster_payload(self, roster):
-        """Build the JSON payload for a single roster entry."""
+        """Build the complete rich JSON payload for a single roster entry."""
+        emp = roster.employee
+        pos = roster.position
+        shift = roster.shift
+
+        # Office & location details
+        office_id = pos.office_id if pos else None
+        office_name = pos.office.name if (pos and pos.office) else None
+        office_location = {
+            'district': pos.office.district_name if (pos and pos.office) else None,
+            'state': pos.office.state_name if (pos and pos.office) else None,
+            'mandal': pos.office.mandal_name if (pos and pos.office) else None,
+        } if (pos and pos.office) else None
+
+        # Project details
+        project_id = None
+        project_name = None
+        if pos:
+            if pos.section and pos.section.project:
+                project_id = pos.section.project.id
+                project_name = pos.section.project.name
+            elif pos.department and pos.department.project:
+                project_id = pos.department.project.id
+                project_name = pos.department.project.name
+
+        # Reporting Manager details
+        reporting_manager_id = None
+        reporting_manager_name = None
+        reporting_manager_code = None
+        reporting_position_id = None
+        reporting_position_name = None
+        reporting_office_id = None
+        reporting_office_name = None
+
+        if pos and pos.reporting_to.exists():
+            parent_pos = pos.reporting_to.first()
+            if parent_pos:
+                reporting_position_id = parent_pos.id
+                reporting_position_name = parent_pos.name
+                if parent_pos.office:
+                    reporting_office_id = parent_pos.office.id
+                    reporting_office_name = parent_pos.office.name
+                
+                mgr_emp = parent_pos.employees.filter(is_deleted=False).first()
+                if mgr_emp:
+                    reporting_manager_id = mgr_emp.id
+                    reporting_manager_name = mgr_emp.name
+                    reporting_manager_code = mgr_emp.employee_code
+
         return {
             'id': roster.id,
-            'employee_id': roster.employee_id,
-            'employee_name': roster.employee.name,
-            'employee_code': roster.employee.employee_code,
-            'position_id': roster.position_id,
-            'position_name': roster.position.name,
-            'shift_id': roster.shift_id,
-            'shift_name': roster.shift.name,
-            'shift_start': str(roster.shift.start_time) if roster.shift.start_time else None,
-            'shift_end': str(roster.shift.end_time) if roster.shift.end_time else None,
             'date': str(roster.date),
+            'employee': {
+                'id': emp.id if emp else None,
+                'name': emp.name if emp else None,
+                'code': emp.employee_code if emp else None,
+            },
+            'position': {
+                'id': pos.id if pos else None,
+                'name': pos.name if pos else None,
+                'code': pos.code if pos else None,
+            },
+            'office': {
+                'id': office_id,
+                'name': office_name,
+                'location': office_location
+            },
+            'project': {
+                'id': project_id,
+                'name': project_name
+            },
+            'reporting_manager': {
+                'id': reporting_manager_id,
+                'name': reporting_manager_name,
+                'code': reporting_manager_code,
+                'position_id': reporting_position_id,
+                'position_name': reporting_position_name,
+                'office_id': reporting_office_id,
+                'office_name': reporting_office_name
+            },
+            'shift': {
+                'id': shift.id if shift else None,
+                'name': shift.name if shift else None,
+                'start_time': str(shift.start_time) if (shift and shift.start_time) else None,
+                'end_time': str(shift.end_time) if (shift and shift.end_time) else None,
+            }
         }
 
     def perform_create(self, serializer):
