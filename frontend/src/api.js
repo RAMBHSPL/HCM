@@ -1,14 +1,18 @@
 // Centralized dynamic resolution for API and Backend Base URLs
 const getResolvedApiBaseUrl = () => {
-    // 1. Prioritize environment variable if provided
-    if (import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim()) {
-        return import.meta.env.VITE_API_BASE_URL.trim().replace(/\/+$/, '');
+    const isMobileApp = window.location.protocol === 'file:' || 
+                        window.location.hostname === 'capacitor.localhost';
+
+    // 1. Mobile native APK context uses explicit backend URL from env or fallback
+    if (isMobileApp) {
+        return (import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim())
+            ? import.meta.env.VITE_API_BASE_URL.trim().replace(/\/+$/, '')
+            : 'http://10.2.1.18:8000/api';
     }
 
-    // 2. Dynamic web/mobile fallback using current window origin
-    const origin = window.location.origin;
-    if (origin && origin !== 'null' && !origin.startsWith('file:')) {
-        return `${origin.replace(/\/+$/, '')}/api`;
+    // 2. Web browser context uses relative /api to utilize Vite proxy seamlessly
+    if (window.location.protocol.startsWith('http')) {
+        return '/api';
     }
 
     return '/api';
@@ -19,7 +23,7 @@ export const API_BASE_URL = getResolvedApiBaseUrl();
 // Centralized dynamic resolution for Static Media / Backend Base URL
 export const BACKEND_BASE_URL = (import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL.trim())
     ? import.meta.env.VITE_BACKEND_URL.trim().replace(/\/+$/, '')
-    : API_BASE_URL.replace(/\/api\/?$/, '');
+    : (window.location.protocol.startsWith('http') ? '' : 'http://10.2.1.18:8000');
 
 const getHeaders = (contentType = 'application/json') => {
     const headers = {};

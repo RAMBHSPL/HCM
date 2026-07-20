@@ -231,4 +231,8 @@ CACHE_MIDDLEWARE_SECONDS = 300
 CACHE_MIDDLEWARE_KEY_PREFIX = 'erps'
 
 
+# CORS Configuration (Allows Frontend dev server & Mobile APK to connect)
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
 # touch to reload
