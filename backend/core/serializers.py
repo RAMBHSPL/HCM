@@ -1438,12 +1438,16 @@ class EmployeeListSerializer(EmployeeSerializer):
         if not pos or not pos.office: return None
         off = pos.office
         return {
+            "office_name": off.name,
             "country": off.country_name,
             "state": off.state_name,
             "district": off.district_name,
             "mandal": off.mandal_name,
             "cluster": off.cluster.name if off.cluster else None,
-            "cluster_type": off.cluster.get_cluster_type_display() if off.cluster else None
+            "cluster_type": off.cluster.get_cluster_type_display() if off.cluster else None,
+            "sac": off.sac,
+            "vehicle_code": off.vehicle_code,
+            "vehicle_no": off.vehicle_no
         }
 
     class Meta:
@@ -1451,7 +1455,8 @@ class EmployeeListSerializer(EmployeeSerializer):
         fields = [
             'id', 'name', 'employee_code', 'email', 'phone', 'personal_email', 'date_of_birth',
             'gender', 'blood_group', 'employment_type', 'status', 'created_at',
-            'primary_position', 'project_name', 'location_details', 'positions_details'
+            'primary_position', 'reporting_to', 'reporting_to_name', 'reporting_to_details',
+            'project_name', 'location_details', 'positions_details'
         ]
 
     def to_representation(self, instance):
@@ -1488,6 +1493,9 @@ class EmployeeListSerializer(EmployeeSerializer):
             if perms.get('assignment', True):
                 employee_data.update({
                     'primary_position': ret.get('primary_position'),
+                    'reporting_to': ret.get('reporting_to'),
+                    'reporting_to_name': ret.get('reporting_to_name'),
+                    'reporting_to_details': ret.get('reporting_to_details'),
                     'project_name': ret.get('project_name'),
                     'location_details': ret.get('location_details'),
                     'positions_details': ret.get('positions_details'),
