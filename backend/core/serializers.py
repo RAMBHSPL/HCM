@@ -1175,20 +1175,24 @@ class EmployeeSerializer(serializers.ModelSerializer):
         return None
 
     def get_location_details(self, obj):
-        # Get location data from the office associated with the first position
+        # Get location & vehicle data from the office associated with the first position
         pos = obj.positions.first()
         if not pos or not pos.office:
             return None
         
         office = pos.office
         return {
+            "office_name": office.name,
             "country": office.country_name,
             "state": office.state_name,
             "district": office.district_name,
             "mandal": office.mandal_name,
             "cluster": office.cluster.name if office.cluster else None,
             "cluster_type": office.cluster.get_cluster_type_display() if office.cluster else None,
-            "specific_location": office.location
+            "specific_location": office.location,
+            "sac": office.sac,
+            "vehicle_code": office.vehicle_code,
+            "vehicle_no": office.vehicle_no
         }
 
     def get_primary_position(self, obj):
