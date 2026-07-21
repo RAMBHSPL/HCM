@@ -563,6 +563,11 @@ class FacilityMasterSerializer(serializers.ModelSerializer):
         model = FacilityMaster
         fields = '__all__'
 
+class LightFacilityMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FacilityMaster
+        fields = ['id', 'name', 'location_code', 'life', 'mode', 'project_type', 'status']
+
 class OfficeSerializer(serializers.ModelSerializer):
     level_name = serializers.ReadOnlyField(source='level.name')
     level_code = serializers.ReadOnlyField(source='level.level_code')
@@ -608,7 +613,7 @@ class OfficeSerializer(serializers.ModelSerializer):
         active_proj = next((p for p in proj if p.is_currently_active), None)
         return active_proj.name if active_proj else None
     
-    facility_master_details = FacilityMasterSerializer(source='facility_master', read_only=True)
+    facility_master_details = LightFacilityMasterSerializer(source='facility_master', read_only=True)
     
     # Flattened Facility Fields (for when the Office is actually a Facility)
     facility_type = serializers.SerializerMethodField()
@@ -618,22 +623,29 @@ class OfficeSerializer(serializers.ModelSerializer):
     has_sub_offices = serializers.SerializerMethodField()
 
     def get_has_sub_offices(self, obj):
-        # Use annotated count if available (set via annotate() in queryset)
-        if hasattr(obj, 'sub_offices_count'):
-            return obj.sub_offices_count > 0
-        return obj.sub_offices.exists()
+        return len(obj.sub_offices.all()) > 0
+
+    def _get_facility_safe(self, obj):
+        try:
+            return obj.facility
+        except Exception:
+            return None
 
     def get_facility_type(self, obj):
-        return obj.facility.facility_type if hasattr(obj, 'facility') else None
+        fac = self._get_facility_safe(obj)
+        return fac.facility_type if fac else None
 
     def get_camp_type(self, obj):
-        return obj.facility.camp_type if hasattr(obj, 'facility') else None
+        fac = self._get_facility_safe(obj)
+        return fac.camp_type if fac else None
 
     def get_mobile_type(self, obj):
-        return obj.facility.mobile_type if hasattr(obj, 'facility') else None
+        fac = self._get_facility_safe(obj)
+        return fac.mobile_type if fac else None
         
     def get_end_date(self, obj):
-        return obj.facility.end_date if hasattr(obj, 'facility') else None
+        fac = self._get_facility_safe(obj)
+        return fac.end_date if fac else None
 
     class Meta:
         model = Office
@@ -872,32 +884,36 @@ class ShiftSerializer(serializers.ModelSerializer):
     assigned_projects = serializers.SerializerMethodField()
 
     def get_positions_count(self, obj):
-        return obj.positions.count()
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        pos = cache.get('positions')
+        if pos is not None:
+            return len(pos)
+        return 0
 
     def get_position_types_count(self, obj):
-        return obj.position_types.count()
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        pt = cache.get('position_types')
+        if pt is not None:
+            return len(pt)
+        return 0
 
     def get_assigned_projects(self, obj):
         projects = set()
         if obj.project:
             projects.add(obj.project.name)
-        
-        # Get projects from position types using this shift
-        pt_projects = obj.position_types.filter(project__isnull=False).values_list('project__name', flat=True)
-        projects.update(pt_projects)
-        
-        # Get projects from positions using this shift (via section or department)
-        sec_projects = obj.positions.filter(section__project__isnull=False).values_list('section__project__name', flat=True)
-        projects.update(sec_projects)
-        
-        dep_projects = obj.positions.filter(department__project__isnull=False).values_list('department__project__name', flat=True)
-        projects.update(dep_projects)
-        
         return list(projects)
 
     class Meta:
         model = Shift
         fields = '__all__'
+
+class LightShiftSerializer(serializers.ModelSerializer):
+    project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)
+    segment_name = serializers.ReadOnlyField(source='segment.name', allow_null=True)
+
+    class Meta:
+        model = Shift
+        fields = ['id', 'name', 'code', 'start_time', 'end_time', 'project_name', 'segment_name', 'status']
 
 class PositionTypeSerializer(serializers.ModelSerializer):
     project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)
@@ -914,6 +930,18 @@ class LightPositionSerializer(serializers.ModelSerializer):
         model = Position
         fields = ['id', 'name', 'code', 'office_name', 'level_name', 'status']
 
+class LightRoleSerializer(serializers.ModelSerializer):
+    role_type_id = serializers.ReadOnlyField(source='role_type.id')
+    role_type_name = serializers.ReadOnlyField(source='role_type.name')
+    job_family_name = serializers.ReadOnlyField(source='role_type.job_family.name')
+    job_family_id = serializers.ReadOnlyField(source='role_type.job_family.id')
+    project_name = serializers.ReadOnlyField(source='project.name')
+    segment_name = serializers.ReadOnlyField(source='segment.name')
+
+    class Meta:
+        model = Role
+        fields = ['id', 'name', 'code', 'role_type_id', 'role_type_name', 'job_family_name', 'job_family_id', 'project_name', 'segment_name', 'status']
+
 class PositionSerializer(serializers.ModelSerializer):
     """Simple position serializer for listings"""
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
@@ -927,7 +955,7 @@ class PositionSerializer(serializers.ModelSerializer):
     level_name = serializers.ReadOnlyField(source='level.name', allow_null=True)
     level_rank = serializers.ReadOnlyField(source='level.rank', allow_null=True)
     position_type_name = serializers.ReadOnlyField(source='position_type.name', allow_null=True)
-    shifts_details = ShiftSerializer(source='shifts', many=True, read_only=True)
+    shifts_details = LightShiftSerializer(source='shifts', many=True, read_only=True)
     
     # Safe lookups
     job_family_name = serializers.SerializerMethodField()
@@ -949,15 +977,24 @@ class PositionSerializer(serializers.ModelSerializer):
     segment_id = serializers.SerializerMethodField()
     segment_name = serializers.SerializerMethodField()
 
+    def _get_project_safe(self, obj):
+        if not hasattr(obj, '_cached_proj'):
+            proj = None
+            if getattr(obj, 'section', None) and getattr(obj.section, 'project', None):
+                proj = obj.section.project
+            elif getattr(obj, 'department', None) and getattr(obj.department, 'project', None):
+                proj = obj.department.project
+            elif getattr(obj, 'office', None):
+                projs = getattr(obj.office, '_cached_projects', None)
+                if projs is None and hasattr(obj.office, 'projects'):
+                    projs = list(obj.office.projects.all())
+                proj = projs[0] if projs else None
+            obj._cached_proj = proj
+        return obj._cached_proj
+
     def get_project_id(self, obj):
-        project = None
-        if obj.section and obj.section.project:
-            project = obj.section.project
-        elif obj.department and obj.department.project:
-            project = obj.department.project
-        elif obj.office:
-            project = obj.office.projects.first()
-        return project.id if project else None
+        proj = self._get_project_safe(obj)
+        return proj.id if proj else None
 
     def get_segment_id(self, obj):
         if obj.role and obj.role.segment:
@@ -984,36 +1021,53 @@ class PositionSerializer(serializers.ModelSerializer):
     def get_office_level_id(self, obj):
         try: return obj.office.level.id
         except AttributeError: return None
-    role_details = RoleSerializer(source='role', read_only=True)
+    role_details = LightRoleSerializer(source='role', read_only=True)
     additional_roles = serializers.PrimaryKeyRelatedField(many=True, queryset=Role.objects.all(), required=False)
-    additional_roles_details = RoleSerializer(source='additional_roles', many=True, read_only=True)
+    additional_roles_details = LightRoleSerializer(source='additional_roles', many=True, read_only=True)
     is_vacant = serializers.ReadOnlyField()
     assigned_employee = serializers.SerializerMethodField()
 
     def get_project_name(self, obj):
-        project = None
-        if obj.section and obj.section.project:
-            project = obj.section.project
-        elif obj.department and obj.department.project:
-            project = obj.department.project
-        elif obj.office:
-            project = obj.office.projects.first()
-        return project.name if project else None
+        proj = self._get_project_safe(obj)
+        return proj.name if proj else None
 
     def get_assigned_employee(self, obj):
-        emp = obj.employees.first()
-        if emp:
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        emps = cache.get('employees')
+        if emps is not None and len(emps) > 0:
+            emp = emps[0]
             return {
                 'id': emp.id,
                 'name': emp.name,
                 'hire_date': emp.hire_date,
                 'status': emp.status
             }
+        elif hasattr(obj, 'employees'):
+            emp = obj.employees.first()
+            if emp:
+                return {
+                    'id': emp.id,
+                    'name': emp.name,
+                    'hire_date': emp.hire_date,
+                    'status': emp.status
+                }
         return None
 
     assigned_employees_details = serializers.SerializerMethodField()
 
     def get_assigned_employees_details(self, obj):
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        emps = cache.get('employees')
+        if emps is not None:
+            return [
+                {
+                    'id': emp.id,
+                    'name': emp.name,
+                    'code': emp.employee_code,
+                    'status': emp.status
+                }
+                for emp in emps
+            ]
         return [
             {
                 'id': emp.id,
@@ -1045,25 +1099,41 @@ class PositionSerializer(serializers.ModelSerializer):
 
 class PositionDropdownSerializer(serializers.ModelSerializer):
     """Lighter version for dropdowns with filtering support"""
-    office_level_id = serializers.SerializerMethodField()
+    office_level_id = serializers.ReadOnlyField(source='office.level_id', allow_null=True)
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
     section_name = serializers.ReadOnlyField(source='section.name', allow_null=True)
     department_name = serializers.ReadOnlyField(source='department.name', allow_null=True)
-    level_id = serializers.IntegerField(source='level.id', allow_null=True, read_only=True)
+    level_id = serializers.ReadOnlyField(allow_null=True)
     role_name = serializers.ReadOnlyField(source='role.name', allow_null=True)
     shifts_details = serializers.SerializerMethodField()
     assigned_employees_details = serializers.SerializerMethodField()
+    assigned_employee = serializers.SerializerMethodField()
+
+    def get_assigned_employee(self, obj):
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        emps = cache.get('employees')
+        if emps is not None and len(emps) > 0:
+            emp = emps[0]
+            return {'id': emp.id, 'name': emp.name, 'code': emp.employee_code, 'status': emp.status}
+        elif hasattr(obj, 'employees'):
+            emp = obj.employees.first()
+            if emp:
+                return {'id': emp.id, 'name': emp.name, 'code': emp.employee_code, 'status': emp.status}
+        return None
 
     def get_assigned_employees_details(self, obj):
-        return [
-            {
-                'id': emp.id,
-                'name': emp.name,
-                'code': emp.employee_code,
-                'status': emp.status
-            }
-            for emp in obj.employees.all()
-        ]
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        emps = cache.get('employees')
+        if emps is not None:
+            return [{'id': emp.id, 'name': emp.name, 'code': emp.employee_code, 'status': emp.status} for emp in emps]
+        return []
+
+    def get_shifts_details(self, obj):
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        shifts = cache.get('shifts')
+        if shifts is not None:
+            return [{'id': s.id, 'name': s.name, 'start_time': str(s.start_time) if getattr(s, 'start_time', None) else None, 'end_time': str(s.end_time) if getattr(s, 'end_time', None) else None} for s in shifts]
+        return []
 
     class Meta:
         model = Position
@@ -1071,22 +1141,7 @@ class PositionDropdownSerializer(serializers.ModelSerializer):
             'id', 'name', 'code', 'status',
             'office_id', 'department_id', 'section_id',
             'office_name', 'department_name', 'section_name', 'office_level_id',
-            'level_id', 'role_name', 'shifts_details', 'assigned_employees_details'
-        ]
-
-    def get_office_level_id(self, obj):
-        try: return obj.office.level.id
-        except AttributeError: return None
-
-    def get_shifts_details(self, obj):
-        return [
-            {
-                'id': s.id,
-                'name': s.name,
-                'start_time': str(s.start_time) if s.start_time else None,
-                'end_time': str(s.end_time) if s.end_time else None,
-            }
-            for s in obj.shifts.all()
+            'level_id', 'role_name', 'shifts_details', 'assigned_employee', 'assigned_employees_details'
         ]
 
 class EmployeeEducationSerializer(serializers.ModelSerializer):
@@ -1202,52 +1257,83 @@ class EmployeeSerializer(serializers.ModelSerializer):
         pos = obj.positions.first()
         return pos.name if pos else None
 
+    reporting_to = serializers.SerializerMethodField()
+
+    def get_reporting_to(self, obj):
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        positions = cache.get('positions') if cache else None
+        if positions is None:
+            positions = obj.positions.all()
+        boss_pos_ids = []
+        for pos in positions:
+            for boss_pos in pos.reporting_to.all():
+                if boss_pos.id not in boss_pos_ids:
+                    boss_pos_ids.append(boss_pos.id)
+        if not boss_pos_ids and getattr(obj, 'reporting_to_id', None):
+            return [obj.reporting_to_id]
+        return boss_pos_ids
+
     def get_reporting_to_name(self, obj):
-        # 1. Check direct override
-        if obj.reporting_to:
-            return obj.reporting_to.name
-            
-        # 2. Check Hierarchy via Positions
-        # Employee -> Position -> Reports To (Position) -> Employee(s)
         pos = obj.positions.first()
         if pos:
-            # Check who this position reports to
-            boss_pos = pos.reporting_to.first() # Get primary reporting line
+            boss_pos = pos.reporting_to.first()
             if boss_pos:
-                # Find the employee holding that boss position
-                # Using 'employees' reverse relation on Position
                 boss = boss_pos.employees.filter(status='Active').first()
                 if boss:
                     return boss.name
+                return boss_pos.name
+        if obj.reporting_to:
+            return obj.reporting_to.name
         return None
 
     reporting_to_details = serializers.SerializerMethodField()
 
     def get_reporting_to_details(self, obj):
-        boss = None
-        boss_pos = None
-        if obj.reporting_to:
+        results = []
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        positions = cache.get('positions') if cache else None
+        if positions is None:
+            positions = obj.positions.all()
+
+        for pos in positions:
+            for boss_pos in pos.reporting_to.all():
+                emp_cache = getattr(boss_pos, '_prefetched_objects_cache', {})
+                emps = emp_cache.get('employees')
+                if emps is not None:
+                    emp = emps[0] if emps else None
+                else:
+                    emp = boss_pos.employees.filter(status='Active').first()
+
+                results.append({
+                    "position_id": boss_pos.id,
+                    "position_name": boss_pos.name,
+                    "position_code": boss_pos.code,
+                    "role_name": boss_pos.role.name if boss_pos.role else None,
+                    "assigned_employee": {
+                        "id": emp.id,
+                        "name": emp.name,
+                        "employee_code": emp.employee_code,
+                        "email": emp.email
+                    } if emp else None
+                })
+        
+        if not results and obj.reporting_to:
             boss = obj.reporting_to
             boss_pos = boss.positions.first()
-        else:
-            pos = obj.positions.first()
-            if pos:
-                boss_pos = pos.reporting_to.first()
-                if boss_pos:
-                    boss = boss_pos.employees.filter(status='Active').first()
-        
-        if boss or boss_pos:
-            return {
-                "id": boss.id if boss else None,
-                "name": boss.name if boss else None,
-                "employee_code": boss.employee_code if boss else None,
-                "email": boss.email if boss else None,
+            results.append({
                 "position_id": boss_pos.id if boss_pos else None,
                 "position_name": boss_pos.name if boss_pos else None,
                 "position_code": boss_pos.code if boss_pos else None,
-                "role_name": boss_pos.role.name if (boss_pos and boss_pos.role) else None
-            }
-        return None
+                "role_name": boss_pos.role.name if (boss_pos and boss_pos.role) else None,
+                "assigned_employee": {
+                    "id": boss.id,
+                    "name": boss.name,
+                    "employee_code": boss.employee_code,
+                    "email": boss.email
+                }
+            })
+            
+        return results
 
     class Meta:
         model = Employee
@@ -1436,6 +1522,18 @@ class LightEmployeePositionListSerializer(serializers.ModelSerializer):
             return obj.position_type.segment.name
         return None
 
+    reporting_to = serializers.SerializerMethodField()
+
+    def get_reporting_to(self, obj):
+        return [
+            {
+                "id": parent_pos.id,
+                "position_name": parent_pos.name,
+                "position_code": parent_pos.code
+            }
+            for parent_pos in obj.reporting_to.all()
+        ]
+
     class Meta:
         model = Position
         fields = [
@@ -1443,7 +1541,7 @@ class LightEmployeePositionListSerializer(serializers.ModelSerializer):
             'department_id', 'department_name', 'section_id', 'section_name', 'level_id', 'office_level_id',
             'project_id', 'project_name', 'segment_id', 'segment_name',
             'position_type_id', 'position_type_name', 'role_id', 'role_name',
-            'role_sub_group_id', 'role_sub_group_name'
+            'role_sub_group_id', 'role_sub_group_name', 'reporting_to'
         ]
 
 class EmployeeListSerializer(EmployeeSerializer):
@@ -1934,7 +2032,21 @@ class APIKeySerializer(serializers.ModelSerializer):
         # Use None for empty strings to satisfy DateField
         if valid_until == '':
             data['valid_until'] = None
-            
+
+        # Prevent MySQL 32-bit Integer overflow on rate_limit
+        rate_limit = data.get('rate_limit')
+        if rate_limit is not None:
+            try:
+                rl_int = int(rate_limit)
+                if rl_int > 2147483647:
+                    data['rate_limit'] = 2147483647
+                elif rl_int < 1:
+                    data['rate_limit'] = 100
+                else:
+                    data['rate_limit'] = rl_int
+            except (ValueError, TypeError):
+                data['rate_limit'] = 100
+
         return super().to_internal_value(data)
     
     def get_key_preview(self, obj):

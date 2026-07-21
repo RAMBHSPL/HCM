@@ -1469,8 +1469,9 @@ const GenericTable = ({ renderTableData, customData = null }) => {
                 </div>
             </div >
 
-            <div className="glass section-card" style={{ padding: '0' }}>
-                <table className="data-table">
+            <div className="glass section-card" style={{ padding: '0', overflow: 'hidden' }}>
+                <div className="table-responsive-wrapper" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <table className="data-table" style={{ minWidth: '600px', width: '100%' }}>
                     <thead>
                         <tr>
                             <th>Details</th>
@@ -1644,6 +1645,7 @@ const GenericTable = ({ renderTableData, customData = null }) => {
                         )}
                     </tbody>
                 </table>
+                </div>
             </div>
 
             {/* Pagination Controls */}

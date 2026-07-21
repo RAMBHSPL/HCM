@@ -3,8 +3,12 @@
   "appName": "BAVYA HCM Mobile",
   "webDir": "dist",
   "server": {
-    "androidScheme": "https",
-    "cleartext": true
+    "cleartext": true,
+    "androidScheme": "http",
+    "allowNavigation": [
+      "http://*",
+      "https://*"
+    ]
   },
   "plugins": {
     "SplashScreen": {

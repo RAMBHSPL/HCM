@@ -267,7 +267,7 @@ const APIKeyManagement = () => {
                     ? formData.validUntil.split('T')[0].split(' ')[0]
                     : null,
                 allowed_ips: formData.allowedIps,
-                rate_limit: parseInt(formData.rateLimit) || 100,
+                rate_limit: Math.min(2147483647, Math.max(1, parseInt(formData.rateLimit) || 100)),
                 webhook_url: formData.webhookUrl || null,
                 webhook_events: formData.webhookEvents || [],
             };
@@ -305,7 +305,7 @@ const APIKeyManagement = () => {
                     ? formData.validUntil.split('T')[0].split(' ')[0]
                     : null,
                 allowed_ips: formData.allowedIps,
-                rate_limit: parseInt(formData.rateLimit) || 100,
+                rate_limit: Math.min(2147483647, Math.max(1, parseInt(formData.rateLimit) || 100)),
                 webhook_url: formData.webhookUrl || null,
                 webhook_events: formData.webhookEvents || [],
             };
@@ -1144,7 +1144,7 @@ const APIKeyManagement = () => {
                                         </div>
                                         <div className="form-group">
                                             <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '8px', display: 'block' }}>Rate Limit (RPM)</label>
-                                            <input type="number" className="form-input" value={formData.rateLimit} onChange={e => setFormData({ ...formData, rateLimit: e.target.value })} placeholder="100" style={{ padding: '0.75rem' }} min="1" />
+                                            <input type="number" className="form-input" value={formData.rateLimit} onChange={e => setFormData({ ...formData, rateLimit: e.target.value })} placeholder="100" style={{ padding: '0.75rem' }} min="1" max="100000" />
                                         </div>
                                     </div>
                                 </div>
@@ -1972,7 +1972,7 @@ const UsageLogs = ({ title, logs, loading, onClose }) => {
                                                             EVENT: {eventName}
                                                         </span>
                                                     )}
-                                                    <span style={{ fontSize: '0.75rem', color: auditTheme.textDim, fontWeight: 700, fontFamily: 'monospace', opacity: 0.6 }}>{log.ip_address || '10.2.1.18'}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: auditTheme.textDim, fontWeight: 700, fontFamily: 'monospace', opacity: 0.6 }}>{log.ip_address || '127.0.0.1'}</span>
                                                 </div>
                                                 
                                                 <div style={{ fontSize: '0.82rem', color: auditTheme.textDim, fontWeight: 600, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -2097,11 +2097,11 @@ const UsageLogs = ({ title, logs, loading, onClose }) => {
                                 <div>
                                     <span style={{ fontSize: '0.7rem', color: auditTheme.textDim, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>CLIENT REMOTE IP ADDRESS</span>
                                     <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#38bdf8', fontFamily: 'monospace', marginTop: '4px' }}>
-                                        {selectedLog.ip_address || '10.2.1.18'}
+                                        {selectedLog.ip_address || '127.0.0.1'}
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => handleCopyIp(selectedLog.ip_address || '10.2.1.18')}
+                                    onClick={() => handleCopyIp(selectedLog.ip_address || '127.0.0.1')}
                                     style={{
                                         padding: '8px 14px',
                                         borderRadius: '10px',

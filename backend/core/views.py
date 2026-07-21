@@ -1486,11 +1486,9 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
         # Use ScopedViewSetMixin's filtering and prefetch projects for UI tags
         from django.db.models import Count
         queryset = super().get_queryset().select_related(
-            'level', 'parent', 'cluster', 'facility_master', 'facility_master__project'
+            'level', 'parent', 'cluster', 'facility_master', 'facility_master__project', 'facility'
         ).prefetch_related(
             'projects', 'sub_offices'
-        ).annotate(
-            sub_offices_count=Count('sub_offices', distinct=True)
         )
 
         # Manual query param filtering for level and status
@@ -2550,7 +2548,7 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
                 'role__jobs',
                 'role__jobs__tasks',
                 'role__jobs__tasks__urls'
-            ).distinct()
+            )
         else:
             return queryset.select_related(
                 'office', 'office__level', 'department', 'section', 'role', 'role_sub_group',
@@ -2558,10 +2556,36 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
                 'position_type', 'section__project', 'department__project'
             ).prefetch_related(
                 'shifts',
-                Prefetch('reporting_to', queryset=Position.objects.select_related('office', 'level').only('id', 'name', 'code', 'office__name', 'level__name', 'status')),
+                Prefetch('reporting_to', queryset=Position.objects.select_related('office', 'level')),
                 'employees',
                 'additional_roles'
-            ).distinct()
+            )
+
+    def list(self, request, *args, **kwargs):
+        from django.core.cache import cache
+        import hashlib
+        
+        user_identifier = f"user_{request.user.id}" if request.user and request.user.is_authenticated else "anon"
+        auth = getattr(request, 'auth', None)
+        if hasattr(auth, 'id'):
+            user_identifier += f"_auth_{auth.id}"
+        
+        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
+        cache_key = f"hcm_pos_list_v2_{user_identifier}_{query_hash}"
+        
+        cached_res = cache.get(cache_key)
+        if cached_res is not None:
+            return Response(cached_res)
+        
+        if request.query_params.get('pagination') == 'false':
+            self.pagination_class = None
+            
+        response = super().list(request, *args, **kwargs)
+        
+        if response.status_code == 200:
+            cache.set(cache_key, response.data, 30)
+            
+        return response
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -2578,7 +2602,7 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
     @action(detail=False, methods=['get'])
     def all_data(self, request):
         """Get all positions for dropdowns, bypassing standard scope if needed"""
-        positions = Position.objects.filter(status='Active').order_by('name')
+        positions = Position.objects.filter(status='Active').order_by('id')
 
         # Optimize query — always prefetch shifts and employees for the roster grid
         positions = positions.select_related(
@@ -3037,30 +3061,28 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
     ordering = ['-id']
 
     def list(self, request, *args, **kwargs):
-        # High-Performance Caching & Unpaginated Protection Layer
-        from core.models import APIKey
         from django.core.cache import cache
+        import hashlib
         
+        user_identifier = f"user_{request.user.id}" if request.user and request.user.is_authenticated else "anon"
         auth = getattr(request, 'auth', None)
-        is_api_key = auth and isinstance(auth, APIKey)
-        cache_key = None
+        if hasattr(auth, 'id'):
+            user_identifier += f"_auth_{auth.id}"
+            
+        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
+        cache_key = f"hcm_emp_list_v2_{user_identifier}_{query_hash}"
         
-        # 1. Serve from Redis/RAM Cache if available (0.001s response time)
-        if is_api_key:
-            cache_key = f"hcm_emp_list_key_{auth.id}_{request.GET.urlencode()}"
-            cached_res = cache.get(cache_key)
-            if cached_res is not None:
-                return Response(cached_res)
+        cached_res = cache.get(cache_key)
+        if cached_res is not None:
+            return Response(cached_res)
         
-        # 2. Disable pagination cleanly if explicit unpaginated request
         if request.query_params.get('pagination') == 'false':
             self.pagination_class = None
             
         response = super().list(request, *args, **kwargs)
         
-        # 3. Save to cache for 60 seconds to absorb traffic spikes
-        if is_api_key and response.status_code == 200 and cache_key:
-            cache.set(cache_key, response.data, 60)
+        if response.status_code == 200:
+            cache.set(cache_key, response.data, 30)
             
         return response
 
