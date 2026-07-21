@@ -2561,11 +2561,17 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
                 'additional_roles'
             )
 
+    def paginate_queryset(self, queryset):
+        if self.request.query_params.get('pagination') == 'false':
+            return None
+        return super().paginate_queryset(queryset)
+
     def list(self, request, *args, **kwargs):
         from django.core.cache import cache
         import hashlib
         
-        user_identifier = f"user_{request.user.id}" if request.user and request.user.is_authenticated else "anon"
+        user_id = getattr(request.user, 'id', None)
+        user_identifier = f"user_{user_id}" if user_id else "anon"
         auth = getattr(request, 'auth', None)
         if hasattr(auth, 'id'):
             user_identifier += f"_auth_{auth.id}"
@@ -2576,9 +2582,6 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         cached_res = cache.get(cache_key)
         if cached_res is not None:
             return Response(cached_res)
-        
-        if request.query_params.get('pagination') == 'false':
-            self.pagination_class = None
             
         response = super().list(request, *args, **kwargs)
         
@@ -3060,11 +3063,17 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
     ordering_fields = ['name', 'created_at', 'employee_code']
     ordering = ['-id']
 
+    def paginate_queryset(self, queryset):
+        if self.request.query_params.get('pagination') == 'false':
+            return None
+        return super().paginate_queryset(queryset)
+
     def list(self, request, *args, **kwargs):
         from django.core.cache import cache
         import hashlib
         
-        user_identifier = f"user_{request.user.id}" if request.user and request.user.is_authenticated else "anon"
+        user_id = getattr(request.user, 'id', None)
+        user_identifier = f"user_{user_id}" if user_id else "anon"
         auth = getattr(request, 'auth', None)
         if hasattr(auth, 'id'):
             user_identifier += f"_auth_{auth.id}"
@@ -3075,9 +3084,6 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         cached_res = cache.get(cache_key)
         if cached_res is not None:
             return Response(cached_res)
-        
-        if request.query_params.get('pagination') == 'false':
-            self.pagination_class = None
             
         response = super().list(request, *args, **kwargs)
         

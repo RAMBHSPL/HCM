@@ -254,18 +254,28 @@ const GenericTable = ({ renderTableData, customData = null }) => {
         const delayDebounceFn = setTimeout(() => {
             if (pagination && !customData) {
                 // Double check filters haven't changed while we were waiting
-                if (lastFetchFilters.current === currentFilterString) return;
+                if (lastFetchFilters.current === currentFilterString && !sectionChangedSinceLastFetch) return;
 
                 const isRefilter = sessionStorage.getItem(`last_fetch_${activeSection}`) !== null;
 
                 // Fetch silently if we already have some data/context (from cache or previous visit)
                 const hasExistingData = contextData && contextData.length > 0;
-                fetchData(isRefilter || hasExistingData, true, 1, filters).finally(() => {
+                fetchData(isRefilter || hasExistingData, true, 1, filters).then((res) => {
+                    if (res === null) {
+                        // Fetch failed (e.g. backend 500 error). Clear filter ref to allow auto-retry.
+                        lastFetchFilters.current = null;
+                    }
+                }).catch(() => {
+                    lastFetchFilters.current = null;
+                }).finally(() => {
+                    isFirstRender.current = false;
                 });
 
                 lastFetchFilters.current = currentFilterString;
                 isFirstRender.current = false;
                 sessionStorage.setItem(`last_fetch_${activeSection}`, currentFilterString);
+            } else {
+                isFirstRender.current = false;
             }
         }, delay);
 
@@ -358,7 +368,7 @@ const GenericTable = ({ renderTableData, customData = null }) => {
 
     // 1. Initial Load: Show full spinner if no data or context says we are loading
     const sectionChangedSinceLastFetch = lastFetchFilters.current === null;
-    const isLoadingAny = loading || (isSyncing === activeSection) || (!customData && (isFirstRender.current || sectionChangedSinceLastFetch));
+    const isLoadingAny = loading || (isSyncing === activeSection) || (!customData && contextData === null && (isFirstRender.current || sectionChangedSinceLastFetch));
 
     // SMART DATA ENGINE: 
     // Prioritize contextData (the filtered set) if available (even if empty).

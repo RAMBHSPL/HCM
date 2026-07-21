@@ -945,7 +945,6 @@ class LightRoleSerializer(serializers.ModelSerializer):
 class PositionSerializer(serializers.ModelSerializer):
     """Simple position serializer for listings"""
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
-    reporting_to_names = serializers.StringRelatedField(source='reporting_to', many=True, read_only=True)
     office_level = serializers.ReadOnlyField(source='office.level.name', allow_null=True)
     office_hierarchy = serializers.ReadOnlyField(source='office.hierarchy_path', allow_null=True)
     department_name = serializers.ReadOnlyField(source='department.name', allow_null=True)
@@ -976,6 +975,14 @@ class PositionSerializer(serializers.ModelSerializer):
     project_name = serializers.SerializerMethodField()
     segment_id = serializers.SerializerMethodField()
     segment_name = serializers.SerializerMethodField()
+    reporting_to_names = serializers.SerializerMethodField()
+
+    def get_reporting_to_names(self, obj):
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        reps = cache.get('reporting_to')
+        if reps is not None:
+            return [r.name for r in reps if r and hasattr(r, 'name')]
+        return [r.name for r in obj.reporting_to.all() if r and hasattr(r, 'name')]
 
     def _get_project_safe(self, obj):
         if not hasattr(obj, '_cached_proj'):
@@ -984,11 +991,8 @@ class PositionSerializer(serializers.ModelSerializer):
                 proj = obj.section.project
             elif getattr(obj, 'department', None) and getattr(obj.department, 'project', None):
                 proj = obj.department.project
-            elif getattr(obj, 'office', None):
-                projs = getattr(obj.office, '_cached_projects', None)
-                if projs is None and hasattr(obj.office, 'projects'):
-                    projs = list(obj.office.projects.all())
-                proj = projs[0] if projs else None
+            elif getattr(obj, 'office', None) and getattr(obj.office, 'facility_master', None) and getattr(obj.office.facility_master, 'project', None):
+                proj = obj.office.facility_master.project
             obj._cached_proj = proj
         return obj._cached_proj
 

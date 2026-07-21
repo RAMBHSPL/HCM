@@ -923,7 +923,7 @@ export const DataProvider = ({ children }) => {
                 // Construct URL with pagination/search/filters
                 let url = section.endpoint;
                 const params = new URLSearchParams();
-                if (page > 1) params.append('page', page);
+                params.append('page', page || 1);
 
                 // Add all non-empty filters
                 if (typeof filters === 'string') {
@@ -1467,8 +1467,32 @@ export const DataProvider = ({ children }) => {
 
             // Special handling for Positions to extract project and segment context
             if (type === 'Positions') {
-                hydratedItem._pos_project = item.project_id || '';
-                hydratedItem._pos_segment = item.segment_id || '';
+                const safeExtractId = (val) => (val && typeof val === 'object' ? val.id : val);
+                const safeStr = (val) => {
+                    const extracted = safeExtractId(val);
+                    return (extracted === null || extracted === undefined) ? '' : String(extracted);
+                };
+
+                hydratedItem.office = safeStr(item.office || item.office_id);
+                hydratedItem.department = safeStr(item.department || item.department_id);
+                hydratedItem.section = safeStr(item.section || item.section_id);
+                hydratedItem.role = safeStr(item.role || item.role_id);
+                hydratedItem.job = safeStr(item.job || item.job_id);
+                hydratedItem.level = safeStr(item.level || item.level_id);
+                hydratedItem.position_type = safeStr(item.position_type || item.position_type_id);
+
+                hydratedItem._pos_project = safeStr(item.project_id || item.project || item.project_details?.id);
+                hydratedItem._pos_segment = safeStr(item.segment_id || item.segment || item.segment_details?.id);
+
+                if (Array.isArray(item.shifts) && item.shifts.length > 0) {
+                    hydratedItem.shifts = item.shifts.map(s => safeStr(s));
+                } else if (Array.isArray(item.shifts_details)) {
+                    hydratedItem.shifts = item.shifts_details.map(s => safeStr(s.id || s));
+                }
+
+                if (Array.isArray(item.reporting_to)) {
+                    hydratedItem.reporting_to = item.reporting_to.map(r => safeStr(r));
+                }
             }
 
             // Special handling for Role Sub Groups to extract project and segment context from its Role Group

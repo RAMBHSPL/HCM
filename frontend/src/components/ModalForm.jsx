@@ -473,34 +473,59 @@ const ModalForm = () => {
     // Global Hydration for Edit Mode
     React.useEffect(() => {
         // Hydrate Positions Filter (Job Structure & Office Context)
-        if (modalType === 'Positions' && formData.id && !formData._pos_hydrated && (offices?.length > 0)) {
+        if (modalType === 'Positions' && formData.id && !formData._pos_hydrated) {
             const safeStr = (val) => (val === null || val === undefined) ? '' : String(val);
 
-            // Extract IDs robustly from various possible fields (backend often sends both objects and raw IDs)
-            const levelId = safeStr(formData.office_level_id || formData.office_level || (formData.office?.level?.id));
-            const officeId = safeStr(formData.office_id || (typeof formData.office === 'object' ? formData.office?.id : formData.office));
-            const deptId = safeStr(formData.department_id || (typeof formData.department === 'object' ? formData.department?.id : formData.department));
-            const sectId = safeStr(formData.section_id || (typeof formData.section === 'object' ? formData.section?.id : formData.section));
-            const jfId = safeStr(formData.job_family_id || (typeof formData.job_family === 'object' ? formData.job_family?.id : formData.job_family));
-            const rtId = safeStr(formData.role_type_id || (typeof formData.role_type === 'object' ? formData.role_type?.id : formData.role_type));
-            const roleId = safeStr(formData.role_id || (typeof formData.role === 'object' ? formData.role?.id : formData.role));
-            const jobId = safeStr(formData.job_id || (typeof formData.job === 'object' ? formData.job?.id : formData.job));
+            const officeId = safeStr(formData.office_id || formData.office || (typeof formData.office === 'object' ? formData.office?.id : ''));
+            const targetOffice = (offices || []).find(o => String(o.id) === officeId);
+            const levelId = safeStr(formData.office_level_id || formData.office_level || targetOffice?.level_id || (typeof targetOffice?.level === 'object' ? targetOffice?.level?.id : targetOffice?.level) || '');
 
-            if (levelId || officeId) {
-                setFormData(prev => ({
-                    ...prev,
-                    _pos_hydrated: true,
-                    _pos_level_filter: levelId,
-                    office: officeId,
-                    _pos_office_filter: officeId,
-                    department: deptId,
-                    section: sectId,
-                    _pos_job_family_filter: jfId,
-                    _pos_role_type_filter: rtId,
-                    role: roleId,
-                    job: jobId
-                }));
+            const deptId = safeStr(formData.department_id || formData.department || (typeof formData.department === 'object' ? formData.department?.id : ''));
+            const targetDept = (departments || []).find(d => String(d.id) === deptId);
+
+            const sectId = safeStr(formData.section_id || formData.section || (typeof formData.section === 'object' ? formData.section?.id : ''));
+            const targetSect = (sections || []).find(s => String(s.id) === sectId);
+
+            const roleId = safeStr(formData.role_id || formData.role || (typeof formData.role === 'object' ? formData.role?.id : ''));
+            const targetRole = (roles || []).find(r => String(r.id) === roleId);
+            const rtId = safeStr(formData.role_type_id || formData.role_type || targetRole?.role_type || (typeof targetRole?.role_type === 'object' ? targetRole?.role_type?.id : ''));
+            const targetRoleType = (roleTypes || []).find(rt => String(rt.id) === rtId);
+            const jfId = safeStr(formData.job_family_id || formData.job_family || targetRoleType?.job_family || (typeof targetRoleType?.job_family === 'object' ? targetRoleType?.job_family?.id : ''));
+
+            const jobId = safeStr(formData.job_id || formData.job || (typeof formData.job === 'object' ? formData.job?.id : ''));
+            const posLevelId = safeStr(formData.level_id || formData.level || (typeof formData.level === 'object' ? formData.level?.id : ''));
+            const posTypeId = safeStr(formData.position_type_id || formData.position_type || (typeof formData.position_type === 'object' ? formData.position_type?.id : ''));
+
+            // Auto-derive project and segment if missing
+            let projId = safeStr(formData._pos_project || formData.project_id || formData.project);
+            if (!projId) {
+                projId = safeStr(
+                    targetSect?.project_id || targetSect?.project ||
+                    targetDept?.project_id || targetDept?.project ||
+                    targetRole?.project_id || targetRole?.project ||
+                    targetOffice?.project_id || (facilityMasters?.find(m => String(m.id) === String(targetOffice?.facility_master))?.project) ||
+                    (projects?.length > 0 ? projects[0].id : '')
+                );
             }
+            let segId = safeStr(formData._pos_segment || formData.segment_id || formData.segment || targetRole?.segment);
+
+            setFormData(prev => ({
+                ...prev,
+                _pos_hydrated: true,
+                _pos_level_filter: levelId || prev._pos_level_filter || '',
+                office: officeId || prev.office || '',
+                _pos_office_filter: officeId || prev._pos_office_filter || '',
+                department: deptId || prev.department || '',
+                section: sectId || prev.section || '',
+                _pos_job_family_filter: jfId || prev._pos_job_family_filter || '',
+                _pos_role_type_filter: rtId || prev._pos_role_type_filter || '',
+                role: roleId || prev.role || '',
+                job: jobId || prev.job || '',
+                level: posLevelId || prev.level || '',
+                position_type: posTypeId || prev.position_type || '',
+                _pos_project: projId || prev._pos_project || '',
+                _pos_segment: segId || prev._pos_segment || ''
+            }));
         }
 
         // Hydrate Departments - Auto-tag project from office if missing
@@ -4709,15 +4734,17 @@ const ModalForm = () => {
                                             if (formData._pos_project) {
                                                 filteredPt = filteredPt.filter(pt => {
                                                     const ptProjId = pt.project_id || (pt.project && typeof pt.project === 'object' ? pt.project.id : pt.project);
+                                                    if (!ptProjId) return true; // Global position types apply everywhere
                                                     const matchesProj = String(ptProjId) === String(formData._pos_project);
                                                     if (formData._pos_segment) {
                                                         const ptSegId = pt.segment_id || (pt.segment && typeof pt.segment === 'object' ? pt.segment.id : pt.segment);
+                                                        if (!ptSegId) return matchesProj;
                                                         return matchesProj && String(ptSegId) === String(formData._pos_segment);
                                                     }
                                                     return matchesProj;
                                                 });
                                             }
-                                            return filteredPt.map(pt => ({ id: pt.id, name: pt.name }));
+                                            return filteredPt.map(pt => ({ id: String(pt.id), name: pt.name }));
                                         })()}
                                         value={formData.position_type || ''}
                                         onChange={(e) => {
@@ -4746,9 +4773,17 @@ const ModalForm = () => {
 
                                         let filteredShifts = shifts || [];
                                         if (projId) {
-                                            filteredShifts = filteredShifts.filter(s => String(s.project) === String(projId));
+                                            filteredShifts = filteredShifts.filter(s => {
+                                                const sProjId = s.project_id || (s.project && typeof s.project === 'object' ? s.project.id : s.project);
+                                                if (!sProjId) return true; // Global shifts apply everywhere
+                                                return String(sProjId) === String(projId);
+                                            });
                                             if (segId) {
-                                                filteredShifts = filteredShifts.filter(s => String(s.segment) === String(segId));
+                                                filteredShifts = filteredShifts.filter(s => {
+                                                    const sSegId = s.segment_id || (s.segment && typeof s.segment === 'object' ? s.segment.id : s.segment);
+                                                    if (!sSegId) return true;
+                                                    return String(sSegId) === String(segId);
+                                                });
                                             }
                                         }
 
