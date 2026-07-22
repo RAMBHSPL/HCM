@@ -15,7 +15,10 @@ import {
 import OrganizationMap from '../components/OrganizationMap';
 
 const ProjectAnalyticsDashboard = () => {
-    const { projects, offices, departments, sections, positions, allEmployees, loading } = useData();
+    const { 
+        projects, offices, departments, sections, positions, allEmployees, loading,
+        loadEmployeesIfNeeded, loadPositionsIfNeeded, employeesLoading, positionsLoading
+    } = useData();
     const [selectedProjectId, setSelectedProjectId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [employeeSearch, setEmployeeSearch] = useState('');
@@ -23,6 +26,11 @@ const ProjectAnalyticsDashboard = () => {
     const [hoveredCard, setHoveredCard] = useState(null);
     const [activeTab, setActiveTab] = useState('overview');
     const [internalLoading, setInternalLoading] = useState(true);
+
+    useEffect(() => {
+        if (loadEmployeesIfNeeded) loadEmployeesIfNeeded();
+        if (loadPositionsIfNeeded) loadPositionsIfNeeded();
+    }, [loadEmployeesIfNeeded, loadPositionsIfNeeded]);
 
     useEffect(() => {
         const timer = setTimeout(() => setInternalLoading(false), 1200);
@@ -165,7 +173,7 @@ const ProjectAnalyticsDashboard = () => {
         setCurrentPage(1);
     }, [employeeSearch, selectedProjectId]);
 
-    if (internalLoading && loading) return (
+    if (internalLoading || loading || employeesLoading || positionsLoading) return (
         <div style={{ background: theme.bg, height: '100vh', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2rem' }}>
             <div className="loader-ring"></div>
             <div style={{ fontSize: '1rem', fontWeight: 700, letterSpacing: '0.3em', color: theme.primary }} className="animate-pulse">INITIALIZING DOMAIN PROTOCOLS</div>

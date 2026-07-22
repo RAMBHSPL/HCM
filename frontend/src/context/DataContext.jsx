@@ -221,6 +221,10 @@ export const DataProvider = ({ children }) => {
     const [shifts, setShifts] = useState([]);
     const [projects, setProjects] = useState([]);
     const [allEmployees, setAllEmployees] = useState([]);
+    const [employeesLoaded, setEmployeesLoaded] = useState(false);
+    const [employeesLoading, setEmployeesLoading] = useState(false);
+    const [positionsLoaded, setPositionsLoaded] = useState(false);
+    const [positionsLoading, setPositionsLoading] = useState(false);
     const [roleTypes, setRoleTypes] = useState([]);
     const [tasks, setTasks] = useState([]);
     const [facilityMasters, setFacilityMasters] = useState([]);
@@ -898,6 +902,38 @@ export const DataProvider = ({ children }) => {
         setSelectedEmployee(null);
     };
 
+    const loadEmployeesIfNeeded = async (force = false) => {
+        if ((employeesLoaded && !force) || employeesLoading) return;
+        setEmployeesLoading(true);
+        try {
+            console.log("⚡ [Lazy Load] Loading employees on-demand...");
+            const data = await safeFetch('employees/all_data?pagination=false', force);
+            setAllEmployees(universalSort(data));
+            setEmployeesLoaded(true);
+            pageCache.current.set('employees', universalSort(data));
+        } catch (err) {
+            console.error("Failed to lazy load employees:", err);
+        } finally {
+            setEmployeesLoading(false);
+        }
+    };
+
+    const loadPositionsIfNeeded = async (force = false) => {
+        if ((positionsLoaded && !force) || positionsLoading) return;
+        setPositionsLoading(true);
+        try {
+            console.log("⚡ [Lazy Load] Loading positions on-demand...");
+            const data = await safeFetch('positions/all_data?pagination=false', force);
+            setPositions(universalSort(data));
+            setPositionsLoaded(true);
+            pageCache.current.set('positions', universalSort(data));
+        } catch (err) {
+            console.error("Failed to lazy load positions:", err);
+        } finally {
+            setPositionsLoading(false);
+        }
+    };
+
     const lastRequestedUrl = React.useRef(new Map());
     const activeRequests = React.useRef(new Map());
 
@@ -1216,27 +1252,23 @@ export const DataProvider = ({ children }) => {
                     safeFetch('roles', force),
                     safeFetch('role-sub-groups', force),
                     safeFetch('jobs', force),
-                    safeFetch('positions/all_data', force),
                     safeFetch('position-levels', force),
                     safeFetch('position-types', force),
                     safeFetch('shifts', force),
-                    safeFetch('tasks', force),
-                    safeFetch('employees/all_data', force)
+                    safeFetch('tasks', force)
                 ]);
 
-                const [departmentsData, sectionsData, rolesData, roleSubGroupsData, jobsData, positionsData, positionLevelsData, positionTypesData, shiftsData, tasksData, employeesData] = wave2;
+                const [departmentsData, sectionsData, rolesData, roleSubGroupsData, jobsData, positionLevelsData, positionTypesData, shiftsData, tasksData] = wave2;
 
                 setDepartments(universalSort(departmentsData));
                 setSections(universalSort(sectionsData));
                 setRoles(universalSort(rolesData));
                 setRoleSubGroups(universalSort(roleSubGroupsData));
                 setJobs(universalSort(jobsData));
-                setPositions(universalSort(positionsData));
                 setPositionLevels(levelSort(positionLevelsData));
                 setPositionTypes(universalSort(positionTypesData));
                 setShifts(universalSort(shiftsData));
                 setTasks(universalSort(tasksData));
-                setAllEmployees(universalSort(employeesData));
 
                 // Instant Cache Pre-population
                 const wave2Map = {
@@ -1245,9 +1277,7 @@ export const DataProvider = ({ children }) => {
                     'roles': rolesData,
                     'role-sub-groups': roleSubGroupsData,
                     'jobs': jobsData,
-                    'positions': positionsData,
-                    'tasks': tasksData,
-                    'employees': employeesData
+                    'tasks': tasksData
                 };
 
                 Object.entries(wave2Map).forEach(([key, items]) => {
@@ -2070,6 +2100,8 @@ export const DataProvider = ({ children }) => {
         expandedGroups, setExpandedGroups,
         toggleGroup, selectSection,
         fetchData, fetchStats, fetchDropdownData,
+        loadEmployeesIfNeeded, loadPositionsIfNeeded,
+        employeesLoading, positionsLoading,
         pagination, setPagination, // Export pagination
         showNotification, handleAdd, handleEdit, handleDelete, handleFormSubmit,
         closeModal,

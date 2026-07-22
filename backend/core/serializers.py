@@ -913,7 +913,7 @@ class LightShiftSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Shift
-        fields = ['id', 'name', 'code', 'start_time', 'end_time', 'project_name', 'segment_name', 'status']
+        fields = ['id', 'name', 'start_time', 'end_time', 'project_name', 'segment_name']
 
 class PositionTypeSerializer(serializers.ModelSerializer):
     project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)

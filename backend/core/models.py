@@ -170,8 +170,12 @@ class Office(models.Model):
             cache = all_offices
         level_name = self.level.name if self.level else "N/A"
         path = [f"{self.name} ({level_name})"]
+        visited = {self.id}
         curr_id = self.parent_id
         while curr_id:
+            if curr_id in visited:
+                break
+            visited.add(curr_id)
             cached_curr = cache.get(curr_id)
             if not cached_curr:
                 break

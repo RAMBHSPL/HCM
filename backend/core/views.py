@@ -2605,12 +2605,29 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
     @action(detail=False, methods=['get'])
     def all_data(self, request):
         """Get all positions for dropdowns, bypassing standard scope if needed"""
+        from django.core.cache import cache
+        import hashlib
+
+        user_id = getattr(request.user, 'id', None)
+        user_identifier = f"user_{user_id}" if user_id else "anon"
+        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
+        cache_key = f"hcm_pos_all_data_{user_identifier}_{query_hash}"
+
+        cached_res = cache.get(cache_key)
+        if cached_res is not None:
+            return Response(cached_res)
+
         positions = Position.objects.filter(status='Active').order_by('id')
 
         # Optimize query — always prefetch shifts and employees for the roster grid
         positions = positions.select_related(
             'office', 'office__level', 'department', 'section', 'role', 'job', 'level'
         ).prefetch_related('shifts', 'employees')
+
+        # ID filter (for hydration in dropdown/select components)
+        pk_val = request.query_params.get('id')
+        if pk_val:
+            positions = positions.filter(id=pk_val)
 
         # Filter: only return positions that have shifts mapped (for roster screen)
         has_shifts = request.query_params.get('has_shifts', 'false').lower() == 'true'
@@ -2652,33 +2669,42 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
             else:
                 positions = positions.none()
 
-        # Check if pagination is requested
-        page = request.query_params.get('page')
-        from .serializers import PositionDropdownSerializer
-        if page:
+        # Enforce pagination unless pagination=false is explicitly requested
+        pagination = request.query_params.get('pagination', 'true').lower() != 'false'
+        if pagination:
+            page = request.query_params.get('page', '1')
             try:
                 page = int(page)
                 page_size = int(request.query_params.get('page_size', 50))
                 from django.core.paginator import Paginator, EmptyPage
+                from .serializers import PositionDropdownSerializer
                 paginator = Paginator(positions, page_size)
                 try:
                     paginated_qs = paginator.page(page)
                 except EmptyPage:
-                    return Response({
+                    res_data = {
                         'count': paginator.count,
                         'num_pages': paginator.num_pages,
                         'results': []
-                    })
+                    }
+                    cache.set(cache_key, res_data, 30)
+                    return Response(res_data)
                 
-                return Response({
+                res_data = {
                     'count': paginator.count,
                     'num_pages': paginator.num_pages,
                     'results': PositionDropdownSerializer(paginated_qs, many=True).data
-                })
+                }
+                cache.set(cache_key, res_data, 30)
+                return Response(res_data)
             except ValueError:
                 pass
 
-        return Response(PositionDropdownSerializer(positions, many=True).data)
+        from .serializers import PositionDropdownSerializer
+        res_data = PositionDropdownSerializer(positions, many=True).data
+        cache.set(cache_key, res_data, 30)
+        return Response(res_data)
+
 
     @action(detail=False, methods=['post'], url_path='bulk-upload')
     def bulk_upload(self, request):
@@ -3352,10 +3378,22 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         Get all employees with full position context for WorkforceTracker.
         Prefetches all relations needed for project/segment/role filtering.
         """
+        from django.core.cache import cache
+        import hashlib
+
+        user_id = getattr(request.user, 'id', None)
+        user_identifier = f"user_{user_id}" if user_id else "anon"
+        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
+        cache_key = f"hcm_emp_all_data_{user_identifier}_{query_hash}"
+
+        cached_res = cache.get(cache_key)
+        if cached_res is not None:
+            return Response(cached_res)
+
         from django.db.models import Prefetch
         from .models import Position
         position_qs = Position.objects.select_related(
-            'office', 'department', 'department__project',
+            'office', 'office__level', 'department', 'department__project',
             'section', 'section__project',
             'role', 'role__segment',
             'role_sub_group', 'position_type',
@@ -3368,9 +3406,27 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
                 Prefetch('positions', queryset=position_qs)
             )
         )
+
+        # ID filter (for hydration in dropdown/select components)
+        pk_val = request.query_params.get('id')
+        if pk_val:
+            queryset = queryset.filter(id=pk_val)
+
+        # Apply standard pagination unless pagination=false
+        pagination = request.query_params.get('pagination', 'true').lower() != 'false'
+        page = self.paginate_queryset(queryset) if pagination else None
         from .serializers import EmployeeDropdownSerializer
+        if page is not None:
+            serializer = EmployeeDropdownSerializer(page, many=True, context={'request': request})
+            res_data = self.get_paginated_response(serializer.data).data
+            cache.set(cache_key, res_data, 30)
+            return Response(res_data)
+
         serializer = EmployeeDropdownSerializer(queryset, many=True, context={'request': request})
-        return Response(serializer.data)
+        res_data = serializer.data
+        cache.set(cache_key, res_data, 30)
+        return Response(res_data)
+
 
     @action(detail=True, methods=['post'])
     def resend_credentials(self, request, pk=None):

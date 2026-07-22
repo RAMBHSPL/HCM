@@ -5,6 +5,7 @@ import {
 import api from '../api';
 import { useData } from '../context/DataContext';
 import BavyaSpinner from '../components/BavyaSpinner';
+import SearchableSelect from '../components/SearchableSelect';
 
 const ShiftChangeRequests = () => {
     const dataContext = useData() || {};
@@ -12,6 +13,8 @@ const ShiftChangeRequests = () => {
     const globalShifts = dataContext.shifts || [];
     const globalEmployees = dataContext.allEmployees || [];
     const globalPositions = dataContext.positions || [];
+    const { loadEmployeesIfNeeded, loadPositionsIfNeeded } = dataContext;
+
     const [requests, setRequests] = useState([]);
     const [employees, setEmployees] = useState([]);
     const [positions, setPositions] = useState([]);
@@ -80,26 +83,17 @@ const ShiftChangeRequests = () => {
 
     const fetchDropdowns = async () => {
         try {
-            if (globalEmployees.length > 0 && globalPositions.length > 0) {
-                setEmployees(globalEmployees);
-                setPositions(globalPositions);
+            if (globalShifts.length > 0) {
                 setShifts(globalShifts);
                 return;
             }
-            const [empRes, posRes, shiftRes] = await Promise.all([
-                api.get('employees/all_data/').catch(() => []),
-                api.get('positions/all_data/').catch(() => []),
-                api.get('shifts/').catch(() => [])
-            ]);
-            const empList = Array.isArray(empRes) ? empRes : empRes?.results || [];
-            const posList = Array.isArray(posRes) ? posRes : posRes?.results || [];
-            if (empList.length > 0) setEmployees(empList);
-            if (posList.length > 0) setPositions(posList);
+            const shiftRes = await api.get('shifts/').catch(() => []);
             if (Array.isArray(shiftRes) && shiftRes.length > 0) setShifts(shiftRes);
         } catch (err) {
             console.error("Error loading dropdown data:", err);
         }
     };
+
 
     const fetchMyRosterCards = async (empId) => {
         if (!empId) return;
@@ -240,22 +234,6 @@ const ShiftChangeRequests = () => {
         });
     }, [requests, user]);
 
-    // Form search filters
-    const filteredEmployees = useMemo(() => {
-        if (!employeeSearch.trim()) return [];
-        return employees.filter(e =>
-            e.name?.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-            e.employee_code?.toLowerCase().includes(employeeSearch.toLowerCase())
-        ).slice(0, 5);
-    }, [employees, employeeSearch]);
-
-    const filteredPositions = useMemo(() => {
-        if (!positionSearch.trim()) return [];
-        return positions.filter(p =>
-            p.name?.toLowerCase().includes(positionSearch.toLowerCase()) ||
-            p.code?.toLowerCase().includes(positionSearch.toLowerCase())
-        ).slice(0, 5);
-    }, [positions, positionSearch]);
 
     // Main requests filter
     const filteredRequests = useMemo(() => {
@@ -683,28 +661,14 @@ const ShiftChangeRequests = () => {
                                 <div>
                                     <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>TARGET EMPLOYEE</label>
                                     {!selectedEmployee ? (
-                                        <div style={{ position: 'relative' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '8px 12px' }}>
-                                                <Search size={14} color="#94a3b8" style={{ marginRight: '8px' }} />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search employee by name/code..."
-                                                    value={employeeSearch}
-                                                    onChange={(e) => setEmployeeSearch(e.target.value)}
-                                                    style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.85rem', width: '100%', color: '#1e293b' }}
-                                                />
-                                            </div>
-                                            {filteredEmployees.length > 0 && (
-                                                <div style={{ position: 'absolute', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', zIndex: 10, marginTop: '3px', maxHeight: '180px', overflowY: 'auto' }}>
-                                                    {filteredEmployees.map(e => (
-                                                        <div key={e.id} className="search-result-item" onClick={() => { setSelectedEmployee(e); setEmployeeSearch(''); }}>
-                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{e.name}</div>
-                                                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Code: {e.employee_code}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
+                                        <SearchableSelect
+                                            endpoint="employees/all_data"
+                                            value=""
+                                            onChange={(e, option) => {
+                                                setSelectedEmployee(option);
+                                            }}
+                                            placeholder="Search employee by name/code..."
+                                        />
                                     ) : (
                                         <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <div>
@@ -720,28 +684,14 @@ const ShiftChangeRequests = () => {
                                 <div>
                                     <label style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>TARGET POSITION</label>
                                     {!selectedPosition ? (
-                                        <div style={{ position: 'relative' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '8px 12px' }}>
-                                                <Search size={14} color="#94a3b8" style={{ marginRight: '8px' }} />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search position by name/code..."
-                                                    value={positionSearch}
-                                                    onChange={(e) => setPositionSearch(e.target.value)}
-                                                    style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.85rem', width: '100%', color: '#1e293b' }}
-                                                />
-                                            </div>
-                                            {filteredPositions.length > 0 && (
-                                                <div style={{ position: 'absolute', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', zIndex: 10, marginTop: '3px', maxHeight: '180px', overflowY: 'auto' }}>
-                                                    {filteredPositions.map(p => (
-                                                        <div key={p.id} className="search-result-item" onClick={() => { setSelectedPosition(p); setPositionSearch(''); }}>
-                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{p.name}</div>
-                                                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Code: {p.code}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
+                                        <SearchableSelect
+                                            endpoint="positions/all_data"
+                                            value=""
+                                            onChange={(e, option) => {
+                                                setSelectedPosition(option);
+                                            }}
+                                            placeholder="Search position by name/code..."
+                                        />
                                     ) : (
                                         <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <div>
@@ -752,6 +702,7 @@ const ShiftChangeRequests = () => {
                                         </div>
                                     )}
                                 </div>
+
 
                                 {/* Date Selector */}
                                 <div>

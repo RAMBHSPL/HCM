@@ -88,10 +88,24 @@ const ModalForm = () => {
         validationErrors,
         setValidationErrors,
         shifts,
-        positionTypes
+        positionTypes,
+        loadPositionsIfNeeded,
+        positionsLoading,
+        loadEmployeesIfNeeded
     } = useData();
 
     const [officeSearchTerm, setOfficeSearchTerm] = useState('');
+
+    React.useEffect(() => {
+        if ((modalType === 'Positions' || modalType === 'Employees') && loadPositionsIfNeeded) {
+            console.log(`⚡ [ModalForm] Triggering lazy-load of positions for modalType: ${modalType}`);
+            loadPositionsIfNeeded();
+        }
+        if ((modalType === 'Employees' || modalType === 'Position Assignments') && loadEmployeesIfNeeded) {
+            console.log(`⚡ [ModalForm] Triggering lazy-load of employees for modalType: ${modalType}`);
+            loadEmployeesIfNeeded();
+        }
+    }, [modalType, loadPositionsIfNeeded, loadEmployeesIfNeeded]);
 
     const filteredOffices = useMemo(() => {
         if (modalType !== 'Projects') return [];
@@ -1021,17 +1035,17 @@ const ModalForm = () => {
                         <label className="premium-label"><Users size={14} /> Link to Employee Profile (Optional)</label>
                         <div className="premium-input-wrapper">
                             <SearchableSelect
-                                options={allEmployees?.map(emp => ({ id: emp.id, name: `${emp.name} (${emp.employee_code})` })) || []}
+                                endpoint="employees/all_data"
                                 value={formData.employee_id || ''}
-                                onChange={(e) => {
+                                onChange={(e, emp) => {
                                     const empId = e.target.value;
-                                    const emp = (allEmployees || []).find(ep => ep && ep.id == empId);
+                                    const resolvedEmp = emp || (allEmployees || []).find(ep => ep && ep.id == empId);
                                     setFormData({
                                         ...formData,
                                         employee_id: empId,
-                                        first_name: emp ? emp.name.split(' ')[0] : formData.first_name,
-                                        last_name: emp ? (emp.name.split(' ').slice(1).join(' ') || '') : formData.last_name,
-                                        email: emp ? emp.email : formData.email
+                                        first_name: resolvedEmp ? resolvedEmp.name.split(' ')[0] : formData.first_name,
+                                        last_name: resolvedEmp ? (resolvedEmp.name.split(' ').slice(1).join(' ') || '') : formData.last_name,
+                                        email: resolvedEmp ? resolvedEmp.email : formData.email
                                     });
                                 }}
                                 placeholder="Search for employee to auto-fill..."
@@ -3971,7 +3985,11 @@ const ModalForm = () => {
                                     gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                                     gap: '1rem'
                                 }}>
-                                    {(getFilteredPositions() || []).length > 0 ? (getFilteredPositions() || []).map(p => (
+                                    {positionsLoading ? (
+                                        <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', color: '#fb923c', fontWeight: 600 }}>
+                                            Loading positions from server...
+                                        </div>
+                                    ) : (getFilteredPositions() || []).length > 0 ? (getFilteredPositions() || []).map(p => (
                                         <label key={p.id} style={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -5104,11 +5122,15 @@ const ModalForm = () => {
                                         </label>
                                     ))
                                 }
-                                {getFilteredReportingPositions().length === 0 && (
+                                {positionsLoading ? (
+                                    <div style={{ color: '#881337', fontStyle: 'italic', fontSize: '0.85rem', padding: '1.5rem', gridColumn: '1/-1', textAlign: 'center', fontWeight: 600 }}>
+                                        Loading positions from server...
+                                    </div>
+                                ) : getFilteredReportingPositions().length === 0 ? (
                                     <div style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.85rem', padding: '1rem', gridColumn: '1/-1', textAlign: 'center' }}>
                                         No reporting positions available for the selected filters.
                                     </div>
-                                )}
+                                ) : null}
                             </div>
                             <p className="form-help-text" style={{ marginTop: '0.75rem' }}>Select one or more positions that this position reports to (Matrix Reporting Support).</p>
                         </div>
@@ -5860,7 +5882,7 @@ const ModalForm = () => {
                                 <label className="premium-label"><Users size={14} /> Employee</label>
                                 <div className="premium-input-wrapper">
                                     <SearchableSelect
-                                        options={allEmployees?.map(e => ({ id: e.id, name: `${e.name} (${e.employee_code})` })) || []}
+                                        endpoint="employees/all_data"
                                         value={formData.employee || ''}
                                         onChange={(e) => setFormData({ ...formData, employee: e.target.value })}
                                         placeholder="Select Employee..."
@@ -6014,7 +6036,7 @@ const ModalForm = () => {
                                 <div className="form-group full-width">
                                     <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>Employee</label>
                                     <SearchableSelect
-                                        options={allEmployees?.map(e => ({ id: e.id, name: e.name })) || []}
+                                        endpoint="employees/all_data"
                                         value={formData.employee || ''}
                                         onChange={(e) => setFormData({ ...formData, employee: e.target.value })}
                                         placeholder="Select Employee..."
@@ -6136,7 +6158,7 @@ const ModalForm = () => {
                                     ) : (
                                         <div className="premium-input-wrapper">
                                             <SearchableSelect
-                                                options={allEmployees?.map(e => ({ id: e.id, name: `${e.name} (${e.employee_code})` })) || []}
+                                                endpoint="employees/all_data"
                                                 value={formData.employee || ''}
                                                 onChange={(e) => setFormData({ ...formData, employee: e.target.value })}
                                                 placeholder="Select Employee..."
@@ -6296,7 +6318,7 @@ const ModalForm = () => {
                                 ) : (
                                     <div className="premium-input-wrapper">
                                         <SearchableSelect
-                                            options={allEmployees?.map(e => ({ id: e.id, name: `${e.name} (${e.employee_code})` })) || []}
+                                            endpoint="employees/all_data"
                                             value={formData.employee || ''}
                                             onChange={(e) => setFormData({ ...formData, employee: e.target.value, _emp_hist_hydrated: false })}
                                             placeholder="Select Employee..."
@@ -6418,7 +6440,7 @@ const ModalForm = () => {
                                 ) : (
                                     <div className="premium-input-wrapper">
                                         <SearchableSelect
-                                            options={allEmployees?.map(e => ({ id: e.id, name: `${e.name} (${e.employee_code})` })) || []}
+                                            endpoint="employees/all_data"
                                             value={formData.employee || ''}
                                             onChange={(e) => setFormData({ ...formData, employee: e.target.value })}
                                             placeholder="Select Employee..."
@@ -6517,7 +6539,7 @@ const ModalForm = () => {
                                 ) : (
                                     <div className="premium-input-wrapper">
                                         <SearchableSelect
-                                            options={allEmployees?.map(e => ({ id: e.id, name: `${e.name} (${e.employee_code})` })) || []}
+                                            endpoint="employees/all_data"
                                             value={formData.employee || ''}
                                             onChange={(e) => setFormData({ ...formData, employee: e.target.value })}
                                             placeholder="Select Employee..."
@@ -6594,7 +6616,7 @@ const ModalForm = () => {
                                 ) : (
                                     <div className="premium-input-wrapper">
                                         <SearchableSelect
-                                            options={allEmployees?.map(e => ({ id: e.id, name: `${e.name} (${e.employee_code})` })) || []}
+                                            endpoint="employees/all_data"
                                             value={formData.employee || ''}
                                             onChange={(e) => setFormData({ ...formData, employee: e.target.value })}
                                             placeholder="Select Employee..."
@@ -6671,7 +6693,7 @@ const ModalForm = () => {
                                 ) : (
                                     <div className="premium-input-wrapper">
                                         <SearchableSelect
-                                            options={allEmployees?.map(e => ({ id: e.id, name: `${e.name} (${e.employee_code})` })) || []}
+                                            endpoint="employees/all_data"
                                             value={formData.employee || ''}
                                             onChange={(e) => setFormData({ ...formData, employee: e.target.value })}
                                             placeholder="Select Employee..."

@@ -665,8 +665,15 @@ const OfficeBlock = ({ office, onView }) => {
 const WorkforceTracker = () => {
     const {
         allEmployees, projects, offices, departments, sections, positionTypes, roles, roleSubGroups,
-        loading, handleViewProfile, orgLevels
+        loading, handleViewProfile, orgLevels,
+        loadEmployeesIfNeeded, employeesLoading
     } = useData();
+
+    useEffect(() => {
+        if (loadEmployeesIfNeeded) {
+            loadEmployeesIfNeeded();
+        }
+    }, [loadEmployeesIfNeeded]);
 
     const [segregationPattern, setSegregationPattern] = useState('project');
     const [search, setSearch] = useState('');
@@ -847,7 +854,7 @@ const WorkforceTracker = () => {
         setSelPosType(''); setSelRole(''); setSelSubGroup('');
     };
 
-    const isDataLoading = loading || (!allEmployees || allEmployees.length === 0 || !projects || projects.length === 0);
+    const isDataLoading = loading || employeesLoading || (!allEmployees || allEmployees.length === 0 || !projects || projects.length === 0);
 
     if (isDataLoading) return (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: 16 }}>
