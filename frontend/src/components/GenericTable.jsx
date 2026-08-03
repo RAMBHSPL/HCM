@@ -231,11 +231,18 @@ const GenericTable = ({ renderTableData, customData = null }) => {
         }
     }, [filters, activeSection]);
 
+    // Track section changes explicitly to clear filter cache
+    const activeSectionRef = useRef(activeSection);
+    if (activeSectionRef.current !== activeSection) {
+        activeSectionRef.current = activeSection;
+        lastFetchFilters.current = null;
+    }
+
     // Debounced Server-side Search & Filtering
     useEffect(() => {
         // PERF OPTIMIZATION: 
         // 1. Dropdowns/Filters (Status, Office, etc) should be INSTANT (0 delay)
-        // 2. Search box should be DEBOUNCED (300ms) to prevent server spam while typing.
+        // 2. Search box should be DEBOUNCED (150ms) to prevent server spam while typing.
 
         const prevFiltersString = lastFetchFilters.current;
         const prevFilters = prevFiltersString ? JSON.parse(prevFiltersString) : null;
@@ -245,7 +252,7 @@ const GenericTable = ({ renderTableData, customData = null }) => {
         const delay = (isFirstRender.current || !searchChanged) ? 0 : 150;
         const currentFilterString = JSON.stringify(filters);
 
-        // CRITICAL: Stop redundant fetches from re-renders or strict mode
+        // CRITICAL: Stop redundant fetches from re-renders or strict mode in the same section
         if (lastFetchFilters.current === currentFilterString) {
             isFirstRender.current = false;
             return;
@@ -253,14 +260,11 @@ const GenericTable = ({ renderTableData, customData = null }) => {
 
         const delayDebounceFn = setTimeout(() => {
             if (pagination && !customData) {
-                // Double check filters haven't changed while we were waiting
-                if (lastFetchFilters.current === currentFilterString && !sectionChangedSinceLastFetch) return;
+                // Check if we have valid cached data for THIS active section specifically
+                const hasCurrentSectionCache = contextData && contextData.length > 0 && activeSectionRef.current === activeSection;
+                const isSilentFetch = hasCurrentSectionCache && sessionStorage.getItem(`last_fetch_${activeSection}`) !== null;
 
-                const isRefilter = sessionStorage.getItem(`last_fetch_${activeSection}`) !== null;
-
-                // Fetch silently if we already have some data/context (from cache or previous visit)
-                const hasExistingData = contextData && contextData.length > 0;
-                fetchData(isRefilter || hasExistingData, true, 1, filters).then((res) => {
+                fetchData(isSilentFetch, true, 1, filters).then((res) => {
                     if (res === null) {
                         // Fetch failed (e.g. backend 500 error). Clear filter ref to allow auto-retry.
                         lastFetchFilters.current = null;
@@ -279,8 +283,10 @@ const GenericTable = ({ renderTableData, customData = null }) => {
             }
         }, delay);
 
+
         return () => clearTimeout(delayDebounceFn);
     }, [filters, activeSection]); // ONLY depend on filters and section change
+
 
     const handleExport = () => {
         if (!filteredData || filteredData.length === 0) return;
@@ -366,9 +372,10 @@ const GenericTable = ({ renderTableData, customData = null }) => {
         return mapping[activeSection] || [];
     };
 
-    // 1. Initial Load: Show full spinner if no data or context says we are loading
+    // 1. Initial Load & Transition: Show spinner whenever loading, syncing, or section just changed
     const sectionChangedSinceLastFetch = lastFetchFilters.current === null;
-    const isLoadingAny = loading || (isSyncing === activeSection) || (!customData && contextData === null && (isFirstRender.current || sectionChangedSinceLastFetch));
+    const isLoadingAny = loading || (isSyncing === activeSection) || sectionChangedSinceLastFetch || isFirstRender.current || (contextData === null);
+
 
     // SMART DATA ENGINE: 
     // Prioritize contextData (the filtered set) if available (even if empty).
@@ -784,8 +791,8 @@ const GenericTable = ({ renderTableData, customData = null }) => {
     const containerMinHeight = (isLoadingAny && (!rawData || rawData.length === 0)) ? '75vh' : '400px';
 
     // DIRECT CALCULATION: Should we show the loading spinner?
-    // We show it if we are loading/syncing AND we don't have data yet.
-    const shouldShowFullSpinner = isLoadingAny && (!rawData || rawData.length === 0);
+    // Show spinner if loading/syncing or if section just changed and we don't have active data
+    const shouldShowFullSpinner = isLoadingAny && (!rawData || rawData.length === 0 || sectionChangedSinceLastFetch);
 
     const [showUpdateOverlay, setShowUpdateOverlay] = useState(false);
 
@@ -796,13 +803,14 @@ const GenericTable = ({ renderTableData, customData = null }) => {
     useEffect(() => {
         let timer;
         if (shouldShowFullSpinner) {
-            // Threshold of 150ms prevents "flicker" on fast transitions/cached data
-            timer = setTimeout(() => setShowSpinner(true), 150);
+            // Show spinner immediately on section switch or first render, no 150ms delay to prevent "No records found" flash
+            setShowSpinner(true);
         } else {
             setShowSpinner(false);
         }
         return () => clearTimeout(timer);
     }, [shouldShowFullSpinner]);
+
 
     useEffect(() => {
         console.log('🔵 [GenericTable] Mounted for section:', activeSection);

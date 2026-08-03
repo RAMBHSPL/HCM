@@ -385,8 +385,26 @@ export const DataProvider = ({ children }) => {
                             setModalType(section.name);
                             setFormData(hydrateItem(section.name, item));
                             setShowModal(true);
-                        } else if (data.length > 0) {
-                            navigate(`/${path}`);
+                        } else {
+                            // Fetch directly from server to support page refresh and direct link sharing!
+                            (async () => {
+                                try {
+                                    const endpoint = section.id === 'positions'
+                                        ? `positions/${itemId}/details/`
+                                        : `${section.endpoint}/${itemId}/`;
+                                    const result = await api.get(endpoint);
+                                    if (result) {
+                                        setModalType(section.name);
+                                        setFormData(hydrateItem(section.name, result));
+                                        setShowModal(true);
+                                    } else {
+                                        navigate(`/${path}`);
+                                    }
+                                } catch (err) {
+                                    console.error(`Failed to fetch edit item details for ${section.name}:`, err);
+                                    navigate(`/${path}`);
+                                }
+                            })();
                         }
                     }
                 }
@@ -400,7 +418,8 @@ export const DataProvider = ({ children }) => {
             // Update path ref
             lastPathRef.current = location.pathname;
         }
-    }, [location.pathname, data.length]); // Synchronize when URL or data availability triggers changes
+    }, [location.pathname]); // Synchronize when URL changes (removed data.length to prevent render loops)
+
 
     // Ensure sidebar is open on desktop resizing or initial load if missed
     useEffect(() => {
@@ -447,7 +466,7 @@ export const DataProvider = ({ children }) => {
                         const sessionKey = `active_session_${userData.id}`;
                         const activeSession = JSON.parse(localStorage.getItem(sessionKey));
 
-                        if (activeSession && activeSession.tabId !== tabId && (Date.now() - activeSession.lastSeen < 15000)) {
+                        if (activeSession && activeSession.tabId !== tabId && (Date.now() - activeSession.lastSeen < 15000) && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
                             console.warn("Attempted to open a duplicate tab, blocking...");
                             sessionStorage.removeItem('authToken');
                             localStorage.removeItem('user');
@@ -522,7 +541,7 @@ export const DataProvider = ({ children }) => {
                 const sessionKey = `active_session_${res.user.id}`;
                 const activeSession = JSON.parse(localStorage.getItem(sessionKey));
 
-                if (activeSession && activeSession.tabId !== tabId && (Date.now() - activeSession.lastSeen < 15000)) {
+                if (activeSession && activeSession.tabId !== tabId && (Date.now() - activeSession.lastSeen < 15000) && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
                     throw new Error('User already logged in in another tab. Please close other tabs first.');
                 }
 
@@ -868,13 +887,17 @@ export const DataProvider = ({ children }) => {
         console.log(`[Navigation] Transitioning to: ${id.toUpperCase()}`);
 
         // BOUNCE PROTECTION: If already on the base path of this section, ignore double-taps
-        // If on a sub-page (edit/view), navigate back but don't clear everything
         if (id === currentPath) {
             if (pathParts.length > 1) {
                 navigate(id === 'dashboard' ? '/' : `/${id}`);
             }
             return;
         }
+
+        // SYNCHRONOUS STATE UPDATE: Update active section immediately so GenericTable & Sidebar reflect the new route instantly
+        setActiveSection(id);
+        activeSectionRef.current = id;
+        lastSyncRef.current = id;
 
         // PERFORMANCE: ⚡ INSTANT LOAD pattern
         const cachedData = pageCache.current.get(id);
@@ -901,6 +924,7 @@ export const DataProvider = ({ children }) => {
         setShowEmployeeProfile(false);
         setSelectedEmployee(null);
     };
+
 
     const loadEmployeesIfNeeded = async (force = false) => {
         if ((employeesLoaded && !force) || employeesLoading) return;
@@ -1336,6 +1360,9 @@ export const DataProvider = ({ children }) => {
                 setGeoLandmarks(universalSort(geoLandmarksRes));
 
                 console.log('✅ [Performance] Wave 3 complete. All data loaded!');
+                // Background pre-fetch lazy data to ensure instant modal opening
+                loadPositionsIfNeeded();
+                loadEmployeesIfNeeded();
             }, 4000);
 
         } catch (err) {
@@ -1538,7 +1565,7 @@ export const DataProvider = ({ children }) => {
             }
 
             Object.keys(hydratedItem).forEach(key => {
-                if (key === 'segments') return;
+                if (key === 'segments' || key.endsWith('_details')) return;
                 const val = hydratedItem[key];
 
                 // Case 1: Single Object (ForeignKey)

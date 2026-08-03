@@ -199,6 +199,11 @@ const BulkUploadModal = ({ isOpen, onClose, section }) => {
 
                 // Pre-validation
                 const mandatoryFields = {
+                    'offices': ['Office Name', 'Structural Tier'],
+                    'departments': ['Department Name', 'Department Code'],
+                    'sections': ['Section Name', 'Section Code'],
+                    'positions': ['Position Name', 'Position Code'],
+                    'projects': ['Project Name', 'Project Code'],
                     'employees': ['name', 'email', 'phone', 'employee_code', 'date_of_birth', 'gender', 'employment_type', 'hire_date'],
                     'geo-continents': ['Continent', 'Continent Code'],
                     'geo-countries': ['Continent', 'Country', 'Country Code'],
@@ -206,6 +211,41 @@ const BulkUploadModal = ({ isOpen, onClose, section }) => {
                     'geo-districts': ['Continent', 'Country', 'State', 'District', 'District Code'],
                     'geo-mandals': ['Continent', 'Country', 'State', 'District', 'Mandal', 'Mandal Code'],
                     'geo-clusters': ['Continent', 'Country', 'State', 'District', 'Mandal', 'Cluster', 'Cluster Code']
+                };
+
+                // Helper for lenient mandatory field check across normalized header variants
+                const checkMandatoryField = (row, fieldName) => {
+                    if (fieldName === 'Office Name') {
+                        return row['Office Name'] || row['name'] || row['Office'] || row['Office Name *'];
+                    }
+                    if (fieldName === 'Structural Tier') {
+                        return row['Structural Tier'] || row['tier'] || row['level'] || row['Structural Tier *'];
+                    }
+                    if (fieldName === 'Department Name') {
+                        return row['Department Name'] || row['name'] || row['Department'] || row['Department Name *'];
+                    }
+                    if (fieldName === 'Department Code') {
+                        return row['Department Code'] || row['code'] || row['Department Code *'];
+                    }
+                    if (fieldName === 'Section Name') {
+                        return row['Section Name'] || row['name'] || row['Section'] || row['Section Name *'];
+                    }
+                    if (fieldName === 'Section Code') {
+                        return row['Section Code'] || row['code'] || row['Section Code *'];
+                    }
+                    if (fieldName === 'Position Name') {
+                        return row['Position Name'] || row['name'] || row['Position'] || row['Position Name *'];
+                    }
+                    if (fieldName === 'Position Code') {
+                        return row['Position Code'] || row['code'] || row['Position Code *'];
+                    }
+                    if (fieldName === 'Project Name') {
+                        return row['Project Name'] || row['name'] || row['Project'] || row['Project Name *'];
+                    }
+                    if (fieldName === 'Project Code') {
+                        return row['Project Code'] || row['code'] || row['Project Code *'];
+                    }
+                    return row[fieldName];
                 };
 
 
@@ -225,7 +265,8 @@ const BulkUploadModal = ({ isOpen, onClose, section }) => {
                     }
 
                     for (const field of fieldsToCheck) {
-                        const val = String(row[field] || '').trim();
+                        const rawVal = checkMandatoryField(row, field);
+                        const val = String(rawVal || '').trim();
                         if (!val || val === '-') {
                             preValidationErrors.push({ row: idx + 2, reason: `${field} is missing.`, data: row });
                             break;
@@ -257,8 +298,15 @@ const BulkUploadModal = ({ isOpen, onClose, section }) => {
 
 
                     try {
-                        const targetEndpoint = section === 'employees' ? 'employees/' : `geo/bulk-upload/?section=${section}`;
+                        let targetEndpoint;
+                        if (['offices', 'departments', 'sections', 'positions', 'projects', 'employees'].includes(section)) {
+                            targetEndpoint = `${section}/bulk-upload/`;
+                        } else {
+                            targetEndpoint = `geo/bulk-upload/?section=${section}`;
+                        }
                         const response = await api.post(targetEndpoint, chunk, { signal });
+
+
 
 
                         // Always accumulate counts, even if there are partial errors in the batch
@@ -306,7 +354,65 @@ const BulkUploadModal = ({ isOpen, onClose, section }) => {
     const downloadTemplate = () => {
         let headers = {};
         const s = (section || '').toLowerCase();
-        if (s.includes('clusters')) {
+        if (s.includes('offices')) {
+            headers = {
+                'Office Name *': 'Regional Office VSKP',
+                'Structural Tier *': 'L4',
+                'SAC': 'RO-VSKP-01',
+                'Office Type': 'Permanent',
+                'Vehicle Code': 'VEH-101',
+                'Vehicle No': 'AP39TV1234',
+                'Status': 'Active',
+                'Parent Office': 'Head Office',
+                'Cluster': 'Gajuwaka-1',
+                'Location': 'Visakhapatnam',
+                'Address': '123 Main Street',
+                'Phone': '9876543210',
+                'Email': 'vskp.office@example.com'
+            };
+        } else if (s.includes('departments')) {
+            headers = {
+                'Department Name *': 'Operations',
+                'Department Code *': 'DEPT-OPS',
+                'Office Name *': 'Head Office',
+                'Status': 'Active'
+            };
+        } else if (s.includes('sections')) {
+            headers = {
+                'Section Name *': 'Field Ops',
+                'Section Code *': 'SEC-FO',
+                'Department Name *': 'Operations',
+                'Status': 'Active'
+            };
+        } else if (s.includes('positions')) {
+            headers = {
+                'Position Title *': 'Field Officer',
+                'Position Code *': 'POS-FO-01',
+                'Position Type': 'Primary',
+                'Role Name *': 'Field Operator',
+                'Role Group': 'Operations Group',
+                'Assign to Office / Unit': 'Regional Office VSKP',
+                'Department': 'Operations',
+                'Section / Team': 'Field Ops',
+                'Job Profile': 'Field Engineer',
+                'Designation Rank / Level': 'L2',
+                'Status': 'Active'
+            };
+        } else if (s.includes('projects')) {
+            headers = {
+                'Project Name *': '108 Ambulance Project',
+                'Project Code *': 'PRJ-108',
+                'Description': 'Emergency Response Service',
+                'Client Type': 'Government',
+                'Project Type': 'Healthcare',
+                'Has Segments': 'No',
+                'Location': 'Andhra Pradesh',
+                'Status': 'Active'
+            };
+        }
+
+ else if (s.includes('clusters')) {
+
             headers = {
                 'Continent Name': 'Asia',
                 'Country Name': 'India',

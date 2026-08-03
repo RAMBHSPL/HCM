@@ -582,6 +582,29 @@ class OfficeSerializer(serializers.ModelSerializer):
     project_id = serializers.SerializerMethodField()
     project_code = serializers.SerializerMethodField()
     project_name = serializers.SerializerMethodField()
+    office_type_display = serializers.CharField(source='get_office_type_display', read_only=True)
+    # Explicit safe date fields: MySQL sometimes returns datetime objects for DATE columns,
+    # which DRF's built-in DateField rejects with an AssertionError. SerializerMethodField
+    # avoids the internal type-checking assertion by returning a plain string.
+    start_date = serializers.SerializerMethodField()
+    status_date = serializers.SerializerMethodField()
+
+    def get_start_date(self, obj):
+        val = getattr(obj, 'start_date', None)
+        if val is None:
+            return None
+        # If it's a datetime, extract just the date portion
+        if hasattr(val, 'date'):
+            return val.date().isoformat()
+        return str(val)
+
+    def get_status_date(self, obj):
+        val = getattr(obj, 'status_date', None)
+        if val is None:
+            return None
+        if hasattr(val, 'date'):
+            return val.date().isoformat()
+        return str(val)
 
     def _get_projects_cached(self, obj):
         """Share prefetch cache so all 4 project fields use a single DB hit per object."""
@@ -660,6 +683,7 @@ class LightOfficeSerializer(serializers.ModelSerializer):
     project_code = serializers.SerializerMethodField()
     project_name = serializers.SerializerMethodField()
     code = serializers.CharField(source='sac', required=False, allow_null=True)
+    office_type_display = serializers.CharField(source='get_office_type_display', read_only=True)
 
     def _get_projects_cached(self, obj):
         if not hasattr(obj, '_cached_projects'):
@@ -689,7 +713,7 @@ class LightOfficeSerializer(serializers.ModelSerializer):
             'level_display', 'status', 'country_name', 'state_name', 'district_name', 'mandal_name',
             'address', 'latitude', 'longitude', 'phone', 'email', 'location', 'facility_master', 'cluster',
             'registered_name', 'din_no', 'register_id', 'status_date', 'start_date', 'project_ids', 'project_id',
-            'project_code', 'project_name'
+            'project_code', 'project_name', 'office_type', 'office_type_display'
         ]
 
 class FacilitySerializer(serializers.ModelSerializer):
@@ -732,6 +756,28 @@ class SectionSerializer(serializers.ModelSerializer):
             'office', 'office_name', 'office_level', 'office_level_id', 
             'office_is_facility', 'project', 'project_name', 
             'description', 'status', 'start_date', 'created_at'
+        ]
+
+class LightDepartmentSerializer(serializers.ModelSerializer):
+    office_name = serializers.ReadOnlyField(source='office.name')
+    office_level = serializers.ReadOnlyField(source='office.level.name')
+    office_level_id = serializers.ReadOnlyField(source='office.level.id')
+    office_is_facility = serializers.ReadOnlyField(source='office.is_facility')
+    office_state = serializers.ReadOnlyField(source='office.state_name')
+    office_district = serializers.ReadOnlyField(source='office.district_name')
+    project_name = serializers.SerializerMethodField()
+
+    def get_project_name(self, obj):
+        if obj.project and obj.project.is_currently_active:
+            return obj.project.name
+        return None
+
+    class Meta:
+        model = Department
+        fields = [
+            'id', 'name', 'code', 'office', 'office_name', 'office_level', 'office_level_id', 
+            'office_is_facility', 'office_state', 'office_district', 'project', 'project_name', 
+            'description', 'status', 'created_at'
         ]
 
 class DepartmentSerializer(serializers.ModelSerializer):

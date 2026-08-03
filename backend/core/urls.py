@@ -16,7 +16,13 @@ from .views import (
 )
 from .dashboard_views import DashboardStatsView
 
-router = DefaultRouter()
+class OptionalSlashRouter(DefaultRouter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.trailing_slash = '/?'
+
+router = OptionalSlashRouter()
+
 router.register(r'reactivations', BlockedEmployeeViewSet, basename='blocked-employee')
 router.register(r'login-hits', LoginHitViewSet)
 router.register(r'account-block-history', AccountBlockHistoryViewSet)

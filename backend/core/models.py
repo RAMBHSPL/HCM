@@ -106,10 +106,17 @@ class FacilityMaster(models.Model):
         super().save(*args, **kwargs)
     def __str__(self): return self.name
 
+OFFICE_TYPE_CHOICES = [
+    ('Permanent', 'Permanent'),
+    ('Mobile', 'Mobile'),
+    ('Camp', 'Camp'),
+]
+
 class Office(models.Model):
     registered_name = models.CharField(max_length=255, blank=True, null=True)
     name = models.CharField(max_length=255, unique=True)
     sac = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    office_type = models.CharField(max_length=50, choices=OFFICE_TYPE_CHOICES, blank=True, null=True)
     vehicle_code = models.CharField(max_length=50, blank=True, null=True)
     vehicle_no = models.CharField(max_length=50, blank=True, null=True)
     level = models.ForeignKey(OrganizationLevel, on_delete=models.SET_NULL, related_name='offices', null=True, blank=True)
@@ -1275,3 +1282,35 @@ def sync_admin_to_audit_log(sender, instance, created, **kwargs):
         ip_address='Backend Server (Django Admin)',
         user_agent='System Administrator Override'
     )
+
+
+# Automatically clear Django cache on any key model modification to avoid stale data
+@receiver(post_save, sender=Office)
+@receiver(post_delete, sender=Office)
+@receiver(post_save, sender=Facility)
+@receiver(post_delete, sender=Facility)
+@receiver(post_save, sender=Department)
+@receiver(post_delete, sender=Department)
+@receiver(post_save, sender=Section)
+@receiver(post_delete, sender=Section)
+@receiver(post_save, sender=GeoMandal)
+@receiver(post_delete, sender=GeoMandal)
+@receiver(post_save, sender=GeoCluster)
+@receiver(post_delete, sender=GeoCluster)
+@receiver(post_save, sender=VisitingLocation)
+@receiver(post_delete, sender=VisitingLocation)
+@receiver(post_save, sender=Landmark)
+@receiver(post_delete, sender=Landmark)
+@receiver(post_save, sender=Position)
+@receiver(post_delete, sender=Position)
+@receiver(post_save, sender=Employee)
+@receiver(post_delete, sender=Employee)
+@receiver(post_save, sender=Project)
+@receiver(post_delete, sender=Project)
+def clear_cache_on_change(sender, instance, **kwargs):
+    from django.core.cache import cache
+    try:
+        cache.clear()
+    except Exception:
+        pass
+

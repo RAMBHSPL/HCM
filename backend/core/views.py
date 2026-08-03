@@ -14,7 +14,7 @@ from .models import (
 from django.db import transaction
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import (
-    OfficeSerializer, LightOfficeSerializer, FacilitySerializer, DepartmentSerializer, SectionSerializer, JobFamilySerializer, 
+    OfficeSerializer, LightOfficeSerializer, FacilitySerializer, DepartmentSerializer, LightDepartmentSerializer, SectionSerializer, JobFamilySerializer, 
     RoleTypeSerializer, RoleSerializer, JobSerializer, TaskSerializer, TaskUrlSerializer,
     PositionLevelSerializer, PositionTypeSerializer, ShiftSerializer,
     PositionSerializer, PositionDetailSerializer, EmployeeSerializer, EmployeeListSerializer, ProjectSerializer, FacilityMasterSerializer, IndianVillageSerializer, 
@@ -270,7 +270,12 @@ class ActivityLoggingMixin:
     def perform_create(self, serializer):
         instance = serializer.save()
         self._log_activity('CREATE', instance)
-        self._log_audit('CREATE', instance, None, serializer.data)
+        try:
+            self._log_audit('CREATE', instance, None, serializer.data)
+        except Exception:
+            # Silently skip audit logging if serializer.data raises (e.g. DateField/DateTimeField mismatch)
+            self._log_audit('CREATE', instance, None, {'id': str(instance.id)})
+
         
     def perform_update(self, serializer):
         try:
@@ -282,11 +287,16 @@ class ActivityLoggingMixin:
             old_data = {}
             
         instance = serializer.save()
-        new_data = serializer.data
-        changes = {k: {'old': old_data.get(k), 'new': v} for k, v in new_data.items() if old_data.get(k) != v}
+        try:
+            new_data = serializer.data
+            changes = {k: {'old': old_data.get(k), 'new': v} for k, v in new_data.items() if old_data.get(k) != v}
+        except Exception:
+            new_data = {'id': str(instance.id)}
+            changes = new_data
         
         self._log_activity('EDIT', instance)
         self._log_audit('UPDATE', instance, old_data, changes)
+
 
     def perform_destroy(self, instance):
         try:
@@ -1222,9 +1232,23 @@ class GeoMandalViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVie
 
     @action(detail=False, methods=['get'])
     def all_data(self, request):
+        from django.core.cache import cache
+        import hashlib
+
+        user_id = getattr(request.user, 'id', None)
+        user_identifier = f"user_{user_id}" if user_id else "anon"
+        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
+        cache_key = f"hcm_mandal_all_data_{user_identifier}_{query_hash}"
+
+        cached_res = cache.get(cache_key)
+        if cached_res is not None:
+            return Response(cached_res)
+
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        res_data = serializer.data
+        cache.set(cache_key, res_data, 300)
+        return Response(res_data)
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1301,9 +1325,23 @@ class GeoClusterViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVi
 
     @action(detail=False, methods=['get'])
     def all_data(self, request):
+        from django.core.cache import cache
+        import hashlib
+
+        user_id = getattr(request.user, 'id', None)
+        user_identifier = f"user_{user_id}" if user_id else "anon"
+        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
+        cache_key = f"hcm_cluster_all_data_{user_identifier}_{query_hash}"
+
+        cached_res = cache.get(cache_key)
+        if cached_res is not None:
+            return Response(cached_res)
+
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        res_data = serializer.data
+        cache.set(cache_key, res_data, 300)
+        return Response(res_data)
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1353,9 +1391,23 @@ class VisitingLocationViewSet(ScopedViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def all_data(self, request):
+        from django.core.cache import cache
+        import hashlib
+
+        user_id = getattr(request.user, 'id', None)
+        user_identifier = f"user_{user_id}" if user_id else "anon"
+        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
+        cache_key = f"hcm_visloc_all_data_{user_identifier}_{query_hash}"
+
+        cached_res = cache.get(cache_key)
+        if cached_res is not None:
+            return Response(cached_res)
+
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        res_data = serializer.data
+        cache.set(cache_key, res_data, 300)
+        return Response(res_data)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -1374,12 +1426,6 @@ class VisitingLocationViewSet(ScopedViewSetMixin, viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         return super().destroy(request, *args, **kwargs)
-
-    @action(detail=False, methods=['get'])
-    def all_data(self, request):
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
 
     def get_queryset(self):
         queryset = super().get_queryset().select_related(
@@ -1426,9 +1472,23 @@ class LandmarkViewSet(ScopedViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def all_data(self, request):
+        from django.core.cache import cache
+        import hashlib
+
+        user_id = getattr(request.user, 'id', None)
+        user_identifier = f"user_{user_id}" if user_id else "anon"
+        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
+        cache_key = f"hcm_landmark_all_data_{user_identifier}_{query_hash}"
+
+        cached_res = cache.get(cache_key)
+        if cached_res is not None:
+            return Response(cached_res)
+
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        res_data = serializer.data
+        cache.set(cache_key, res_data, 300)
+        return Response(res_data)
 
     def get_queryset(self):
         queryset = super().get_queryset().select_related(
@@ -1502,6 +1562,10 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
         status_param = self.request.query_params.get('status')
         if status_param and status_param != 'all':
             queryset = queryset.filter(status=status_param)
+            
+        office_type = self.request.query_params.get('office_type')
+        if office_type and office_type != 'all':
+            queryset = queryset.filter(office_type=office_type)
             
         office_id = self.request.query_params.get('id') or self.request.query_params.get('office_id')
         if office_id and office_id != 'all' and str(office_id).isdigit():
@@ -1687,6 +1751,7 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
                         name = str(row.get('Office Name') or row.get('name') or '').strip()
                         code = str(row.get('SAC') or row.get('sac') or row.get('Office Code') or row.get('code') or '').strip()
                         vehicle_code = str(row.get('Vehicle Code') or row.get('vehicle_code') or '').strip()
+                        vehicle_no = str(row.get('Vehicle No') or row.get('Vehicle Number') or row.get('vehicle_no') or '').strip()
                         if not name: raise Exception("Office Name is required.")
 
                         # Level resolution
@@ -1720,6 +1785,13 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
                             if not facility_master:
                                 raise Exception(f"Facility Template '{fm_val}' not found.")
 
+                        office_type_val = str(row.get('Office Type') or row.get('office_type') or '').strip()
+                        if office_type_val:
+                            ot_lower = office_type_val.lower()
+                            if 'mobile' in ot_lower: office_type_val = 'Mobile'
+                            elif 'camp' in ot_lower: office_type_val = 'Camp'
+                            elif 'perm' in ot_lower: office_type_val = 'Permanent'
+
                         defaults = {
                             'level': level,
                             'cluster': cluster,
@@ -1731,8 +1803,13 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
                             'email': str(row.get('Email') or row.get('email') or '').strip() or None,
                             'status': str(row.get('Status') or 'Active').strip(),
                             'start_date': str(row.get('Start Date') or row.get('Operational Start Date') or timezone.now().date()).strip(),
-                            'vehicle_code': vehicle_code or None
+                            'vehicle_code': vehicle_code or None,
+                            'vehicle_no': vehicle_no or None
                         }
+
+                        if office_type_val:
+                            defaults['office_type'] = office_type_val
+
                         
                         # Store the provided code for pass 2 processing
                         if code: defaults['sac'] = code
@@ -1899,40 +1976,43 @@ class DepartmentViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVi
         is provided, return all departments for that specific office directly
         from the DB - guaranteeing dropdowns always show correct options.
         """
-        from django.db.models import Prefetch
+        from django.core.cache import cache
+        import hashlib
+
+        user_id = getattr(request.user, 'id', None)
+        user_identifier = f"user_{user_id}" if user_id else "anon"
+        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
+        cache_key = f"hcm_dept_all_data_{user_identifier}_{query_hash}"
+
+        cached_res = cache.get(cache_key)
+        if cached_res is not None:
+            return Response(cached_res)
+
         office_param = request.query_params.get('office') or request.query_params.get('office_id')
         if office_param and office_param != 'all' and str(office_param).isdigit():
             # Direct unscoped fetch for a specific office (used by Add Section / Add Position forms)
             queryset = (
                 Department.objects.filter(office_id=office_param)
                 .select_related('office', 'office__level', 'project')
-                .prefetch_related(
-                    Prefetch(
-                        'sections',
-                        queryset=Section.objects.select_related('project')
-                    )
-                )
                 .order_by('name')
             )
             status_param = request.query_params.get('status')
             if status_param and status_param != 'all':
                 queryset = queryset.filter(status=status_param)
-            serializer = self.get_serializer(queryset, many=True)
-            return Response(serializer.data)
+            serializer = LightDepartmentSerializer(queryset, many=True)
+            res_data = serializer.data
+            cache.set(cache_key, res_data, 300)
+            return Response(res_data)
         # Otherwise fall back to the scoped list
         queryset = self.filter_queryset(self.get_queryset())
         queryset = (
             queryset
             .select_related('office', 'office__level', 'project')
-            .prefetch_related(
-                Prefetch(
-                    'sections',
-                    queryset=Section.objects.select_related('project')
-                )
-            )
         )
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        serializer = LightDepartmentSerializer(queryset, many=True)
+        res_data = serializer.data
+        cache.set(cache_key, res_data, 300)
+        return Response(res_data)
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -2085,6 +2165,18 @@ class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
         Bypass hierarchy scoping for dropdown use. When an explicit department ID
         is provided, return all sections for that department directly from the DB.
         """
+        from django.core.cache import cache
+        import hashlib
+
+        user_id = getattr(request.user, 'id', None)
+        user_identifier = f"user_{user_id}" if user_id else "anon"
+        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
+        cache_key = f"hcm_sect_all_data_{user_identifier}_{query_hash}"
+
+        cached_res = cache.get(cache_key)
+        if cached_res is not None:
+            return Response(cached_res)
+
         dept_param = request.query_params.get('department')
         office_param = request.query_params.get('office') or request.query_params.get('office_id')
         base_qs = Section.objects.select_related(
@@ -2099,14 +2191,18 @@ class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
             if status_param and status_param != 'all':
                 queryset = queryset.filter(status=status_param)
             serializer = self.get_serializer(queryset, many=True)
-            return Response(serializer.data)
+            res_data = serializer.data
+            cache.set(cache_key, res_data, 300)
+            return Response(res_data)
         if office_param and office_param != 'all' and str(office_param).isdigit():
             queryset = base_qs.filter(department__office_id=office_param).order_by('name')
             status_param = request.query_params.get('status')
             if status_param and status_param != 'all':
                 queryset = queryset.filter(status=status_param)
             serializer = self.get_serializer(queryset, many=True)
-            return Response(serializer.data)
+            res_data = serializer.data
+            cache.set(cache_key, res_data, 300)
+            return Response(res_data)
         # Fallback: return scoped list
         queryset = self.filter_queryset(self.get_queryset())
         queryset = queryset.select_related(
@@ -2116,7 +2212,9 @@ class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
             'department__office__level'
         )
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        res_data = serializer.data
+        cache.set(cache_key, res_data, 300)
+        return Response(res_data)
 
 
     def get_queryset(self):
@@ -2721,6 +2819,8 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         dept_cache = {}
         section_cache = {}
         role_cache = {}
+        role_subgroup_cache = {}
+        pos_type_cache = {}
         job_cache = {}
         level_cache = {}
         created_positions = [] 
@@ -2740,11 +2840,32 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
                             raise Exception("Role Name is required.")
                         
                         if role_val not in role_cache:
-                            role_obj = Role.objects.filter(Q(code=role_val) | Q(name=role_val)).first()
+                            role_obj = Role.objects.filter(Q(code__iexact=role_val) | Q(name__iexact=role_val)).first()
                             if not role_obj:
                                 raise Exception(f"Role '{role_val}' not found.")
                             role_cache[role_val] = role_obj
                         role = role_cache[role_val]
+
+                        # 2b. Role Sub Group / Role Group
+                        rsg_val = str(row.get('Role Sub Group') or row.get('Role Group') or row.get('role_sub_group') or row.get('role_group') or '').strip()
+                        role_sub_group = None
+                        if rsg_val:
+                            if rsg_val not in role_subgroup_cache:
+                                from .models import RoleSubGroup
+                                rsg_obj = RoleSubGroup.objects.filter(Q(code__iexact=rsg_val) | Q(name__iexact=rsg_val)).first()
+                                role_subgroup_cache[rsg_val] = rsg_obj
+                            role_sub_group = role_subgroup_cache[rsg_val]
+
+                        # 2c. Position Type
+                        pt_val = str(row.get('Position Type') or row.get('position_type') or '').strip()
+                        position_type = None
+                        if pt_val:
+                            if pt_val not in pos_type_cache:
+                                from .models import PositionType
+                                pt_obj = PositionType.objects.filter(name__iexact=pt_val).first()
+                                pos_type_cache[pt_val] = pt_obj
+                            position_type = pos_type_cache[pt_val]
+
 
                         # 3. Relationship Resolution: Office
                         office_val = str(row.get('Assign to Office / Unit') or row.get('office') or '').strip()
@@ -2808,6 +2929,8 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
                             'department': dept,
                             'section': sec,
                             'role': role,
+                            'role_sub_group': role_sub_group,
+                            'position_type': position_type,
                             'job': job,
                             'level': level,
                             'status': str(row.get('status') or 'Active')
@@ -2815,6 +2938,7 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
                         start_date = str(row.get('Activation Date') or row.get('start_date') or '').strip()
                         if start_date and start_date != '-':
                             defaults['start_date'] = start_date
+
 
                         # 8. Unique Identification & Resolution
                         # Use 'id' if provided for rock-solid mass updates (allows changing codes/names)
@@ -3098,14 +3222,17 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         from django.core.cache import cache
         import hashlib
         
+        reports_to_me = request.query_params.get('reports_to_me', 'false').lower() == 'true'
         user_id = getattr(request.user, 'id', None)
-        user_identifier = f"user_{user_id}" if user_id else "anon"
-        auth = getattr(request, 'auth', None)
-        if hasattr(auth, 'id'):
-            user_identifier += f"_auth_{auth.id}"
+        
+        # Scope cache key per-user ONLY if user-specific filtering ('reports_to_me') is enabled
+        if reports_to_me and user_id:
+            user_identifier = f"user_{user_id}"
+        else:
+            user_identifier = "shared_dir"
             
         query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
-        cache_key = f"hcm_emp_list_v2_{user_identifier}_{query_hash}"
+        cache_key = f"hcm_emp_list_v3_{user_identifier}_{query_hash}"
         
         cached_res = cache.get(cache_key)
         if cached_res is not None:
@@ -3114,9 +3241,11 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         response = super().list(request, *args, **kwargs)
         
         if response.status_code == 200:
-            cache.set(cache_key, response.data, 30)
+            # Cache directory queries for 300 seconds (5 minutes) to support cron warm-cache loops & live queries
+            cache.set(cache_key, response.data, 300)
             
         return response
+
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -3689,11 +3818,78 @@ class ProjectViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
         if continent_id and continent_id != 'all':
             queryset = queryset.filter(assigned_offices__cluster__mandal__district__state__country__continent_ref_id=continent_id).distinct()
             
-        return queryset.select_related(
-            'assigned_level', 'cluster'
-        ).prefetch_related(
-            'assigned_offices', 'segments'
-        ).distinct()
+        return queryset
+
+    @action(detail=False, methods=['post'], url_path='bulk-upload')
+
+    def bulk_upload(self, request):
+        data = request.data
+        if not isinstance(data, list):
+            return Response({'error': 'Expected a list of data rows.'}, status=400)
+
+        created_count = 0
+        updated_count = 0
+        errors = []
+        level_cache = {}
+
+        with transaction.atomic():
+            for index, row in enumerate(data):
+                try:
+                    with transaction.atomic():
+                        name = str(row.get('Project Name') or row.get('name') or '').strip()
+                        code = str(row.get('Project Code') or row.get('code') or '').strip()
+                        if not name: raise Exception("Project Name is required.")
+
+                        # Level resolution if provided
+                        level_val = str(row.get('Assigned Level') or row.get('level') or '').strip()
+                        assigned_level = None
+                        if level_val:
+                            if level_val not in level_cache:
+                                lvl_obj = OrganizationLevel.objects.filter(Q(name__iexact=level_val) | Q(level_code__iexact=level_val)).first()
+                                level_cache[level_val] = lvl_obj
+                            assigned_level = level_cache[level_val]
+
+                        has_seg_val = str(row.get('Has Segments') or row.get('has_segments') or 'No').strip().lower()
+                        has_segments = has_seg_val in ['yes', 'true', '1']
+
+                        defaults = {
+                            'name': name,
+                            'description': str(row.get('Description') or row.get('description') or '').strip(),
+                            'client_type': str(row.get('Client Type') or row.get('client_type') or '').strip(),
+                            'project_type': str(row.get('Project Type') or row.get('project_type') or '').strip(),
+                            'location': str(row.get('Location') or row.get('location') or '').strip(),
+                            'has_segments': has_segments,
+                            'status': str(row.get('Status') or row.get('status') or 'Active').strip(),
+                            'assigned_level': assigned_level
+                        }
+
+                        start_date = str(row.get('Start Date') or row.get('start_date') or '').strip()
+                        if start_date and start_date != '-':
+                            defaults['start_date'] = start_date
+
+                        end_date = str(row.get('End Date') or row.get('end_date') or '').strip()
+                        if end_date and end_date != '-':
+                            defaults['end_date'] = end_date
+
+                        if code:
+                            obj, created = Project.objects.update_or_create(code=code, defaults=defaults)
+                        else:
+                            obj, created = Project.objects.update_or_create(name=name, defaults=defaults)
+
+                        if created: created_count += 1
+                        else: updated_count += 1
+
+                except Exception as e:
+                    errors.append({'row': index + 2, 'reason': str(e), 'data': row})
+
+        return Response({
+            'success': len(errors) == 0,
+            'created': created_count,
+            'updated': updated_count,
+            'errors': errors,
+            'total_processed': len(data)
+        })
+
 
 class IndianVillageViewSet(ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = IndianVillage.objects.all()

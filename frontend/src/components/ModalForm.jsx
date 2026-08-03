@@ -95,6 +95,7 @@ const ModalForm = () => {
     } = useData();
 
     const [officeSearchTerm, setOfficeSearchTerm] = useState('');
+    const [hierarchySearchTerm, setHierarchySearchTerm] = useState('');
 
     React.useEffect(() => {
         if ((modalType === 'Positions' || modalType === 'Employees') && loadPositionsIfNeeded) {
@@ -907,8 +908,19 @@ const ModalForm = () => {
             .filter(p => !formData._rep_office_filter || Number(p.office_id) === Number(formData._rep_office_filter))
             .filter(p => !formData._rep_pos_level_filter || Number(p.level_id) === Number(formData._rep_pos_level_filter));
 
+        // Apply hierarchy search filter
+        if (hierarchySearchTerm) {
+            const query = hierarchySearchTerm.toLowerCase().trim();
+            filtered = filtered.filter(p => 
+                (p.name && p.name.toLowerCase().includes(query)) ||
+                (p.code && p.code.toLowerCase().includes(query)) ||
+                (p.office_name && p.office_name.toLowerCase().includes(query)) ||
+                (p.role_name && p.role_name.toLowerCase().includes(query))
+            );
+        }
+
         // CRITICAL FIX: Ensure currently assigned reporting positions ALWAYS appear in the list,
-        // even if they don't match the active Level/Office/Rank filters.
+        // even if they don't match the active Level/Office/Rank filters or the search query.
         if (assignedReportingIds.length > 0) {
             const filteredIds = new Set(filtered.map(p => Number(p.id)));
 
@@ -917,7 +929,6 @@ const ModalForm = () => {
                     // Find the position in the full list to get its details
                     const fullPosDoc = positions.find(p => Number(p.id) === id);
                     if (fullPosDoc) {
-                        // console.log(`✅ [HierarchySync] Forcing inclusion of already-tagged position: ${fullPosDoc.name} (${fullPosDoc.code})`);
                         filtered.push(fullPosDoc);
                         filteredIds.add(id);
                     } else if (formData.reporting_to_details && Array.isArray(formData.reporting_to_details)) {
@@ -925,7 +936,6 @@ const ModalForm = () => {
                         // but it IS in the 'reporting_to_details' that came with the record, use that.
                         const detailPos = formData.reporting_to_details.find(p => Number(p.id) === id);
                         if (detailPos) {
-                            console.log(`✅ [HierarchySync] Using detailed fallback for position: ${detailPos.name}`);
                             filtered.push(detailPos);
                             filteredIds.add(id);
                         }
@@ -933,6 +943,15 @@ const ModalForm = () => {
                 }
             });
         }
+
+        // Sort: Selected positions first, then by name
+        filtered.sort((a, b) => {
+            const aSelected = assignedReportingIds.includes(Number(a.id));
+            const bSelected = assignedReportingIds.includes(Number(b.id));
+            if (aSelected && !bSelected) return -1;
+            if (!aSelected && bSelected) return 1;
+            return (a.name || '').localeCompare(b.name || '');
+        });
 
         // DEBUG: Final check for visibility
         if (assignedReportingIds.length > 0) {
@@ -1514,6 +1533,23 @@ const ModalForm = () => {
                                         placeholder="Select Level..."
                                         icon={Layers}
                                         required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="premium-label"><Building size={14} /> Office Type</label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={[
+                                            { id: 'Permanent', name: 'Permanent' },
+                                            { id: 'Mobile', name: 'Mobile' },
+                                            { id: 'Camp', name: 'Camp' }
+                                        ]}
+                                        value={formData.office_type || ''}
+                                        onChange={(e) => setFormData({ ...formData, office_type: e.target.value })}
+                                        placeholder="Select Office Type..."
+                                        icon={Building}
                                     />
                                 </div>
                             </div>
@@ -5031,19 +5067,29 @@ const ModalForm = () => {
 
                             {(() => {
                                 const selectedRoleObj = roles.find(r => String(r.id) === String(formData.role));
-                                const hasSubGroups = selectedRoleObj?.sub_groups && selectedRoleObj.sub_groups.length > 0;
-                                if (!hasSubGroups) return null;
+                                let availableSubGroups = selectedRoleObj?.sub_groups || [];
+                                if (availableSubGroups.length === 0 && roles && roles.length > 0) {
+                                    roles.forEach(r => {
+                                        if (r.sub_groups && Array.isArray(r.sub_groups)) {
+                                            r.sub_groups.forEach(sg => {
+                                                if (!availableSubGroups.some(item => String(item.id) === String(sg.id))) {
+                                                    availableSubGroups.push(sg);
+                                                }
+                                            });
+                                        }
+                                    });
+                                }
+                                const options = availableSubGroups.map(sg => ({ id: sg.id, name: `${sg.name}${sg.code ? ` (${sg.code})` : ''}` }));
                                 return (
-                                    <div className="form-group full-width">
-                                        <label className="premium-label"><Layers size={14} /> Role Sub Group <span style={{ color: '#ef4444' }}>*</span></label>
+                                    <div className="form-group full-width" style={{ marginTop: '1rem' }}>
+                                        <label className="premium-label"><Layers size={14} /> Role Sub Group</label>
                                         <div className="premium-input-wrapper">
                                             <SearchableSelect
-                                                options={selectedRoleObj.sub_groups.map(sg => ({ id: sg.id, name: `${sg.name} (${sg.code})` }))}
+                                                options={options}
                                                 value={formData.role_sub_group || ''}
                                                 onChange={(e) => setFormData({ ...formData, role_sub_group: e.target.value })}
-                                                placeholder="Select Role Sub Group..."
+                                                placeholder={options.length > 0 ? "Select Role Sub Group..." : "No Role Sub Groups available"}
                                                 icon={Layers}
-                                                required
                                             />
                                         </div>
                                     </div>
@@ -5051,6 +5097,7 @@ const ModalForm = () => {
                             })()}
                         </div>
                     </div>
+
 
 
 
@@ -5085,6 +5132,48 @@ const ModalForm = () => {
                                         style={{ padding: '4px 10px', fontSize: '0.75rem', height: '32px', width: '130px', borderRadius: '8px' }}
                                     />
                                 </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', position: 'relative', marginBottom: '1.25rem' }}>
+                                <Search size={16} style={{ position: 'absolute', left: '12px', color: '#94a3b8' }} />
+                                <input
+                                    type="text"
+                                    className="premium-input"
+                                    placeholder="Quick Search: Type position title, code, office, or role to search directly..."
+                                    value={hierarchySearchTerm}
+                                    onChange={(e) => setHierarchySearchTerm(e.target.value)}
+                                    style={{
+                                        paddingLeft: '36px',
+                                        height: '40px',
+                                        fontSize: '0.85rem',
+                                        borderRadius: '10px',
+                                        border: '1px solid #cbd5e1',
+                                        width: '100%',
+                                        background: '#ffffff',
+                                        transition: 'all 0.2s',
+                                        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)'
+                                    }}
+                                />
+                                {hierarchySearchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setHierarchySearchTerm('')}
+                                        style={{
+                                            position: 'absolute',
+                                            right: '12px',
+                                            color: '#64748b',
+                                            background: '#f1f5f9',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            padding: '2px 8px',
+                                            fontSize: '0.75rem',
+                                            cursor: 'pointer',
+                                            fontWeight: 500
+                                        }}
+                                    >
+                                        Clear
+                                    </button>
+                                )}
                             </div>
 
                             <div style={{
