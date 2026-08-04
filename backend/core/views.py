@@ -5481,3 +5481,7 @@ class ShiftChangeRequestViewSet(viewsets.ModelViewSet):
         return Response({'success': True, 'message': 'Request overridden and roster updated directly.'})
 
 
+        self._apply_roster_update(request_obj)
+        return Response({'success': True, 'message': 'Request overridden and roster updated directly.'})
+
+

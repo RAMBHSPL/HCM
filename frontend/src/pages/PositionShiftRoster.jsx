@@ -329,12 +329,13 @@ const PositionShiftRoster = () => {
     const fetchEmployees = useCallback(async () => {
         if (employeesList.length > 0) return; // Already loaded, skip
         try {
-            let employeesUrl = 'employees/all_data/';
+            let employeesUrl = 'employees/all_data/?pagination=false';
             if (user && !user.is_superuser) {
-                employeesUrl += '?reports_to_me=true';
+                employeesUrl += '&reports_to_me=true';
             }
             const empRes = await api.get(employeesUrl);
-            setEmployeesList(Array.isArray(empRes) ? empRes : []);
+            const list = Array.isArray(empRes) ? empRes : (empRes.results || []);
+            setEmployeesList(list);
         } catch (err) {
             console.error('Error fetching employees:', err);
         }

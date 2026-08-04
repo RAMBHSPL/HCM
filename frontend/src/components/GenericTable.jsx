@@ -267,10 +267,14 @@ const GenericTable = ({ renderTableData, customData = null }) => {
                 fetchData(isSilentFetch, true, 1, filters).then((res) => {
                     if (res === null) {
                         // Fetch failed (e.g. backend 500 error). Clear filter ref to allow auto-retry.
-                        lastFetchFilters.current = null;
+                        if (lastFetchFilters.current === currentFilterString) {
+                            lastFetchFilters.current = null;
+                        }
                     }
                 }).catch(() => {
-                    lastFetchFilters.current = null;
+                    if (lastFetchFilters.current === currentFilterString) {
+                        lastFetchFilters.current = null;
+                    }
                 }).finally(() => {
                     isFirstRender.current = false;
                 });
@@ -373,8 +377,8 @@ const GenericTable = ({ renderTableData, customData = null }) => {
     };
 
     // 1. Initial Load & Transition: Show spinner whenever loading, syncing, or section just changed
-    const sectionChangedSinceLastFetch = lastFetchFilters.current === null;
-    const isLoadingAny = loading || (isSyncing === activeSection) || sectionChangedSinceLastFetch || isFirstRender.current || (contextData === null);
+    const sectionChangedSinceLastFetch = !customData && lastFetchFilters.current === null;
+    const isLoadingAny = loading || (isSyncing === activeSection) || sectionChangedSinceLastFetch || (!customData && (isFirstRender.current || contextData === null));
 
 
     // SMART DATA ENGINE: 
@@ -823,8 +827,10 @@ const GenericTable = ({ renderTableData, customData = null }) => {
         >
             {/* Initial Load Spinner - Centered in table area */}
             {showSpinner && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.9)', zIndex: 100, backdropFilter: 'blur(8px)' }}>
-                    <BavyaSpinner label={`SYNCHRONIZING ${currentSectionInfo?.name?.toUpperCase() || 'DATA'}...`} minHeight="0" />
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.9)', zIndex: 100, backdropFilter: 'blur(8px)' }}>
+                    <div style={{ position: 'sticky', top: '35vh', display: 'flex', justifyContent: 'center', width: '100%' }}>
+                        <BavyaSpinner label={`SYNCHRONIZING ${currentSectionInfo?.name?.toUpperCase() || 'DATA'}...`} minHeight="0" />
+                    </div>
                 </div>
             )}
 

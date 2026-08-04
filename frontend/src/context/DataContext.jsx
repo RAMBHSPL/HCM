@@ -170,18 +170,18 @@ export const SECTIONS = [
     { id: 'geo-clusters', name: 'Clusters', icon: <Layers />, endpoint: 'geo-clusters' },
     { id: 'visiting-locations', name: 'Hotspots', icon: <MapPin />, endpoint: 'visiting-locations' },
     { id: 'landmarks', name: 'Landmarks', icon: <MapPin />, endpoint: 'landmarks' },
- 
+
     { id: 'reactivations', name: 'Reactivations', icon: <UserX />, endpoint: 'reactivations' },
     { id: 'audit-logs', name: 'Audit Logs', icon: <ClipboardList />, endpoint: 'audit-logs' },
     { id: 'login-history', name: 'Login History', icon: <History />, endpoint: 'login-hits' }
 ];
- 
+
 export const SECTION_GROUPS = [
     { name: 'Dashboard Overview', icon: <LayoutDashboard />, items: ['dashboard', 'users'], standalone: true },
     { name: 'Organization', icon: <Building2 />, items: ['organization', 'organization-levels', 'offices', 'vehicle-swaps', 'vehicle-swap-requests', 'facility-masters', 'departments', 'sections'] },
-    { name: 'Job Structure', icon: <Briefcase />, items: ['roles', 'role-sub-groups'] },
+    { name: 'Job Structure', icon: <Briefcase />, items: ['roles', 'role-sub-groups', 'jobs'] },
     { name: 'Workforce', icon: <Users />, items: ['employees', 'workforce-tracker', 'positions', 'position-assignments', 'position-levels', 'position-types', 'shifts', 'position-shift-rosters', 'shift-change-requests', 'projects', 'position-activity-logs'] },
- 
+
     { name: 'Geo Locations', icon: <Globe />, items: ['geo-continents', 'geo-countries', 'geo-states', 'geo-districts', 'geo-mandals', 'geo-clusters', 'visiting-locations', 'landmarks'] },
     { name: 'Security & Access', icon: <ShieldCheck />, items: ['api-keys', 'position-screen-mappings', 'reactivations', 'audit-logs', 'login-history'] }
 ];
@@ -1213,8 +1213,8 @@ export const DataProvider = ({ children }) => {
                     'tasks': (d) => setTasks(universalSort(d)),
                     'facility-masters': (d) => setFacilityMasters(universalSort(d)),
                     'position-levels': (d) => setPositionLevels(levelSort(d)),
-        'position-types': (d) => setPositionTypes(universalSort(d)),
-        'shifts': (d) => setShifts(universalSort(d))
+                    'position-types': (d) => setPositionTypes(universalSort(d)),
+                    'shifts': (d) => setShifts(universalSort(d))
                 };
                 if (setterMap[filterEndpoint]) {
                     setterMap[filterEndpoint](refreshed);
@@ -1522,6 +1522,28 @@ export const DataProvider = ({ children }) => {
                 }
             }
 
+            if (type === 'Jobs') {
+                const safeExtractId = (val) => (val && typeof val === 'object' ? val.id : val);
+                const safeStr = (val) => {
+                    const extracted = safeExtractId(val);
+                    return (extracted === null || extracted === undefined) ? '' : String(extracted);
+                };
+                const rId = safeStr(item.role || item.role_id);
+                hydratedItem.role = rId;
+
+                // Look up project/segment from roles
+                const roleObj = roles?.find(r => String(r.id) === rId);
+                if (roleObj) {
+                    const rProjId = roleObj.project_id || (roleObj.project && typeof roleObj.project === 'object' ? roleObj.project.id : roleObj.project) || '';
+                    const rSegId = roleObj.segment_id || (roleObj.segment && typeof roleObj.segment === 'object' ? roleObj.segment.id : roleObj.segment) || '';
+                    hydratedItem._job_project = safeStr(rProjId);
+                    hydratedItem._job_segment = safeStr(rSegId);
+                } else {
+                    hydratedItem._job_project = '';
+                    hydratedItem._job_segment = '';
+                }
+            }
+
             // Special handling for Positions to extract project and segment context
             if (type === 'Positions') {
                 const safeExtractId = (val) => (val && typeof val === 'object' ? val.id : val);
@@ -1534,6 +1556,7 @@ export const DataProvider = ({ children }) => {
                 hydratedItem.department = safeStr(item.department || item.department_id);
                 hydratedItem.section = safeStr(item.section || item.section_id);
                 hydratedItem.role = safeStr(item.role || item.role_id);
+                hydratedItem.role_sub_group = safeStr(item.role_sub_group || item.role_sub_group_id);
                 hydratedItem.job = safeStr(item.job || item.job_id);
                 hydratedItem.level = safeStr(item.level || item.level_id);
                 hydratedItem.position_type = safeStr(item.position_type || item.position_type_id);
@@ -1549,6 +1572,30 @@ export const DataProvider = ({ children }) => {
 
                 if (Array.isArray(item.reporting_to)) {
                     hydratedItem.reporting_to = item.reporting_to.map(r => safeStr(r));
+                }
+
+                if (Array.isArray(item.additional_roles)) {
+                    hydratedItem.additional_roles = item.additional_roles.map(r => safeStr(r));
+                } else if (Array.isArray(item.additional_roles_details)) {
+                    hydratedItem.additional_roles = item.additional_roles_details.map(r => safeStr(r.id || r));
+                } else {
+                    hydratedItem.additional_roles = [];
+                }
+
+                if (Array.isArray(item.additional_sub_groups)) {
+                    hydratedItem.additional_sub_groups = item.additional_sub_groups.map(sg => safeStr(sg));
+                } else if (Array.isArray(item.additional_sub_groups_details)) {
+                    hydratedItem.additional_sub_groups = item.additional_sub_groups_details.map(sg => safeStr(sg.id || sg));
+                } else {
+                    hydratedItem.additional_sub_groups = [];
+                }
+
+                if (Array.isArray(item.additional_jobs)) {
+                    hydratedItem.additional_jobs = item.additional_jobs.map(j => safeStr(j));
+                } else if (Array.isArray(item.additional_jobs_details)) {
+                    hydratedItem.additional_jobs = item.additional_jobs_details.map(j => safeStr(j.id || j));
+                } else {
+                    hydratedItem.additional_jobs = [];
                 }
             }
 

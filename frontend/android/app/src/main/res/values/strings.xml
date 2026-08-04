@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BAVYA HCM Mobile</string>
+    <string name="title_activity_main">BAVYA HCM Mobile</string>
+    <string name="package_name">com.bavya.hcm</string>
+    <string name="custom_url_scheme">com.bavya.hcm</string>
+</resources>

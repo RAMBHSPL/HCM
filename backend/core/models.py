@@ -526,6 +526,8 @@ class Position(models.Model):
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='positions')
     role_sub_group = models.ForeignKey(RoleSubGroup, on_delete=models.SET_NULL, null=True, blank=True, related_name='positions')
     additional_roles = models.ManyToManyField(Role, blank=True, related_name='additional_positions')
+    additional_sub_groups = models.ManyToManyField(RoleSubGroup, blank=True, related_name='additional_positions_sg')
+    additional_jobs = models.ManyToManyField(Job, blank=True, related_name='additional_positions_jb')
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='positions', null=True, blank=True)
     level = models.ForeignKey(PositionLevel, on_delete=models.SET_NULL, null=True, blank=True, related_name='positions')
     position_type = models.ForeignKey(PositionType, on_delete=models.SET_NULL, null=True, blank=True, related_name='positions')

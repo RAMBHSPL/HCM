@@ -1074,6 +1074,10 @@ class PositionSerializer(serializers.ModelSerializer):
     role_details = LightRoleSerializer(source='role', read_only=True)
     additional_roles = serializers.PrimaryKeyRelatedField(many=True, queryset=Role.objects.all(), required=False)
     additional_roles_details = LightRoleSerializer(source='additional_roles', many=True, read_only=True)
+    additional_sub_groups = serializers.PrimaryKeyRelatedField(many=True, queryset=RoleSubGroup.objects.all(), required=False)
+    additional_sub_groups_details = RoleSubGroupSerializer(source='additional_sub_groups', many=True, read_only=True)
+    additional_jobs = serializers.PrimaryKeyRelatedField(many=True, queryset=Job.objects.all(), required=False)
+    additional_jobs_details = JobSerializer(source='additional_jobs', many=True, read_only=True)
     is_vacant = serializers.ReadOnlyField()
     assigned_employee = serializers.SerializerMethodField()
 
@@ -1143,7 +1147,9 @@ class PositionSerializer(serializers.ModelSerializer):
             'assigned_employee', 'assigned_employees_details', 'level', 'level_name', 'level_rank',
             'position_type', 'position_type_name', 'shifts', 'shifts_details',
             'role_sub_group', 'role_sub_group_name', 'role_sub_group_details',
-            'project_id', 'segment_id', 'segment_name'
+            'project_id', 'segment_id', 'segment_name',
+            'additional_sub_groups', 'additional_sub_groups_details',
+            'additional_jobs', 'additional_jobs_details'
         ]
 
 
@@ -2296,6 +2302,20 @@ class VehicleSwapRequestSerializer(serializers.ModelSerializer):
         model = VehicleSwapRequest
         fields = '__all__'
         read_only_fields = ['requester', 'from_vehicle_code', 'from_vehicle_no', 'to_vehicle_code', 'to_vehicle_no', 'status', 'actioned_by', 'actioned_at']
+
+
+class ShiftChangeRequestSerializer(serializers.ModelSerializer):
+    requested_by_name = serializers.ReadOnlyField(source='requested_by.name')
+    employee_name = serializers.ReadOnlyField(source='employee.name')
+    employee_code = serializers.ReadOnlyField(source='employee.employee_code')
+    position_name = serializers.ReadOnlyField(source='position.name')
+    from_shift_name = serializers.ReadOnlyField(source='from_shift.name')
+    to_shift_name = serializers.ReadOnlyField(source='to_shift.name')
+
+    class Meta:
+        model = ShiftChangeRequest
+        fields = '__all__'
+        read_only_fields = ['requested_by', 'status', 'employee_consent', 'created_at', 'updated_at']
 
 
 class ShiftChangeRequestSerializer(serializers.ModelSerializer):

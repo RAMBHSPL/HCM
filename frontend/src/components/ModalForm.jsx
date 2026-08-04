@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import {
     Layers,
     Edit,
+    ChevronDown,
     Building,
     Building2,
     FileText,
@@ -55,6 +56,168 @@ import { useData } from '../context/DataContext';
 import api, { BACKEND_BASE_URL } from '../api';
 import GeoMapPicker from './GeoMapPicker';
 
+const MultiSearchableSelect = ({
+    options = [],
+    value = [],
+    onChange,
+    placeholder = 'Select options...',
+    icon: Icon = null,
+    disabled = false
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const containerRef = React.useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const selectedIds = (value || []).map(String);
+
+    const filteredOptions = options.filter(opt => {
+        const label = (opt.name || opt.label || '').toLowerCase();
+        const search = searchTerm.toLowerCase().trim();
+        return !search || label.includes(search);
+    });
+
+    const handleToggle = (id) => {
+        const strId = String(id);
+        let newValue;
+        if (selectedIds.includes(strId)) {
+            newValue = selectedIds.filter(x => x !== strId);
+        } else {
+            newValue = [...selectedIds, strId];
+        }
+        onChange(newValue);
+    };
+
+    const displayLabel = (() => {
+        if (selectedIds.length === 0) return placeholder;
+        const selectedNames = options
+            .filter(opt => selectedIds.includes(String(opt.id)))
+            .map(opt => opt.name || opt.label);
+        if (selectedNames.length === 0) return placeholder;
+        if (selectedNames.length <= 3) return selectedNames.join(', ');
+        return `${selectedNames.length} selected`;
+    })();
+
+    return (
+        <div className="premium-select-container" ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+            <div
+                className={`premium-input ${isOpen ? 'active' : ''} ${disabled ? 'disabled' : ''}`}
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                style={{
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    minHeight: '3.5rem',
+                    opacity: disabled ? 0.6 : 1,
+                    userSelect: 'none'
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, overflow: 'hidden' }}>
+                    {Icon && <Icon className="premium-input-icon" size={18} style={{ position: 'static', transform: 'none', color: isOpen ? 'var(--primary)' : '#94a3b8' }} />}
+                    <span style={{
+                        color: selectedIds.length > 0 ? '#1e293b' : '#94a3b8',
+                        fontWeight: selectedIds.length > 0 ? 600 : 500,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                    }}>
+                        {displayLabel}
+                    </span>
+                </div>
+                <ChevronDown size={18} color="#94a3b8" style={{ transition: 'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'none' }} />
+            </div>
+
+            {isOpen && (
+                <div className="glass" style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    left: 0,
+                    right: 0,
+                    zIndex: 2000,
+                    padding: '8px',
+                    maxHeight: '260px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                    border: '1px solid #e2e8f0',
+                    background: '#ffffff'
+                }}>
+                    <div style={{ position: 'relative', marginBottom: '8px' }}>
+                        <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                        <input
+                            type="text"
+                            placeholder="Type to search..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '8px 12px 8px 32px',
+                                borderRadius: '8px',
+                                border: '1px solid #f1f5f9',
+                                background: '#f8fafc',
+                                fontSize: '0.85rem',
+                                outline: 'none',
+                                boxSizing: 'border-box'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                    <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {filteredOptions.length > 0 ? (
+                            filteredOptions.map(opt => {
+                                const isChecked = selectedIds.includes(String(opt.id));
+                                return (
+                                    <div
+                                        key={opt.id}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggle(opt.id);
+                                        }}
+                                        style={{
+                                            padding: '8px 12px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            fontSize: '0.9rem',
+                                            background: isChecked ? 'var(--primary-light)' : 'transparent',
+                                            color: isChecked ? 'var(--primary)' : '#1e293b',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            userSelect: 'none'
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            readOnly
+                                            style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }}
+                                        />
+                                        <span style={{ fontWeight: isChecked ? 600 : 500 }}>{opt.name || opt.label}</span>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div style={{ padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
+                                No results found
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const ModalForm = () => {
     const {
         data,
@@ -67,6 +230,7 @@ const ModalForm = () => {
         sections,
         jobFamilies,
         roles,
+        roleSubGroups,
         jobs,
         positions,
         allEmployees,
@@ -96,6 +260,74 @@ const ModalForm = () => {
 
     const [officeSearchTerm, setOfficeSearchTerm] = useState('');
     const [hierarchySearchTerm, setHierarchySearchTerm] = useState('');
+
+    const prevRoleGroupsRef = React.useRef([]);
+
+    React.useEffect(() => {
+        if (modalType === 'Positions') {
+            const initialRoles = [formData.role, ...(formData.additional_roles || [])].filter(Boolean).map(String);
+            prevRoleGroupsRef.current = initialRoles;
+        }
+    }, [modalType, formData.id]);
+
+    React.useEffect(() => {
+        if (modalType !== 'Positions') return;
+
+        const currentRole = formData.role;
+        const currentAdditional = formData.additional_roles || [];
+        const currentRoles = [currentRole, ...currentAdditional].filter(Boolean).map(String);
+
+        const prevRoles = prevRoleGroupsRef.current;
+
+        // Detect if roles changed
+        const addedRoles = currentRoles.filter(id => !prevRoles.includes(id));
+        const removedRoles = prevRoles.filter(id => !currentRoles.includes(id));
+
+        if (addedRoles.length > 0 || removedRoles.length > 0) {
+            prevRoleGroupsRef.current = currentRoles;
+
+            let newSubGroups = [formData.role_sub_group, ...(formData.additional_sub_groups || [])].filter(Boolean).map(String);
+            let newJobs = [formData.job, ...(formData.additional_jobs || [])].filter(Boolean).map(String);
+
+            // For any added role group: auto-tag all its sub-groups and jobs
+            addedRoles.forEach(roleId => {
+                const sgIds = roleSubGroups
+                    .filter(sg => String(sg.role_group && typeof sg.role_group === 'object' ? sg.role_group.id : sg.role_group) === roleId)
+                    .map(sg => String(sg.id));
+                const jIds = jobs
+                    .filter(j => String(j.role && typeof j.role === 'object' ? j.role.id : j.role) === roleId)
+                    .map(j => String(j.id));
+
+                sgIds.forEach(id => {
+                    if (!newSubGroups.includes(id)) newSubGroups.push(id);
+                });
+                jIds.forEach(id => {
+                    if (!newJobs.includes(id)) newJobs.push(id);
+                });
+            });
+
+            // For any removed role group: remove all its sub-groups and jobs
+            removedRoles.forEach(roleId => {
+                const sgIds = roleSubGroups
+                    .filter(sg => String(sg.role_group && typeof sg.role_group === 'object' ? sg.role_group.id : sg.role_group) === roleId)
+                    .map(sg => String(sg.id));
+                const jIds = jobs
+                    .filter(j => String(j.role && typeof j.role === 'object' ? j.role.id : j.role) === roleId)
+                    .map(j => String(j.id));
+
+                newSubGroups = newSubGroups.filter(id => !sgIds.includes(id));
+                newJobs = newJobs.filter(id => !jIds.includes(id));
+            });
+
+            setFormData(prev => ({
+                ...prev,
+                role_sub_group: newSubGroups[0] || '',
+                additional_sub_groups: newSubGroups.slice(1),
+                job: newJobs[0] || '',
+                additional_jobs: newJobs.slice(1)
+            }));
+        }
+    }, [formData.role, formData.additional_roles, modalType, roleSubGroups, jobs, setFormData]);
 
     React.useEffect(() => {
         if ((modalType === 'Positions' || modalType === 'Employees') && loadPositionsIfNeeded) {
@@ -911,7 +1143,7 @@ const ModalForm = () => {
         // Apply hierarchy search filter
         if (hierarchySearchTerm) {
             const query = hierarchySearchTerm.toLowerCase().trim();
-            filtered = filtered.filter(p => 
+            filtered = filtered.filter(p =>
                 (p.name && p.name.toLowerCase().includes(query)) ||
                 (p.code && p.code.toLowerCase().includes(query)) ||
                 (p.office_name && p.office_name.toLowerCase().includes(query)) ||
@@ -3231,55 +3463,76 @@ const ModalForm = () => {
 
                         <div className="form-grid">
                             <div className="form-group full-width">
-                                <label className="premium-label"><Briefcase size={14} /> Job Family <span style={{ color: '#ef4444' }}>*</span></label>
+                                <label className="premium-label"><FolderKanban size={14} /> Project <span style={{ color: '#ef4444' }}>*</span></label>
                                 <div className="premium-input-wrapper">
                                     <SearchableSelect
-                                        options={jobFamilies?.map(jf => ({ id: jf.id, name: jf.name })) || []}
-                                        value={formData.job_family || ''}
-                                        onChange={(e) => setFormData({ ...formData, job_family: e.target.value, role_type: '', role: '' })}
-                                        placeholder="Select Job Family..."
-                                        icon={Briefcase}
+                                        options={projects?.map(p => ({ id: String(p.id), name: p.name })) || []}
+                                        value={formData._job_project || ''}
+                                        onChange={(e) => {
+                                            const projId = e.target.value;
+                                            setFormData({ ...formData, _job_project: projId, _job_segment: '', role: '' });
+                                        }}
+                                        placeholder="Select Project..."
+                                        icon={FolderKanban}
                                         required
                                     />
                                 </div>
                             </div>
 
-                            <div className="form-group full-width">
-                                <label className="premium-label"><Settings size={14} /> Role Type <span style={{ color: '#ef4444' }}>*</span></label>
-                                <div className="premium-input-wrapper">
-                                    <SearchableSelect
-                                        options={(roleTypes || [])
-                                            .filter(rt => rt.job_family == formData.job_family)
-                                            .map(rt => ({ id: rt.id, name: rt.name }))
-                                        }
-                                        value={formData.role_type || ''}
-                                        onChange={(e) => setFormData({ ...formData, role_type: e.target.value, role: '' })}
-                                        disabled={!formData.job_family}
-                                        placeholder="Select Role Type..."
-                                        icon={Settings}
-                                        required
-                                    />
-                                </div>
-                            </div>
+                            {(() => {
+                                const selectedProj = projects?.find(p => String(p.id) === String(formData._job_project));
+                                const hasSegments = selectedProj?.has_segments || (selectedProj?.segments && selectedProj.segments.length > 0);
+                                if (!hasSegments) return null;
+                                return (
+                                    <div className="form-group full-width">
+                                        <label className="premium-label"><Layers size={14} /> Segment <span style={{ color: '#ef4444' }}>*</span></label>
+                                        <div className="premium-input-wrapper">
+                                            <SearchableSelect
+                                                options={selectedProj?.segments?.map(s => ({ id: String(s.id), name: `${s.name} (${s.code})` })) || []}
+                                                value={formData._job_segment || ''}
+                                                onChange={(e) => setFormData({ ...formData, _job_segment: e.target.value, role: '' })}
+                                                placeholder="Select Segment..."
+                                                icon={Layers}
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
                             <div className="form-group full-width">
-                                <label className="premium-label"><Settings size={14} /> Associated Role <span style={{ color: '#ef4444' }}>*</span></label>
+                                <label className="premium-label"><Settings size={14} /> Associated Role Group <span style={{ color: '#ef4444' }}>*</span></label>
                                 <div className="premium-input-wrapper">
                                     <SearchableSelect
-                                        options={(roles || [])
-                                            .filter(r => r.role_type == formData.role_type)
-                                            .map(r => ({ id: r.id, name: r.name }))
-                                        }
+                                        options={(() => {
+                                            if (!formData._job_project) return [];
+                                            const filteredRoles = (roles || []).filter(r => {
+                                                const rProjId = r.project_id || (r.project && typeof r.project === 'object' ? r.project.id : r.project);
+                                                const matchesProj = String(rProjId) === String(formData._job_project);
+                                                const selectedProj = projects?.find(p => String(p.id) === String(formData._job_project));
+                                                const hasSegments = selectedProj?.has_segments || (selectedProj?.segments && selectedProj.segments.length > 0);
+                                                if (hasSegments) {
+                                                    const rSegId = r.segment_id || (r.segment && typeof r.segment === 'object' ? r.segment.id : r.segment);
+                                                    return matchesProj && String(rSegId) === String(formData._job_segment);
+                                                }
+                                                return matchesProj;
+                                            });
+                                            return filteredRoles.map(r => ({ id: String(r.id), name: r.name }));
+                                        })()}
                                         value={formData.role || ''}
                                         onChange={(e) => {
                                             const rId = e.target.value;
                                             const nextCode = generateNextCode('JB', jobs, 'role', rId);
                                             setFormData({ ...formData, role: rId, code: nextCode });
                                         }}
-                                        placeholder="Select Role..."
+                                        placeholder="Select Role Group..."
                                         icon={Settings}
                                         required
-                                        disabled={!formData.role_type}
+                                        disabled={!formData._job_project || (() => {
+                                            const selectedProj = projects?.find(p => String(p.id) === String(formData._job_project));
+                                            const hasSegments = selectedProj?.has_segments || (selectedProj?.segments && selectedProj.segments.length > 0);
+                                            return hasSegments && !formData._job_segment;
+                                        })()}
                                     />
                                 </div>
                             </div>
@@ -4177,8 +4430,8 @@ const ModalForm = () => {
                                         value={String(formData.has_segments || false)}
                                         onChange={(e) => {
                                             const val = e.target.value === 'true';
-                                            setFormData({ 
-                                                ...formData, 
+                                            setFormData({
+                                                ...formData,
                                                 has_segments: val,
                                                 segments: val ? (formData.segments?.length > 0 ? formData.segments : [{ name: '', code: '' }]) : []
                                             });
@@ -4720,9 +4973,9 @@ const ModalForm = () => {
                                         onChange={(e) => {
                                             const projId = e.target.value;
                                             const selectedProj = projects?.find(p => String(p.id) === String(projId));
-                                            setFormData({ 
-                                                ...formData, 
-                                                _pos_project: projId, 
+                                            setFormData({
+                                                ...formData,
+                                                _pos_project: projId,
                                                 _pos_segment: '',
                                                 position_type: '',
                                                 shifts: [],
@@ -4747,8 +5000,8 @@ const ModalForm = () => {
                                             <SearchableSelect
                                                 options={selectedProj?.segments?.map(s => ({ id: String(s.id), name: `${s.name} (${s.code})` })) || []}
                                                 value={formData._pos_segment || ''}
-                                                onChange={(e) => setFormData({ 
-                                                    ...formData, 
+                                                onChange={(e) => setFormData({
+                                                    ...formData,
                                                     _pos_segment: e.target.value,
                                                     position_type: '',
                                                     shifts: []
@@ -5021,78 +5274,115 @@ const ModalForm = () => {
                     <div className="premium-form-section">
                         <div className="form-section-title" style={{ marginBottom: '2rem' }}><ClipboardList size={18} /> Functional Mapping</div>
                         <div className="form-grid">
-                            <div className="form-group full-width">
-                                <label className="premium-label"><Users size={14} /> Role Group <span style={{ color: '#ef4444' }}>*</span></label>
-                                <div className="premium-input-wrapper">
-                                    <SearchableSelect
-                                        options={(() => {
-                                            let filteredRoles = roles || [];
-                                            if (formData._pos_project) {
-                                                filteredRoles = filteredRoles.filter(r => {
-                                                    const rProjId = r.project_id || (r.project && typeof r.project === 'object' ? r.project.id : r.project);
-                                                    const matchesProj = String(rProjId) === String(formData._pos_project);
-                                                    if (formData._pos_segment) {
-                                                        const rSegId = r.segment_id || (r.segment && typeof r.segment === 'object' ? r.segment.id : r.segment);
-                                                        return matchesProj && String(rSegId) === String(formData._pos_segment);
-                                                    }
-                                                    return matchesProj;
-                                                });
-                                            } else {
-                                                const selectedOffId = formData.office || formData._pos_office_filter;
-                                                const selectedOff = offices.find(o => String(o.id) === String(selectedOffId));
-                                                const officeProjIds = selectedOff?.project_ids?.map(id => String(id)) || [];
-                                                if (officeProjIds.length > 0) {
-                                                    filteredRoles = filteredRoles.filter(r => officeProjIds.includes(String(r.project)));
-                                                }
-                                            }
-                                            return filteredRoles.map(r => ({ id: r.id, name: r.name }));
-                                        })()}
-                                        value={formData.role || ''}
-                                        onChange={(e) => {
-                                            const roleId = e.target.value;
-                                            const selectedRoleObj = roles.find(r => String(r.id) === String(roleId));
-                                            setFormData({
-                                                ...formData,
-                                                role: roleId,
-                                                role_sub_group: '',
-                                                name: selectedRoleObj ? selectedRoleObj.name : formData.name
-                                            });
-                                        }}
-                                        placeholder="Select Role Group..."
-                                        icon={Users}
-                                        required
-                                    />
-                                </div>
-                            </div>
-
                             {(() => {
-                                const selectedRoleObj = roles.find(r => String(r.id) === String(formData.role));
-                                let availableSubGroups = selectedRoleObj?.sub_groups || [];
-                                if (availableSubGroups.length === 0 && roles && roles.length > 0) {
-                                    roles.forEach(r => {
-                                        if (r.sub_groups && Array.isArray(r.sub_groups)) {
-                                            r.sub_groups.forEach(sg => {
-                                                if (!availableSubGroups.some(item => String(item.id) === String(sg.id))) {
-                                                    availableSubGroups.push(sg);
-                                                }
-                                            });
+                                // Filter available Role Groups based on Position's Project and Segment
+                                let filteredRolesList = roles || [];
+                                if (formData._pos_project) {
+                                    filteredRolesList = filteredRolesList.filter(r => {
+                                        const rProjId = r.project_id || (r.project && typeof r.project === 'object' ? r.project.id : r.project);
+                                        const matchesProj = String(rProjId) === String(formData._pos_project);
+                                        if (formData._pos_segment) {
+                                            const rSegId = r.segment_id || (r.segment && typeof r.segment === 'object' ? r.segment.id : r.segment);
+                                            return matchesProj && String(rSegId) === String(formData._pos_segment);
                                         }
+                                        return matchesProj;
                                     });
+                                } else {
+                                    const selectedOffId = formData.office || formData._pos_office_filter;
+                                    const selectedOff = offices.find(o => String(o.id) === String(selectedOffId));
+                                    const officeProjIds = selectedOff?.project_ids?.map(id => String(id)) || [];
+                                    if (officeProjIds.length > 0) {
+                                        filteredRolesList = filteredRolesList.filter(r => {
+                                            const rProjId = r.project_id || (r.project && typeof r.project === 'object' ? r.project.id : r.project);
+                                            return officeProjIds.includes(String(rProjId));
+                                        });
+                                    }
                                 }
-                                const options = availableSubGroups.map(sg => ({ id: sg.id, name: `${sg.name}${sg.code ? ` (${sg.code})` : ''}` }));
+
+                                const selectedRoleIds = [formData.role, ...(formData.additional_roles || [])].filter(Boolean).map(String);
+
+                                const activeSubGroups = roleSubGroups?.filter(sg => {
+                                    const sgRoleId = sg.role_group && typeof sg.role_group === 'object' ? sg.role_group.id : sg.role_group;
+                                    return selectedRoleIds.includes(String(sgRoleId));
+                                }) || [];
+
+                                const activeJobs = jobs?.filter(j => {
+                                    const jRoleId = j.role && typeof j.role === 'object' ? j.role.id : j.role;
+                                    return selectedRoleIds.includes(String(jRoleId));
+                                }) || [];
+
                                 return (
-                                    <div className="form-group full-width" style={{ marginTop: '1rem' }}>
-                                        <label className="premium-label"><Layers size={14} /> Role Sub Group</label>
-                                        <div className="premium-input-wrapper">
-                                            <SearchableSelect
-                                                options={options}
-                                                value={formData.role_sub_group || ''}
-                                                onChange={(e) => setFormData({ ...formData, role_sub_group: e.target.value })}
-                                                placeholder={options.length > 0 ? "Select Role Sub Group..." : "No Role Sub Groups available"}
-                                                icon={Layers}
-                                            />
+                                    <>
+                                        {/* Combined Role Group */}
+                                        <div className="form-group full-width">
+                                            <label className="premium-label"><Users size={14} /> Role Group <span style={{ color: '#ef4444' }}>*</span></label>
+                                            <div className="premium-input-wrapper">
+                                                <MultiSearchableSelect
+                                                    options={filteredRolesList.map(r => ({ id: r.id, name: r.name }))}
+                                                    value={selectedRoleIds}
+                                                    onChange={(val) => {
+                                                        const primaryRole = val[0] || '';
+                                                        const additionalRoles = val.slice(1);
+                                                        const selectedRoleObj = roles.find(r => String(r.id) === String(primaryRole));
+                                                        setFormData({
+                                                            ...formData,
+                                                            role: primaryRole,
+                                                            additional_roles: additionalRoles,
+                                                            name: selectedRoleObj ? selectedRoleObj.name : formData.name
+                                                        });
+                                                    }}
+                                                    placeholder="Select Role Groups..."
+                                                    icon={Users}
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
+
+                                        {/* Combined Role Sub Group */}
+                                        <div className="form-group full-width" style={{ marginTop: '1rem' }}>
+                                            <label className="premium-label"><Layers size={14} /> Role Sub Group</label>
+                                            <div className="premium-input-wrapper">
+                                                <MultiSearchableSelect
+                                                    options={activeSubGroups.map(sg => ({ id: sg.id, name: sg.name }))}
+                                                    value={[formData.role_sub_group, ...(formData.additional_sub_groups || [])].filter(Boolean).map(String)}
+                                                    onChange={(val) => {
+                                                        const primarySub = val[0] || '';
+                                                        const additionalSubs = val.slice(1);
+                                                        setFormData({
+                                                            ...formData,
+                                                            role_sub_group: primarySub,
+                                                            additional_sub_groups: additionalSubs
+                                                        });
+                                                    }}
+                                                    placeholder={selectedRoleIds.length === 0 ? "Please select a Role Group first" : activeSubGroups.length === 0 ? "No Sub Groups found for selected Role Group(s)" : "Select Role Sub Groups..."}
+                                                    icon={Layers}
+                                                    disabled={selectedRoleIds.length === 0 || activeSubGroups.length === 0}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Combined Jobs */}
+                                        <div className="form-group full-width" style={{ marginTop: '1rem' }}>
+                                            <label className="premium-label"><Briefcase size={14} /> Jobs</label>
+                                            <div className="premium-input-wrapper">
+                                                <MultiSearchableSelect
+                                                    options={activeJobs.map(j => ({ id: j.id, name: j.name }))}
+                                                    value={[formData.job, ...(formData.additional_jobs || [])].filter(Boolean).map(String)}
+                                                    onChange={(val) => {
+                                                        const primaryJob = val[0] || '';
+                                                        const additionalJobs = val.slice(1);
+                                                        setFormData({
+                                                            ...formData,
+                                                            job: primaryJob,
+                                                            additional_jobs: additionalJobs
+                                                        });
+                                                    }}
+                                                    placeholder={selectedRoleIds.length === 0 ? "Please select a Role Group first" : activeJobs.length === 0 ? "No Jobs found for selected Role Group(s)" : "Select Jobs..."}
+                                                    icon={Briefcase}
+                                                    disabled={selectedRoleIds.length === 0 || activeJobs.length === 0}
+                                                />
+                                            </div>
+                                        </div>
+                                    </>
                                 );
                             })()}
                         </div>
