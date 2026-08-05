@@ -1497,6 +1497,24 @@ export const DataProvider = ({ children }) => {
                 positions: positionIds,
                 ...assignmentFilters
             };
+        } else if (type === 'Offices') {
+            const hydratedItem = { ...item };
+            if (hydratedItem.country_name) hydratedItem.country_name = String(hydratedItem.country_name).toUpperCase();
+            if (hydratedItem.state_name) hydratedItem.state_name = String(hydratedItem.state_name).toUpperCase();
+            if (hydratedItem.district_name) hydratedItem.district_name = String(hydratedItem.district_name).toUpperCase();
+            if (hydratedItem.mandal_name) hydratedItem.mandal_name = String(hydratedItem.mandal_name).toUpperCase();
+            
+            Object.keys(hydratedItem).forEach(key => {
+                if (key === 'segments' || key.endsWith('_details')) return;
+                const val = hydratedItem[key];
+                if (val && typeof val === 'object' && val.id && !Array.isArray(val)) {
+                    hydratedItem[key] = val.id;
+                }
+                if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0].id) {
+                    hydratedItem[key] = val.map(obj => obj.id);
+                }
+            });
+            return hydratedItem;
         } else {
             // General Hydration: Convert object values and arrays of objects to IDs where appropriate
             const hydratedItem = { ...item };

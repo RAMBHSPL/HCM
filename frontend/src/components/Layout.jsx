@@ -61,24 +61,23 @@ const Layout = ({ children }) => {
                 {!isProfilePage && (
                     <div style={{
                         width: '100%',
-                        background: '#881337',
-                        padding: '0.25rem 0.4rem',
+                        background: '#0f172a',
+                        padding: '0.4rem 1rem',
                         textAlign: 'center',
                         color: 'white',
-                        fontSize: '0.65rem',
+                        fontSize: '0.7rem',
                         fontWeight: 500,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '12px',
+                        gap: '8px',
                         zIndex: 10,
-                        borderTop: '1px solid rgba(255,255,255,0.1)'
+                        borderTop: '1px solid rgba(255,255,255,0.06)'
                     }}>
-                        <span style={{ opacity: 0.8, letterSpacing: '0.5px' }}>&copy; Powered by</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <img src="/Bavya.png" alt="Bavya" style={{ height: '18px', background: 'white', padding: '2px', borderRadius: '4px', objectFit: 'contain' }} />
-                            <span style={{ fontWeight: 800, fontSize: '0.75rem', letterSpacing: '1px', color: 'white' }}>BAVYA</span>
-                        </div>
+                        <span style={{ color: '#64748b', fontSize: '0.68rem' }}>© 2026</span>
+                        <span style={{ fontWeight: 800, fontSize: '0.75rem', letterSpacing: '0.05em', color: 'white' }}>ONE <span style={{ color: '#818cf8' }}>HCM</span></span>
+                        <span style={{ color: '#475569' }}>•</span>
+                        <span style={{ color: '#94a3b8', fontSize: '0.68rem' }}>Enterprise Workforce Management System</span>
                     </div>
                 )}
             </div>

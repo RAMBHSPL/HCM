@@ -31,12 +31,21 @@ const Sidebar = () => {
     return (
         <aside className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
             <div className="sidebar-header">
-                <div className="sidebar-logo-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '14px', overflow: 'hidden', padding: 0, background: 'transparent' }}>
-                    <img src="/Bavya.png" alt="Bavya Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
+                <div className="sidebar-logo-icon" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    borderRadius: '12px', 
+                    width: '42px',
+                    height: '42px',
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                    boxShadow: '0 8px 20px rgba(79, 70, 229, 0.45)'
+                }}>
+                    <Layers size={22} color="white" />
                 </div>
                 <div className="sidebar-logo-text">
-                    <span style={{ color: 'white', fontWeight: 800 }}>BAVYA</span><br />
-                    <span style={{ fontSize: '0.65rem', opacity: 0.5, letterSpacing: '0.2em', fontWeight: 700, color: '#94a3b8' }}>HRMS</span>
+                    <span style={{ color: 'white', fontWeight: 900, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>ONE<span style={{ color: '#818cf8', fontWeight: 900 }}> HCM</span></span><br />
+                    <span style={{ fontSize: '0.62rem', letterSpacing: '0.15em', fontWeight: 700, color: '#6366f1', textTransform: 'uppercase' }}>Enterprise Platform</span>
                 </div>
                 <button
                     className="mobile-close-btn"
@@ -52,14 +61,14 @@ const Sidebar = () => {
                     // Semantic Color Palette based on Group Name
                     const getGroupColor = (name) => {
                         const colors = {
-                            'Dashboard Overview': '#38bdf8', // Sky Blue
-                            'Organization': '#d946ef',      // Fuchsia
-                            'Job Structure': '#facc15',     // Yellow
-                            'Workforce': '#4ade80',         // Green
-                            'Geo Locations': '#818cf8',     // Indigo
-                            'Security & Access': '#f87171'  // Red
+                            'Dashboard Overview': '#818cf8', // Indigo Accent
+                            'Organization':       '#a78bfa', // Violet Accent
+                            'Job Structure':      '#38bdf8', // Cyan Accent
+                            'Workforce':          '#34d399', // Emerald Accent
+                            'Geo Locations':      '#fb7185', // Rose Accent
+                            'Security & Access':  '#f43f5e'  // Coral Accent
                         };
-                        return colors[name] || '#cbd5e1';
+                        return colors[name] || '#94a3b8';
                     };
 
                     const groupColor = getGroupColor(group.name);

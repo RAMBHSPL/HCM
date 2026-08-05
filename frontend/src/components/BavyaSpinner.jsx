@@ -26,9 +26,9 @@ const BavyaSpinner = ({ label, size = 'default', minHeight = '60vh' }) => {
             width: '100%'
         }}>
             <div className="loading-spinner-container" style={{ transform: 'scale(1.2)' }}>
-                <div className="spinner-ring" style={{ borderTopColor: 'var(--primary)', borderLeftColor: 'var(--magenta)' }}></div>
-                <div className="spinner-ring" style={{ animationDirection: 'reverse', borderTopColor: 'var(--magenta)', borderLeftColor: 'transparent', opacity: 0.5 }}></div>
-                <div className="spinner-text" style={{ fontSize: '0.6rem', letterSpacing: '0.15em', color: 'var(--primary)' }}>BAVYA</div>
+                <div className="spinner-ring" style={{ borderTopColor: '#4f46e5', borderLeftColor: '#7c3aed' }}></div>
+                <div className="spinner-ring" style={{ animationDirection: 'reverse', borderTopColor: '#7c3aed', borderLeftColor: 'transparent', opacity: 0.5 }}></div>
+                <div className="spinner-text" style={{ fontSize: '0.55rem', letterSpacing: '0.15em', color: '#4f46e5', fontWeight: 900 }}>ONE HCM</div>
             </div>
             {displayLabel && (
                 <div className="glass" style={{
@@ -36,11 +36,11 @@ const BavyaSpinner = ({ label, size = 'default', minHeight = '60vh' }) => {
                     borderRadius: '50px',
                     fontSize: '0.7rem',
                     fontWeight: 900,
-                    color: 'var(--primary)',
+                    color: '#4f46e5',
                     letterSpacing: '0.15em',
                     textTransform: 'uppercase',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)',
-                    border: '1px solid rgba(136, 19, 55, 0.1)'
+                    boxShadow: '0 10px 20px -3px rgba(79, 70, 229, 0.15)',
+                    border: '1px solid rgba(79, 70, 229, 0.15)'
                 }}>
                     <span className="pulse">{displayLabel}</span>
                 </div>

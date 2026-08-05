@@ -66,9 +66,9 @@ const TopNav = () => {
                                 gap: '8px',
                                 padding: '6px 14px',
                                 borderRadius: '12px',
-                                background: activePositionContext ? 'rgba(136, 19, 55, 0.1)' : '#f1f5f9',
-                                color: activePositionContext ? 'var(--primary)' : '#64748b',
-                                border: activePositionContext ? '1px solid var(--primary-light)' : '1px solid #e2e8f0',
+                                background: activePositionContext ? 'rgba(79, 70, 229, 0.1)' : '#eef2ff',
+                                color: activePositionContext ? '#4f46e5' : '#64748b',
+                                border: activePositionContext ? '1px solid rgba(79, 70, 229, 0.2)' : '1px solid #e0e7ff',
                                 fontWeight: 700,
                                 fontSize: '0.75rem',
                                 cursor: 'pointer'
@@ -86,8 +86,8 @@ const TopNav = () => {
                                     width: '280px',
                                     background: 'white',
                                     borderRadius: '16px',
-                                    boxShadow: 'var(--premium-shadow)',
-                                    border: '1px solid #f1f5f9',
+                                    boxShadow: 'var(--shadow-lg)',
+                                    border: '1px solid #e0e7ff',
                                     padding: '0.75rem',
                                     zIndex: 100
                                 }}>
@@ -103,16 +103,16 @@ const TopNav = () => {
                                             padding: '0.75rem',
                                             borderRadius: '10px',
                                             border: 'none',
-                                            background: !activePositionContext ? 'rgba(136, 19, 55, 0.05)' : 'transparent',
+                                            background: !activePositionContext ? 'rgba(79, 70, 229, 0.08)' : 'transparent',
                                             cursor: 'pointer',
                                             marginBottom: '4px'
                                         }}
                                     >
-                                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: !activePositionContext ? 'var(--primary)' : '#1e293b' }}>Primary Position</div>
+                                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: !activePositionContext ? '#4f46e5' : '#1e293b' }}>Primary Position</div>
                                         <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{user.position_name}</div>
                                     </button>
 
-                                    <div style={{ height: '1px', background: '#f1f5f9', margin: '4px 0' }} />
+                                    <div style={{ height: '1px', background: '#e0e7ff', margin: '4px 0' }} />
 
                                     {user.active_assignments.map(a => (
                                         <button
@@ -124,11 +124,11 @@ const TopNav = () => {
                                                 padding: '0.75rem',
                                                 borderRadius: '10px',
                                                 border: 'none',
-                                                background: String(activePositionContext) === String(a.id) ? 'rgba(136, 19, 55, 0.05)' : 'transparent',
+                                                background: String(activePositionContext) === String(a.id) ? 'rgba(79, 70, 229, 0.08)' : 'transparent',
                                                 cursor: 'pointer'
                                             }}
                                         >
-                                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: String(activePositionContext) === String(a.id) ? 'var(--primary)' : '#1e293b' }}>
+                                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: String(activePositionContext) === String(a.id) ? '#4f46e5' : '#1e293b' }}>
                                                 {a.position_name}
                                             </div>
                                             <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{a.office_name} • Delegated</div>
