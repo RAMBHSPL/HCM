@@ -136,8 +136,8 @@ const Login = () => {
                 .form-input-dark:focus { border-color:#6366f1; background:white; box-shadow:0 0 0 3px rgba(99,102,241,0.1); }
                 .btn-submit { width:100%; padding:14px; border:none; border-radius:14px; font-weight:700; font-size:1rem; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; font-family:inherit; }
                 .btn-submit:hover:not(:disabled) { transform:translateY(-2px); box-shadow:0 8px 25px rgba(99,102,241,0.4); }
-                .stat-card { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:16px; padding:1.1rem; text-align:center; backdrop-filter:blur(10px); transition:all 0.2s; }
-                .stat-card:hover { background:rgba(255,255,255,0.13); transform:translateY(-3px); }
+                .login-stat-card { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:16px; padding:1.1rem; text-align:center; backdrop-filter:blur(10px); transition:all 0.2s; }
+                .login-stat-card:hover { background:rgba(255,255,255,0.13); transform:translateY(-3px); }
             `}</style>
 
             {/* ── LEFT PANEL ── */}
@@ -152,7 +152,7 @@ const Login = () => {
                     <div style={{ width: '44px', height: '44px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <img src="/Bavya.png" alt="logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
                     </div>
-                    <span style={{ color: 'white', fontWeight: 800, fontSize: '1.25rem', letterSpacing: '-0.5px' }}>ONE HCM</span>
+                    <span className="animating-gradient-text" style={{ fontWeight: 900, fontSize: '1.4rem', letterSpacing: '-0.5px' }}>ONE HCM</span>
                 </div>
 
                 {/* Center content */}
@@ -175,7 +175,7 @@ const Login = () => {
                 <div style={{ position: 'relative', zIndex: 1 }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '2rem' }}>
                         {stats.map(({ icon: Icon, label, value }) => (
-                            <div key={label} className="stat-card">
+                            <div key={label} className="login-stat-card">
                                 <Icon size={18} color="#a5b4fc" style={{ marginBottom: '6px' }} />
                                 <div style={{ color: 'white', fontWeight: 800, fontSize: '1.1rem' }}>{value}</div>
                                 <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 500 }}>{label}</div>
@@ -186,16 +186,80 @@ const Login = () => {
                 </div>
             </div>
 
-            {/* ── RIGHT PANEL ── */}
             <div style={{ flex: 1, background: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 4rem', overflowY: 'auto', animation: 'slide-in 0.4s ease' }}>
                 <div style={{ width: '100%', maxWidth: '400px' }}>
 
+                    {/* Logo Medallion on Top of Login Form */}
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
+                        <div className="logo-3d-effect" style={{ borderRadius: '50%', padding: '6px', width: '130px', height: '130px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg viewBox="0 0 100 100" width="115" height="115" style={{ display: 'block' }}>
+                                <defs>
+                                    <path id="login-text-arc-top" d="M 15 50 A 35 35 0 0 1 85 50" fill="none" />
+                                    <path id="login-text-arc-bottom" d="M 85 50 A 35 35 0 0 1 15 50" fill="none" />
+                                    <linearGradient id="login-tech-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stopColor="#00f0ff" />
+                                        <stop offset="100%" stopColor="#a855f7" />
+                                    </linearGradient>
+                                    <linearGradient id="login-health-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stopColor="#f43f5e" />
+                                        <stop offset="100%" stopColor="#e11d48" />
+                                    </linearGradient>
+                                    <linearGradient id="login-core-shield-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stopColor="rgba(6, 182, 212, 0.3)" />
+                                        <stop offset="100%" stopColor="rgba(124, 58, 237, 0.3)" />
+                                    </linearGradient>
+                                </defs>
+
+                                {/* Tech outer rotating rings */}
+                                <g className="rotating-tech-ring">
+                                    <circle cx="50" cy="50" r="44" fill="none" stroke="url(#login-tech-grad)" strokeWidth="1.5" strokeDasharray="8, 6" />
+                                    <circle cx="50" cy="50" r="41" fill="none" stroke="rgba(0, 240, 255, 0.1)" strokeWidth="1" />
+                                    <circle cx="50" cy="50" r="28" fill="none" stroke="url(#login-tech-grad)" strokeWidth="1" strokeDasharray="3, 4" />
+                                </g>
+
+                                {/* Circuit board traces */}
+                                <g opacity="0.5">
+                                    <line x1="50" y1="36" x2="50" y2="30" stroke="#00f0ff" strokeWidth="1.2" />
+                                    <circle cx="50" cy="30" r="1.5" fill="#00f0ff" />
+                                    <line x1="50" y1="64" x2="50" y2="70" stroke="#00f0ff" strokeWidth="1.2" />
+                                    <circle cx="50" cy="70" r="1.5" fill="#00f0ff" />
+                                    <line x1="36" y1="50" x2="30" y2="50" stroke="#a855f7" strokeWidth="1.2" />
+                                    <circle cx="30" cy="50" r="1.5" fill="#a855f7" />
+                                    <line x1="64" y1="50" x2="70" y2="50" stroke="#a855f7" strokeWidth="1.2" />
+                                    <circle cx="70" cy="50" r="1.5" fill="#a855f7" />
+                                </g>
+
+                                {/* Curved circular texts */}
+                                <text fill="#ffffff" fontSize="9" fontWeight="900" letterSpacing="1.8" style={{ textAnchor: 'middle' }}>
+                                    <textPath href="#login-text-arc-top" startOffset="50%">
+                                        BAVYA IT
+                                    </textPath>
+                                </text>
+
+                                <text fill="url(#login-tech-grad)" fontSize="6.5" fontWeight="800" letterSpacing="1.2" style={{ textAnchor: 'middle' }}>
+                                    <textPath href="#login-text-arc-bottom" startOffset="50%">
+                                        • DIGITAL CORE •
+                                    </textPath>
+                                </text>
+
+                                {/* Health Core: Cyber Heart Shield Fusion */}
+                                <g className="beating-health-core">
+                                    <path d="M50 34 L63 39 L63 53 C63 62 50 68 50 68 C50 68 37 62 37 53 L37 39 Z" fill="url(#login-core-shield-grad)" stroke="#00f0ff" strokeWidth="1" opacity="0.6" />
+                                    <path d="M46 42 h8 v6 h6 v8 h-6 v-6 h-8 v-6 h-6 v-8 h6 z" fill="url(#login-health-grad)" filter="drop-shadow(0 0 4px #f43f5e)" />
+                                    <rect x="48" y="48" width="4" height="4" rx="1" fill="#00f0ff" />
+                                </g>
+                            </svg>
+                        </div>
+                    </div>
+
                     {/* Header */}
-                    <div style={{ marginBottom: '2.5rem' }}>
-                        <h1 style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', marginBottom: '0.5rem' }}>
-                            {mode === 'login' ? 'Welcome back 👋' : mode === 'forgot-request' ? 'Forgot Password?' : mode === 'forgot-verify' ? 'Verify OTP' : 'Set New Password'}
-                        </h1>
-                        <p style={{ color: '#64748b', fontSize: '0.95rem' }}>
+                    <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+                        {mode !== 'login' && (
+                            <h1 style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', marginBottom: '0.5rem' }}>
+                                {mode === 'forgot-request' ? 'Forgot Password?' : mode === 'forgot-verify' ? 'Verify OTP' : 'Set New Password'}
+                            </h1>
+                        )}
+                        <p style={{ color: '#64748b', fontSize: '0.95rem', margin: '0 auto' }}>
                             {mode === 'login' ? 'Sign in to your ONE HCM account' : mode === 'forgot-request' ? 'Enter your username to receive an OTP.' : mode === 'forgot-verify' ? 'Enter the 6-digit code sent to your email.' : 'Choose a strong new password.'}
                         </p>
                     </div>

@@ -1548,7 +1548,8 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
         queryset = super().get_queryset().select_related(
             'level', 'parent', 'cluster', 'facility_master', 'facility_master__project', 'facility'
         ).prefetch_related(
-            'projects', 'sub_offices'
+            'projects', 'sub_offices',
+            'facility_master__position_types', 'facility_master__position_types__shifts'
         )
 
         # Manual query param filtering for level and status
@@ -2370,7 +2371,9 @@ class RoleViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet)
                 queryset = queryset.filter(role_type_id=role_type)
             else:
                 queryset = queryset.filter(role_type__name=role_type)
-        return queryset
+        return queryset.select_related(
+            'role_type', 'role_type__job_family', 'project', 'segment'
+        ).prefetch_related('jobs', 'jobs__tasks', 'jobs__tasks__urls', 'sub_groups')
 
 
 class JobViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
@@ -2387,7 +2390,9 @@ class JobViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
                 queryset = queryset.filter(role_id=role)
             else:
                 queryset = queryset.filter(role__name=role)
-        return queryset.order_by('name')
+        return queryset.select_related(
+            'role', 'role__role_type', 'role__role_type__job_family'
+        ).prefetch_related('tasks', 'tasks__urls').order_by('name')
 
 class TaskUrlViewSet(viewsets.ModelViewSet):
     queryset = TaskUrl.objects.all()
@@ -2480,7 +2485,9 @@ class PositionTypeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.Model
             queryset = queryset.filter(project_id=project)
         if segment and segment != 'all':
             queryset = queryset.filter(segment_id=segment)
-        return queryset
+        return queryset.select_related(
+            'project', 'segment', 'role', 'job'
+        ).prefetch_related('shifts')
 
 class ShiftViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Shift.objects.all()
@@ -2651,12 +2658,16 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
             return queryset.select_related(
                 'office', 'office__level', 'department', 'section', 'role', 'role_sub_group',
                 'role__role_type', 'role__role_type__job_family', 'job', 'level',
-                'position_type', 'section__project', 'department__project'
+                'position_type', 'section__project', 'department__project',
+                'role__segment', 'role__project'
             ).prefetch_related(
                 'shifts',
-                Prefetch('reporting_to', queryset=Position.objects.select_related('office', 'level')),
                 'employees',
-                'additional_roles'
+                'additional_roles',
+                'additional_jobs',
+                'additional_sub_groups',
+                Prefetch('reporting_to', queryset=Position.objects.select_related('office', 'level')),
+                Prefetch('office__projects', to_attr='_prefetched_office_projects'),
             )
 
     def paginate_queryset(self, queryset):

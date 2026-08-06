@@ -146,6 +146,7 @@ export const SECTIONS = [
     { id: 'position-assignments', name: 'Position Assignments', icon: <Network />, endpoint: 'position-assignments' },
     { id: 'position-levels', name: 'Position Levels', icon: <LayoutList />, endpoint: 'position-levels' },
     { id: 'position-types', name: 'Position Types', icon: <Settings />, endpoint: 'position-types' },
+    { id: 'position-role-mappings', name: 'Position & Role Types Mappings', icon: <Layers />, endpoint: 'position-types' },
     { id: 'shifts', name: 'Shifts', icon: <Settings />, endpoint: 'shifts' },
     { id: 'position-shift-rosters', name: 'Shift Roster', icon: <Calendar />, endpoint: 'position-shift-rosters' },
     { id: 'shift-change-requests', name: 'Shift Requests', icon: <Calendar />, endpoint: 'shift-change-requests' },
@@ -179,7 +180,7 @@ export const SECTIONS = [
 export const SECTION_GROUPS = [
     { name: 'Dashboard Overview', icon: <LayoutDashboard />, items: ['dashboard', 'users'], standalone: true },
     { name: 'Organization', icon: <Building2 />, items: ['organization', 'organization-levels', 'offices', 'vehicle-swaps', 'vehicle-swap-requests', 'facility-masters', 'departments', 'sections'] },
-    { name: 'Job Structure', icon: <Briefcase />, items: ['roles', 'role-sub-groups', 'jobs'] },
+    { name: 'Job Structure', icon: <Briefcase />, items: ['roles', 'role-sub-groups', 'jobs', 'position-role-mappings'] },
     { name: 'Workforce', icon: <Users />, items: ['employees', 'workforce-tracker', 'positions', 'position-assignments', 'position-levels', 'position-types', 'shifts', 'position-shift-rosters', 'shift-change-requests', 'projects', 'position-activity-logs'] },
 
     { name: 'Geo Locations', icon: <Globe />, items: ['geo-continents', 'geo-countries', 'geo-states', 'geo-districts', 'geo-mandals', 'geo-clusters', 'visiting-locations', 'landmarks'] },

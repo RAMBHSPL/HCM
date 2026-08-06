@@ -14,7 +14,6 @@ export default defineConfig(({ mode }) => {
       port: parseInt(env.VITE_PORT) || 5174,
       strictPort: false,
       proxy: {
-        // Proxy all /api requests to Django backend
         '/api/': {
           target: env.VITE_BACKEND_URL || `http://${env.VITE_HOST || 'localhost'}:${env.BACKEND_PORT || '8000'}`,
           changeOrigin: true,
@@ -24,14 +23,38 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: 'dist',
+      chunkSizeWarningLimit: 1500,
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom', 'lucide-react', 'react-modal'],
+          manualChunks(id) {
+            // Core React vendor
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'vendor-react';
+            }
+            // Charting
+            if (id.includes('node_modules/recharts') || id.includes('node_modules/d3')) {
+              return 'vendor-charts';
+            }
+            // Maps
+            if (id.includes('node_modules/leaflet') || id.includes('node_modules/react-leaflet')) {
+              return 'vendor-maps';
+            }
+            // Icons
+            if (id.includes('node_modules/lucide-react')) {
+              return 'vendor-icons';
+            }
+            // Excel/xlsx
+            if (id.includes('node_modules/xlsx')) {
+              return 'vendor-xlsx';
+            }
+            // All other node_modules
+            if (id.includes('node_modules')) {
+              return 'vendor-misc';
+            }
           },
         },
       },
-      chunkSizeWarningLimit: 1000,
     },
   };
 })
+

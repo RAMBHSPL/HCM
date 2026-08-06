@@ -22,6 +22,18 @@ const PositionTypes = () => {
                         🕒 Shifts: {item.shifts_details.map(s => s.name).join(', ')}
                     </div>
                 )}
+
+                {item.role_name && (
+                    <div style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600, background: '#f0fdf4', padding: '2px 8px', borderRadius: '6px' }}>
+                        👤 Role: {item.role_name}
+                    </div>
+                )}
+
+                {item.job_name && (
+                    <div style={{ fontSize: '0.75rem', color: '#7c3aed', fontWeight: 600, background: '#f5f3ff', padding: '2px 8px', borderRadius: '6px' }}>
+                        💼 Job: {item.job_name}
+                    </div>
+                )}
             </div>
             
             {item.description && (

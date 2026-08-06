@@ -84,7 +84,8 @@ class FacilityMaster(models.Model):
     mode = models.CharField(max_length=20, choices=MODE_CHOICES, default='FIXED')
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, default='Active')
-    roles = models.ManyToManyField('Role', blank=True, related_name='facility_masters')
+    roles = models.ManyToManyField('Role', blank=True, related_name='facility_masters_roles')
+    position_types = models.ManyToManyField('PositionType', blank=True, related_name='facility_masters')
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         ordering = ['-created_at']
@@ -491,6 +492,8 @@ class PositionType(models.Model):
     name = models.CharField(max_length=100)
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='position_types', null=True, blank=True)
     segment = models.ForeignKey('Segment', on_delete=models.CASCADE, null=True, blank=True, related_name='position_types')
+    role = models.ForeignKey('Role', on_delete=models.SET_NULL, null=True, blank=True, related_name='position_types')
+    job = models.ForeignKey('Job', on_delete=models.SET_NULL, null=True, blank=True, related_name='position_types')
     shifts = models.ManyToManyField('Shift', blank=True, related_name='position_types')
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

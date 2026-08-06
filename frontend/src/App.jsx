@@ -19,6 +19,7 @@ const Positions = React.lazy(() => import('./pages/Positions'));
 const PositionAssignments = React.lazy(() => import('./pages/PositionAssignments'));
 const PositionLevels = React.lazy(() => import('./pages/PositionLevels'));
 const PositionTypes = React.lazy(() => import('./pages/PositionTypes'));
+const PositionTypeMapping = React.lazy(() => import('./pages/PositionTypeMapping'));
 const Shifts = React.lazy(() => import('./pages/Shifts'));
 const PositionShiftRoster = React.lazy(() => import('./pages/PositionShiftRoster'));
 const ManagerScreenMapping = React.lazy(() => import('./pages/ManagerScreenMapping'));
@@ -51,7 +52,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 const ProtectedRoute = ({ section, children }) => {
   const { canView } = useData();
   // Basic modules always allowed
-  if (['dashboard', 'users', 'api-keys', 'reactivations', 'position-assignments', 'profile', 'position-activity-logs', 'audit-logs', 'login-history', 'vehicle-swaps', 'vehicle-swap-requests', 'manager-screen-mappings', 'position-screen-mappings', 'shift-change-requests', 'workforce-tracker', 'role-sub-groups'].includes(section)) {
+  if (['dashboard', 'users', 'api-keys', 'reactivations', 'position-assignments', 'profile', 'position-activity-logs', 'audit-logs', 'login-history', 'vehicle-swaps', 'vehicle-swap-requests', 'manager-screen-mappings', 'position-screen-mappings', 'position-role-mappings', 'shift-change-requests', 'workforce-tracker', 'role-sub-groups'].includes(section)) {
     return children;
   }
 
@@ -129,6 +130,7 @@ const AppContent = () => {
             <Route path="/position-assignments/*" element={<ProtectedRoute section="position-assignments"><PositionAssignments /></ProtectedRoute>} />
             <Route path="/position-levels/*" element={<ProtectedRoute section="position-levels"><PositionLevels /></ProtectedRoute>} />
             <Route path="/position-types/*" element={<ProtectedRoute section="position-types"><PositionTypes /></ProtectedRoute>} />
+            <Route path="/position-role-mappings/*" element={<ProtectedRoute section="position-role-mappings"><PositionTypeMapping /></ProtectedRoute>} />
             <Route path="/shifts/*" element={<ProtectedRoute section="shifts"><Shifts /></ProtectedRoute>} />
             <Route path="/position-shift-rosters/*" element={<ProtectedRoute section="position-shift-rosters"><PositionShiftRoster /></ProtectedRoute>} />
             <Route path="/manager-screen-mappings/*" element={<ProtectedRoute section="manager-screen-mappings"><ManagerScreenMapping /></ProtectedRoute>} />

@@ -6,7 +6,7 @@ from core.models import (
     EmployeeEducation, EmployeeExperience, EmployeeEmploymentHistory,
     EmployeeBankDetails, EmployeeEPFODetails, EmployeeHealthDetails, EmployeeSalaryDetails,
     GeoContinent, GeoCountry, GeoState, GeoDistrict, GeoMandal, GeoCluster, VisitingLocation, Landmark, APIKey, APIKeyUsageLog, LoginHit, AccountBlockHistory, EmployeeArchive, PositionAssignment, PositionActivityLog, PositionShiftRoster,
-    Segment, RoleSubGroup
+    Segment, RoleSubGroup, PositionType, Shift
 )
 from django.contrib.auth.models import User
 
@@ -533,6 +533,55 @@ class JobFamilySerializer(serializers.ModelSerializer):
         model = JobFamily
         fields = '__all__'
 
+class ShiftSerializer(serializers.ModelSerializer):
+    project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)
+    segment_name = serializers.ReadOnlyField(source='segment.name', allow_null=True)
+    positions_count = serializers.SerializerMethodField()
+    position_types_count = serializers.SerializerMethodField()
+    assigned_projects = serializers.SerializerMethodField()
+
+    def get_positions_count(self, obj):
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        pos = cache.get('positions')
+        if pos is not None:
+            return len(pos)
+        return 0
+
+    def get_position_types_count(self, obj):
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        pt = cache.get('position_types')
+        if pt is not None:
+            return len(pt)
+        return 0
+
+    def get_assigned_projects(self, obj):
+        projects = set()
+        if obj.project:
+            projects.add(obj.project.name)
+        return list(projects)
+
+    class Meta:
+        model = Shift
+        fields = '__all__'
+
+class LightShiftSerializer(serializers.ModelSerializer):
+    project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)
+    segment_name = serializers.ReadOnlyField(source='segment.name', allow_null=True)
+
+    class Meta:
+        model = Shift
+        fields = ['id', 'name', 'start_time', 'end_time', 'project_name', 'segment_name']
+
+class PositionTypeSerializer(serializers.ModelSerializer):
+    project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)
+    segment_name = serializers.ReadOnlyField(source='segment.name', allow_null=True)
+    role_name = serializers.ReadOnlyField(source='role.name', allow_null=True)
+    job_name = serializers.ReadOnlyField(source='job.name', allow_null=True)
+    shifts_details = ShiftSerializer(source='shifts', many=True, read_only=True)
+    class Meta:
+        model = PositionType
+        fields = '__all__'
+
 class FacilityMasterSerializer(serializers.ModelSerializer):
     project_name = serializers.SerializerMethodField()
     project_code = serializers.SerializerMethodField()
@@ -558,6 +607,7 @@ class FacilityMasterSerializer(serializers.ModelSerializer):
     mode_display = serializers.CharField(source='get_mode_display', read_only=True)
     project_type_display = serializers.CharField(source='get_project_type_display', read_only=True)
     role_details = RoleSerializer(source='roles', many=True, read_only=True)
+    position_type_details = PositionTypeSerializer(source='position_types', many=True, read_only=True)
 
     class Meta:
         model = FacilityMaster
@@ -566,7 +616,7 @@ class FacilityMasterSerializer(serializers.ModelSerializer):
 class LightFacilityMasterSerializer(serializers.ModelSerializer):
     class Meta:
         model = FacilityMaster
-        fields = ['id', 'name', 'location_code', 'life', 'mode', 'project_type', 'status']
+        fields = ['id', 'name', 'location_code', 'life', 'mode', 'project_type', 'status', 'position_types']
 
 class OfficeSerializer(serializers.ModelSerializer):
     level_name = serializers.ReadOnlyField(source='level.name')
@@ -608,6 +658,9 @@ class OfficeSerializer(serializers.ModelSerializer):
 
     def _get_projects_cached(self, obj):
         """Share prefetch cache so all 4 project fields use a single DB hit per object."""
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        if 'projects' in cache:
+            return list(cache['projects'])
         if not hasattr(obj, '_cached_projects'):
             obj._cached_projects = list(obj.projects.all())
         return obj._cached_projects
@@ -646,7 +699,10 @@ class OfficeSerializer(serializers.ModelSerializer):
     has_sub_offices = serializers.SerializerMethodField()
 
     def get_has_sub_offices(self, obj):
-        return len(obj.sub_offices.all()) > 0
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        if 'sub_offices' in cache:
+            return len(cache['sub_offices']) > 0
+        return obj.sub_offices.exists()
 
     def _get_facility_safe(self, obj):
         try:
@@ -686,6 +742,9 @@ class LightOfficeSerializer(serializers.ModelSerializer):
     office_type_display = serializers.CharField(source='get_office_type_display', read_only=True)
 
     def _get_projects_cached(self, obj):
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        if 'projects' in cache:
+            return list(cache['projects'])
         if not hasattr(obj, '_cached_projects'):
             obj._cached_projects = list(obj.projects.all())
         return obj._cached_projects
@@ -859,14 +918,16 @@ class PositionDetailSerializer(serializers.ModelSerializer):
         return None
 
     def get_project_id(self, obj):
-        project = None
-        if obj.section and obj.section.project:
-            project = obj.section.project
-        elif obj.department and obj.department.project:
-            project = obj.department.project
-        elif obj.office:
-            project = obj.office.projects.first()
-        return project.id if project else None
+        if obj.section and obj.section.project_id:
+            return obj.section.project_id
+        if obj.department and obj.department.project_id:
+            return obj.department.project_id
+        if obj.office:
+            # Use prefetched attribute if available
+            prefetched = getattr(obj.office, '_prefetched_office_projects', None)
+            proj_list = prefetched if prefetched is not None else list(obj.office.projects.all())
+            return proj_list[0].id if proj_list else None
+        return None
 
     def get_segment_id(self, obj):
         if obj.role and obj.role.segment:
@@ -879,16 +940,15 @@ class PositionDetailSerializer(serializers.ModelSerializer):
         return None
 
     def get_project_name(self, obj):
-        project = None
         if obj.section and obj.section.project:
-            project = obj.section.project
-        elif obj.department and obj.department.project:
-            project = obj.department.project
-        elif obj.office:
-            project = obj.office.projects.first()
-        
-        if project and project.is_currently_active:
-            return project.name
+            return obj.section.project.name if obj.section.project.is_currently_active else None
+        if obj.department and obj.department.project:
+            return obj.department.project.name if obj.department.project.is_currently_active else None
+        if obj.office:
+            prefetched = getattr(obj.office, '_prefetched_office_projects', None)
+            proj_list = prefetched if prefetched is not None else list(obj.office.projects.all())
+            active = next((p for p in proj_list if p.is_currently_active), None)
+            return active.name if active else None
         return None
     
     class Meta:
@@ -920,54 +980,7 @@ class PositionDetailSerializer(serializers.ModelSerializer):
         return ret
 
 
-from .models import PositionType, Shift
 
-class ShiftSerializer(serializers.ModelSerializer):
-    project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)
-    segment_name = serializers.ReadOnlyField(source='segment.name', allow_null=True)
-    positions_count = serializers.SerializerMethodField()
-    position_types_count = serializers.SerializerMethodField()
-    assigned_projects = serializers.SerializerMethodField()
-
-    def get_positions_count(self, obj):
-        cache = getattr(obj, '_prefetched_objects_cache', {})
-        pos = cache.get('positions')
-        if pos is not None:
-            return len(pos)
-        return 0
-
-    def get_position_types_count(self, obj):
-        cache = getattr(obj, '_prefetched_objects_cache', {})
-        pt = cache.get('position_types')
-        if pt is not None:
-            return len(pt)
-        return 0
-
-    def get_assigned_projects(self, obj):
-        projects = set()
-        if obj.project:
-            projects.add(obj.project.name)
-        return list(projects)
-
-    class Meta:
-        model = Shift
-        fields = '__all__'
-
-class LightShiftSerializer(serializers.ModelSerializer):
-    project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)
-    segment_name = serializers.ReadOnlyField(source='segment.name', allow_null=True)
-
-    class Meta:
-        model = Shift
-        fields = ['id', 'name', 'start_time', 'end_time', 'project_name', 'segment_name']
-
-class PositionTypeSerializer(serializers.ModelSerializer):
-    project_name = serializers.ReadOnlyField(source='project.name', allow_null=True)
-    segment_name = serializers.ReadOnlyField(source='segment.name', allow_null=True)
-    shifts_details = ShiftSerializer(source='shifts', many=True, read_only=True)
-    class Meta:
-        model = PositionType
-        fields = '__all__'
 
 class LightPositionSerializer(serializers.ModelSerializer):
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
@@ -1134,6 +1147,31 @@ class PositionSerializer(serializers.ModelSerializer):
 
     reporting_to = serializers.PrimaryKeyRelatedField(many=True, queryset=Position.objects.all(), required=False)
     reporting_to_details = LightPositionSerializer(source='reporting_to', many=True, read_only=True)
+
+    def validate_reporting_to(self, value):
+        if self.instance:
+            if self.instance in value:
+                raise serializers.ValidationError("A position cannot report to itself.")
+            
+            # DFS cycle detection
+            visited = set()
+            def has_cycle(pos):
+                if pos.id == self.instance.id:
+                    return True
+                if pos.id in visited:
+                    return False
+                visited.add(pos.id)
+                for parent in pos.reporting_to.all():
+                    if has_cycle(parent):
+                        return True
+                return False
+
+            for parent_pos in value:
+                if has_cycle(parent_pos):
+                    raise serializers.ValidationError(
+                        f"Assigning '{parent_pos.name}' as a parent would create a loop in the reporting hierarchy."
+                    )
+        return value
 
     class Meta:
         model = Position

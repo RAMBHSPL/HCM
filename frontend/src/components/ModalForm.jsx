@@ -1618,7 +1618,7 @@ const ModalForm = () => {
                                         value={formData.project || ''}
                                         onChange={(e) => {
                                             const projId = e.target.value;
-                                            setFormData({ ...formData, project: projId, segment: '', shifts: [] });
+                                            setFormData({ ...formData, project: projId, segment: '', shifts: [], role: '', job: '' });
                                         }}
                                         placeholder="Select Project..."
                                         icon={FolderKanban}
@@ -1638,7 +1638,7 @@ const ModalForm = () => {
                                             <SearchableSelect
                                                 options={selectedProj?.segments?.map(s => ({ id: String(s.id), name: `${s.name} (${s.code})` })) || []}
                                                 value={formData.segment || ''}
-                                                onChange={(e) => setFormData({ ...formData, segment: e.target.value, shifts: [] })}
+                                        onChange={(e) => setFormData({ ...formData, segment: e.target.value, shifts: [], role: '', job: '' })}
                                                 placeholder="Select Segment..."
                                                 icon={Layers}
                                                 required
@@ -1647,6 +1647,7 @@ const ModalForm = () => {
                                     </div>
                                 );
                             })()}
+
 
                             <div className="form-group full-width">
                                 <label className="premium-label"><Edit size={14} /> Position Type Name <span style={{ color: '#ef4444' }}>*</span></label>
@@ -2962,38 +2963,12 @@ const ModalForm = () => {
                     </div>
 
                     <div className="premium-form-section">
-                        <div className="form-section-title" style={{ marginBottom: '2rem' }}><Users size={18} /> Role Mapping & Resource Tagging</div>
+                        <div className="form-section-title" style={{ marginBottom: '2rem' }}><Users size={18} /> Position Type Mapping & Resource Tagging</div>
                         <div className="form-grid">
-                            <div className="form-group">
-                                <label className="premium-label"><BarChart3 size={14} /> Filter Job Family</label>
-                                <div className="premium-input-wrapper">
-                                    <SearchableSelect
-                                        options={(jobFamilies || []).map(jf => ({ id: jf.id, name: jf.name }))}
-                                        value={formData._master_jf_filter || ''}
-                                        onChange={(e) => setFormData({ ...formData, _master_jf_filter: e.target.value, _master_rt_filter: '' })}
-                                        placeholder="All Families"
-                                        icon={BarChart3}
-                                    />
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label className="premium-label"><Settings size={14} /> Filter Role Type</label>
-                                <div className="premium-input-wrapper">
-                                    <SearchableSelect
-                                        options={(roleTypes || []).filter(rt => rt.job_family == formData._master_jf_filter).map(rt => ({ id: rt.id, name: rt.name }))}
-                                        value={formData._master_rt_filter || ''}
-                                        onChange={(e) => setFormData({ ...formData, _master_rt_filter: e.target.value })}
-                                        placeholder="All Types"
-                                        icon={Settings}
-                                        disabled={!formData._master_jf_filter}
-                                    />
-                                </div>
-                            </div>
-
                             <div className="form-group full-width">
-                                <label className="premium-label"><ShieldCheck size={14} /> Tagged Roles for this Template</label>
+                                <label className="premium-label"><ShieldCheck size={14} /> Tagged Position Types for this Template</label>
                                 <div style={{
-                                    maxHeight: '200px',
+                                    maxHeight: '250px',
                                     overflowY: 'auto',
                                     border: '2px solid var(--primary-light)',
                                     borderRadius: '16px',
@@ -3003,28 +2978,31 @@ const ModalForm = () => {
                                     gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
                                     gap: '0.75rem'
                                 }}>
-                                    {(roles || [])
-                                        .filter(r => !formData._master_jf_filter || r.job_family_id == formData._master_jf_filter)
-                                        .filter(r => !formData._master_rt_filter || r.role_type == formData._master_rt_filter)
-                                        .map(r => (
-                                            <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px', background: 'white', border: '1px solid #f1f5f9', borderRadius: '8px', transition: 'all 0.2s ease' }}>
+                                    {(positionTypes || [])
+                                        .filter(pt => {
+                                            if (!pt.project) return true;
+                                            return formData.project && String(pt.project) === String(formData.project);
+                                        })
+                                        .map(pt => (
+                                            <label key={pt.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px', background: 'white', border: '1px solid #f1f5f9', borderRadius: '8px', transition: 'all 0.2s ease' }}>
                                                 <input
                                                     type="checkbox"
-                                                    checked={(formData.roles || []).includes(r.id)}
+                                                    checked={(formData.position_types || []).includes(pt.id)}
                                                     onChange={(e) => {
-                                                        const currentRoles = formData.roles || [];
-                                                        const newRoles = e.target.checked
-                                                            ? [...currentRoles, r.id]
-                                                            : currentRoles.filter(id => id !== r.id);
-                                                        setFormData({ ...formData, roles: newRoles });
+                                                        const currentPTs = formData.position_types || [];
+                                                        const newPTs = e.target.checked
+                                                            ? [...currentPTs, pt.id]
+                                                            : currentPTs.filter(id => id !== pt.id);
+                                                        setFormData({ ...formData, position_types: newPTs });
                                                     }}
                                                     style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
                                                 />
-                                                <span style={{ fontSize: '0.85rem', color: '#334155' }}>{r.name}</span>
+                                                <span style={{ fontSize: '0.85rem', color: '#334155' }}>{pt.name}</span>
                                             </label>
                                         ))
                                     }
                                 </div>
+                                <span className="form-help-text">Select the position types required for this Facility Template. Options are filtered by the selected Project.</span>
                             </div>
                         </div>
                     </div>
@@ -5038,7 +5016,11 @@ const ModalForm = () => {
                                     <SearchableSelect
                                         options={(() => {
                                             let filteredPt = positionTypes || [];
-                                            if (formData._pos_project) {
+                                            const selectedOff = offices.find(o => String(o.id) === String(formData.office));
+                                            const masterPtIds = selectedOff?.facility_master_details?.position_types || [];
+                                            if (masterPtIds.length > 0) {
+                                                filteredPt = filteredPt.filter(pt => masterPtIds.map(String).includes(String(pt.id)));
+                                            } else if (formData._pos_project) {
                                                 filteredPt = filteredPt.filter(pt => {
                                                     const ptProjId = pt.project_id || (pt.project && typeof pt.project === 'object' ? pt.project.id : pt.project);
                                                     if (!ptProjId) return true; // Global position types apply everywhere
@@ -5056,12 +5038,47 @@ const ModalForm = () => {
                                         value={formData.position_type || ''}
                                         onChange={(e) => {
                                             const ptId = e.target.value;
+                                            console.log('⚡ [PositionType Select] ptId:', ptId);
                                             const ptObj = positionTypes.find(pt => String(pt.id) === String(ptId));
+                                            console.log('⚡ [PositionType Select] ptObj found:', ptObj);
                                             const mappedShiftIds = ptObj?.shifts || [];
+                                            const autoRole = ptObj?.role ? String(ptObj.role) : '';
+                                            const autoJob = ptObj?.job ? String(ptObj.job) : '';
+                                            console.log('⚡ [PositionType Select] autoRole:', autoRole, 'autoJob:', autoJob);
+                                            const selectedRoleObj = roles.find(r => String(r.id) === autoRole);
+                                            const autoName = selectedRoleObj ? selectedRoleObj.name : (ptObj ? ptObj.name : '');
+                                            
+                                            // Auto-determine designation level based on Position Type name
+                                            let autoLevelId = formData.level || '';
+                                            const ptNameUpper = ptObj?.name?.toUpperCase() || '';
+                                            let targetLevelName = '';
+                                            if (ptNameUpper === 'COO' || ptNameUpper === 'SPH') {
+                                                targetLevelName = 'Level-1';
+                                            } else if (ptNameUpper === 'REGIONAL MANAGER') {
+                                                targetLevelName = 'Level-2';
+                                            } else if (ptNameUpper === 'DISTRICT MANAGER') {
+                                                targetLevelName = 'Level-3';
+                                            } else if (ptNameUpper.includes('OPERATIONS EXECUTIVES') || ptNameUpper === 'OE') {
+                                                targetLevelName = 'Level-4';
+                                            } else if (ptNameUpper === 'DRIVERS' || ptNameUpper === 'DEO') {
+                                                targetLevelName = 'Level-5';
+                                            }
+                                            
+                                            if (targetLevelName) {
+                                                const lvlObj = positionLevels?.find(l => l.name === targetLevelName);
+                                                if (lvlObj) autoLevelId = String(lvlObj.id);
+                                            }
+
                                             setFormData({
                                                 ...formData,
                                                 position_type: ptId,
-                                                shifts: mappedShiftIds, // Autopopulate shifts pre-mapped to this position type
+                                                shifts: mappedShiftIds,
+                                                role: autoRole,
+                                                additional_roles: [],
+                                                job: autoJob,
+                                                additional_jobs: [],
+                                                name: autoName,
+                                                level: autoLevelId
                                             });
                                         }}
                                         placeholder="Select Position Type..."
@@ -5194,7 +5211,44 @@ const ModalForm = () => {
                                         onChange={(e) => {
                                             const officeId = e.target.value;
                                             const selectedOff = offices.find(o => String(o.id) === String(officeId));
-                                            const masterRoles = selectedOff?.facility_master_details?.role_details || [];
+                                            const masterPTs = selectedOff?.facility_master_details?.position_types || [];
+                                            const autoPTId = masterPTs.length === 1 ? String(masterPTs[0]) : '';
+                                            let autoShifts = [];
+                                            let autoRole = '';
+                                            let autoJob = '';
+                                            let autoName = formData.name;
+                                            let autoLevelId = formData.level || '';
+                                            if (autoPTId) {
+                                                console.log('⚡ [Office Select] autoPTId found from facility master:', autoPTId);
+                                                const ptObj = positionTypes.find(pt => String(pt.id) === autoPTId);
+                                                console.log('⚡ [Office Select] ptObj found:', ptObj);
+                                                autoShifts = ptObj?.shifts || [];
+                                                autoRole = ptObj?.role ? String(ptObj.role) : '';
+                                                autoJob = ptObj?.job ? String(ptObj.job) : '';
+                                                console.log('⚡ [Office Select] autoRole:', autoRole, 'autoJob:', autoJob);
+                                                const selectedRoleObj = roles.find(r => String(r.id) === autoRole);
+                                                autoName = selectedRoleObj ? selectedRoleObj.name : (ptObj ? ptObj.name : '');
+                                                
+                                                // Auto-determine designation level based on Position Type name
+                                                const ptNameUpper = ptObj?.name?.toUpperCase() || '';
+                                                let targetLevelName = '';
+                                                if (ptNameUpper === 'COO' || ptNameUpper === 'SPH') {
+                                                    targetLevelName = 'Level-1';
+                                                } else if (ptNameUpper === 'REGIONAL MANAGER') {
+                                                    targetLevelName = 'Level-2';
+                                                } else if (ptNameUpper === 'DISTRICT MANAGER') {
+                                                    targetLevelName = 'Level-3';
+                                                } else if (ptNameUpper.includes('OPERATIONS EXECUTIVES') || ptNameUpper === 'OE') {
+                                                    targetLevelName = 'Level-4';
+                                                } else if (ptNameUpper === 'DRIVERS' || ptNameUpper === 'DEO') {
+                                                    targetLevelName = 'Level-5';
+                                                }
+                                                
+                                                if (targetLevelName) {
+                                                    const lvlObj = positionLevels?.find(l => l.name === targetLevelName);
+                                                    if (lvlObj) autoLevelId = String(lvlObj.id);
+                                                }
+                                            }
 
                                             // Get first project code linked to this office
                                             let projCode = '';
@@ -5209,8 +5263,15 @@ const ModalForm = () => {
                                                 _pos_office_filter: officeId, // Sync filter
                                                 department: '',
                                                 section: '',
-                                                role: masterRoles.length === 1 ? masterRoles[0].id : '',
-                                                _pos_project_code: projCode
+                                                position_type: autoPTId,
+                                                shifts: autoShifts,
+                                                role: autoRole,
+                                                additional_roles: [],
+                                                job: autoJob,
+                                                additional_jobs: [],
+                                                name: autoName,
+                                                _pos_project_code: projCode,
+                                                level: autoLevelId
                                             });
                                         }}
                                         disabled={!formData._pos_level_filter && !formData._pos_project && !formData.id}
@@ -5280,9 +5341,12 @@ const ModalForm = () => {
                                 if (formData._pos_project) {
                                     filteredRolesList = filteredRolesList.filter(r => {
                                         const rProjId = r.project_id || (r.project && typeof r.project === 'object' ? r.project.id : r.project);
+                                        if (!rProjId) return true; // Global roles apply everywhere
                                         const matchesProj = String(rProjId) === String(formData._pos_project);
                                         if (formData._pos_segment) {
                                             const rSegId = r.segment_id || (r.segment && typeof r.segment === 'object' ? r.segment.id : r.segment);
+                                            // Project-wide roles (no segment ID) should match any segment
+                                            if (!rSegId) return matchesProj;
                                             return matchesProj && String(rSegId) === String(formData._pos_segment);
                                         }
                                         return matchesProj;
@@ -5294,6 +5358,7 @@ const ModalForm = () => {
                                     if (officeProjIds.length > 0) {
                                         filteredRolesList = filteredRolesList.filter(r => {
                                             const rProjId = r.project_id || (r.project && typeof r.project === 'object' ? r.project.id : r.project);
+                                            if (!rProjId) return true; // Global roles apply everywhere
                                             return officeProjIds.includes(String(rProjId));
                                         });
                                     }
@@ -5324,11 +5389,20 @@ const ModalForm = () => {
                                                         const primaryRole = val[0] || '';
                                                         const additionalRoles = val.slice(1);
                                                         const selectedRoleObj = roles.find(r => String(r.id) === String(primaryRole));
+                                                        
+                                                        // Auto-populate Job for this primary role
+                                                        const firstJobObj = jobs?.find(j => {
+                                                            const jRoleId = j.role && typeof j.role === 'object' ? j.role.id : j.role;
+                                                            return String(jRoleId) === String(primaryRole);
+                                                        });
+                                                        const autoJob = firstJobObj ? String(firstJobObj.id) : '';
+
                                                         setFormData({
                                                             ...formData,
                                                             role: primaryRole,
                                                             additional_roles: additionalRoles,
-                                                            name: selectedRoleObj ? selectedRoleObj.name : formData.name
+                                                            name: selectedRoleObj ? selectedRoleObj.name : formData.name,
+                                                            job: autoJob
                                                         });
                                                     }}
                                                     placeholder="Select Role Groups..."
