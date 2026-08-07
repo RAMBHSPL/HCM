@@ -26,32 +26,13 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1500,
       rollupOptions: {
         output: {
-          manualChunks(id) {
-            // Core React vendor
-            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
-              return 'vendor-react';
-            }
-            // Charting
-            if (id.includes('node_modules/recharts') || id.includes('node_modules/d3')) {
-              return 'vendor-charts';
-            }
-            // Maps
-            if (id.includes('node_modules/leaflet') || id.includes('node_modules/react-leaflet')) {
-              return 'vendor-maps';
-            }
-            // Icons
-            if (id.includes('node_modules/lucide-react')) {
-              return 'vendor-icons';
-            }
-            // Excel/xlsx
-            if (id.includes('node_modules/xlsx')) {
-              return 'vendor-xlsx';
-            }
-            // All other node_modules
-            if (id.includes('node_modules')) {
-              return 'vendor-misc';
-            }
-          },
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-charts': ['recharts', 'd3'],
+            'vendor-maps': ['leaflet', 'react-leaflet'],
+            'vendor-icons': ['lucide-react'],
+            'vendor-xlsx': ['xlsx']
+          }
         },
       },
     },
