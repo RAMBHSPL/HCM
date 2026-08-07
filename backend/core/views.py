@@ -9,7 +9,7 @@ from .models import (
     EmployeeEducation, EmployeeExperience, EmployeeEmploymentHistory,
     EmployeeBankDetails, EmployeeEPFODetails, EmployeeHealthDetails, EmployeeSalaryDetails,
     GeoContinent, GeoCountry, GeoState, GeoDistrict,    GeoMandal, GeoCluster, VisitingLocation, Landmark, APIKey, LoginHit, AccountBlockHistory, EmployeeArchive, PositionLevel, PositionAssignment, PositionType, Shift, PositionShiftRoster,
-    Segment, RoleSubGroup
+    Segment, RoleSubGroup, OfficeType
 )
 from django.db import transaction
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -17,14 +17,14 @@ from .serializers import (
     OfficeSerializer, LightOfficeSerializer, FacilitySerializer, DepartmentSerializer, LightDepartmentSerializer, SectionSerializer, JobFamilySerializer, 
     RoleTypeSerializer, RoleSerializer, JobSerializer, TaskSerializer, TaskUrlSerializer,
     PositionLevelSerializer, PositionTypeSerializer, ShiftSerializer,
-    PositionSerializer, PositionDetailSerializer, EmployeeSerializer, EmployeeListSerializer, ProjectSerializer, FacilityMasterSerializer, IndianVillageSerializer, 
+    PositionSerializer, PositionDetailSerializer, EmployeeSerializer, EmployeeListSerializer, IntegrationEmployeeSerializer, ProjectSerializer, FacilityMasterSerializer, IndianVillageSerializer, 
     OrganizationLevelSerializer, DocumentTypeSerializer, EmployeeDocumentSerializer, EmployeeDocumentListSerializer, 
     EmployeeEducationSerializer, EmployeeEducationListSerializer, EmployeeExperienceSerializer, EmployeeExperienceListSerializer, EmployeeEmploymentHistorySerializer,
     EmployeeBankDetailsSerializer, EmployeeEPFODetailsSerializer, EmployeeHealthDetailsSerializer, EmployeeSalaryDetailsSerializer,
     GeoContinentSerializer, GeoCountrySerializer, GeoStateSerializer, GeoDistrictSerializer,
     GeoMandalSerializer, GeoClusterSerializer, VisitingLocationSerializer, LandmarkSerializer,
     UserSerializer, EmployeeTaskUrlPermissionSerializer, GeoHierarchySerializer, APIKeySerializer, LoginHitSerializer, AccountBlockHistorySerializer, EmployeeArchiveSerializer, PositionAssignmentSerializer, PositionActivityLogSerializer, PositionShiftRosterSerializer,
-    SegmentSerializer, RoleSubGroupSerializer,
+    SegmentSerializer, RoleSubGroupSerializer, OfficeTypeSerializer,
     GeoContinentNestedSerializer
 )
 from .models import PositionActivityLog
@@ -3259,6 +3259,8 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
 
 
     def get_serializer_class(self):
+        if self.request.query_params.get('integration') == 'true':
+            return IntegrationEmployeeSerializer
         if self.action == 'list':
             return EmployeeListSerializer
         return EmployeeSerializer
@@ -3297,15 +3299,30 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         # Optimize with select_related/prefetch_related for common fields
         from django.db.models import Prefetch
         from .models import Position
+        queryset = queryset.select_related('bank_details')
         if self.action == 'list':
+            positions_qs = Position.objects.select_related(
+                'office',
+                'office__parent',
+                'office__level',
+                'office__cluster',
+                'department__project',
+                'section__project',
+                'role',
+                'role_sub_group',
+                'position_type',
+                'level'
+            ).prefetch_related(
+                'shifts',
+                Prefetch(
+                    'reporting_to',
+                    queryset=Position.objects.select_related('role').prefetch_related(
+                        Prefetch('employees', queryset=Employee.objects.filter(status='Active'))
+                    )
+                )
+            )
             queryset = queryset.prefetch_related(
-                'positions__office',
-                'positions__office__cluster',
-                'positions__department__project',
-                'positions__section__project',
-                'positions__role',
-                'positions__role_sub_group',
-                'positions__position_type'
+                Prefetch('positions', queryset=positions_qs)
             )
         else:
             queryset = queryset.prefetch_related(
@@ -5491,8 +5508,13 @@ class ShiftChangeRequestViewSet(viewsets.ModelViewSet):
         self._apply_roster_update(request_obj)
         return Response({'success': True, 'message': 'Request overridden and roster updated directly.'})
 
-
-        self._apply_roster_update(request_obj)
-        return Response({'success': True, 'message': 'Request overridden and roster updated directly.'})
+class OfficeTypeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
+    queryset = OfficeType.objects.all()
+    serializer_class = OfficeTypeSerializer
+    pagination_class = None
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'code']
+    ordering_fields = ['name', 'code', 'created_at']
 
 

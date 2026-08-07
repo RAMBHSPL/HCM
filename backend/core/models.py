@@ -107,17 +107,24 @@ class FacilityMaster(models.Model):
         super().save(*args, **kwargs)
     def __str__(self): return self.name
 
-OFFICE_TYPE_CHOICES = [
-    ('Permanent', 'Permanent'),
-    ('Mobile', 'Mobile'),
-    ('Camp', 'Camp'),
-]
+class OfficeType(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=20, default='Active')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name']
 
 class Office(models.Model):
     registered_name = models.CharField(max_length=255, blank=True, null=True)
     name = models.CharField(max_length=255, unique=True)
     sac = models.CharField(max_length=50, unique=True, blank=True, null=True)
-    office_type = models.CharField(max_length=50, choices=OFFICE_TYPE_CHOICES, blank=True, null=True)
+    office_type = models.CharField(max_length=50, blank=True, null=True)
     vehicle_code = models.CharField(max_length=50, blank=True, null=True)
     vehicle_no = models.CharField(max_length=50, blank=True, null=True)
     level = models.ForeignKey(OrganizationLevel, on_delete=models.SET_NULL, related_name='offices', null=True, blank=True)

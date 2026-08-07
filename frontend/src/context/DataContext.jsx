@@ -92,6 +92,8 @@ const resolveEndpointHelper = (type) => {
         'Positions': 'positions',
         'Position Assignments': 'position-assignments',
         'Offices': 'offices',
+        'Office Types': 'office-types',
+        'OfficeType': 'office-types',
         'Vehicle Swaps': 'vehicle-swaps',
         'VehicleSwaps': 'vehicle-swaps',
         'Vehicle Swap Requests': 'vehicle-swap-requests',
@@ -131,6 +133,7 @@ export const SECTIONS = [
     { id: 'organization', name: 'Structure', icon: <Network />, endpoint: 'offices' },
     { id: 'organization-levels', name: 'Levels', icon: <LayoutList />, endpoint: 'organization-levels' },
     { id: 'offices', name: 'Offices', icon: <Building2 />, endpoint: 'offices' },
+    { id: 'office-types', name: 'Office Types', icon: <Settings />, endpoint: 'office-types' },
     { id: 'vehicle-swaps', name: 'Vehicle Swaps', icon: <Truck />, endpoint: 'vehicle-swaps' },
     { id: 'vehicle-swap-requests', name: 'Vehicle Swap Requests', icon: <Truck />, endpoint: 'vehicle-swap-requests' },
     { id: 'departments', name: 'Departments', icon: <Layers />, endpoint: 'departments' },
@@ -179,7 +182,7 @@ export const SECTIONS = [
 
 export const SECTION_GROUPS = [
     { name: 'Dashboard Overview', icon: <LayoutDashboard />, items: ['dashboard', 'users'], standalone: true },
-    { name: 'Organization', icon: <Building2 />, items: ['organization', 'organization-levels', 'offices', 'vehicle-swaps', 'vehicle-swap-requests', 'facility-masters', 'departments', 'sections'] },
+    { name: 'Organization', icon: <Building2 />, items: ['organization', 'organization-levels', 'offices', 'office-types', 'vehicle-swaps', 'vehicle-swap-requests', 'facility-masters', 'departments', 'sections'] },
     { name: 'Job Structure', icon: <Briefcase />, items: ['roles', 'role-sub-groups', 'jobs', 'position-role-mappings'] },
     { name: 'Workforce', icon: <Users />, items: ['employees', 'workforce-tracker', 'positions', 'position-assignments', 'position-levels', 'position-types', 'shifts', 'position-shift-rosters', 'shift-change-requests', 'projects', 'position-activity-logs'] },
 
@@ -229,6 +232,7 @@ export const DataProvider = ({ children }) => {
     const [roleTypes, setRoleTypes] = useState([]);
     const [tasks, setTasks] = useState([]);
     const [facilityMasters, setFacilityMasters] = useState([]);
+    const [officeTypes, setOfficeTypes] = useState([]);
     const [jobFamilyMap, setJobFamilyMap] = useState({});
     const [geoContinents, setGeoContinents] = useState([]);
     const [geoCountries, setGeoCountries] = useState([]);
@@ -1240,10 +1244,11 @@ export const DataProvider = ({ children }) => {
                 safeFetch('job-families', force),
                 safeFetch('role-types', force),
                 safeFetch('projects', force),
-                safeFetch('facility-masters', force)
+                safeFetch('facility-masters', force),
+                safeFetch('office-types', force)
             ]);
 
-            const [orgLevelsData, officesData, jobFamiliesData, roleTypesData, projectsData, facilityMastersData] = wave1;
+            const [orgLevelsData, officesData, jobFamiliesData, roleTypesData, projectsData, facilityMastersData, officeTypesData] = wave1;
 
             const jfMap = {};
             jobFamiliesData.forEach(jf => { jfMap[jf.id] = jf.name; });
@@ -1258,12 +1263,14 @@ export const DataProvider = ({ children }) => {
             setRoleTypes(universalSort(roleTypesData));
             setProjects(universalSort(projectsData));
             setFacilityMasters(universalSort(facilityMastersData));
+            setOfficeTypes(universalSort(officeTypesData));
 
             // Instant Cache Pre-population
             pageCache.current.set('offices', sortedOffices);
             pageCache.current.set('projects', universalSort(projectsData));
             pageCache.current.set('facility-masters', universalSort(facilityMastersData));
             pageCache.current.set('organization-levels', levelSort(orgLevelsData));
+            pageCache.current.set('office-types', universalSort(officeTypesData));
 
             console.log('✅ [Performance] Wave 1 complete. App is now interactive!');
 
@@ -2167,6 +2174,7 @@ export const DataProvider = ({ children }) => {
         orgLevels, setOrgLevels,
         projects, setProjects,
         facilityMasters, setFacilityMasters,
+        officeTypes, setOfficeTypes,
         positionLevels, setPositionLevels,
         positionTypes, setPositionTypes,
         shifts, setShifts,

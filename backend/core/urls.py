@@ -12,7 +12,7 @@ from .views import (
     GeoMandalViewSet, GeoClusterViewSet, VisitingLocationViewSet, LandmarkViewSet,
     PositionLevelViewSet, UserViewSet, LoginAPIView, LogoutAPIView, ChangePasswordView, RequestResetOTPView, ResetPasswordWithOTPView, EmployeeTaskUrlPermissionViewSet, EmployeeDetailsAPIView, APIKeyViewSet, LoginHitViewSet, BlockedEmployeeViewSet, AccountBlockHistoryViewSet, EmployeeArchiveViewSet, PositionAssignmentViewSet, PositionActivityLogViewSet, PositionShiftRosterViewSet, ManagerScreenMappingViewSet,
     GeoBulkUploadView, GeoFullHierarchyView, AuditLogViewSet, VehicleSwapLogViewSet, VehicleSwapRequestViewSet, ShiftChangeRequestViewSet,
-    SegmentViewSet, RoleSubGroupViewSet
+    SegmentViewSet, RoleSubGroupViewSet, OfficeTypeViewSet
 )
 from .dashboard_views import DashboardStatsView
 
@@ -50,6 +50,7 @@ router.register(r'employees', EmployeeViewSet)
 router.register(r'projects', ProjectViewSet)
 router.register(r'segments', SegmentViewSet)
 router.register(r'role-sub-groups', RoleSubGroupViewSet)
+router.register(r'office-types', OfficeTypeViewSet)
 router.register(r'locations', IndianVillageViewSet)
 router.register(r'employee-permissions', EmployeeTaskUrlPermissionViewSet)
 router.register(r'api-keys', APIKeyViewSet)

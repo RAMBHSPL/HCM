@@ -6,7 +6,7 @@ from core.models import (
     EmployeeEducation, EmployeeExperience, EmployeeEmploymentHistory,
     EmployeeBankDetails, EmployeeEPFODetails, EmployeeHealthDetails, EmployeeSalaryDetails,
     GeoContinent, GeoCountry, GeoState, GeoDistrict, GeoMandal, GeoCluster, VisitingLocation, Landmark, APIKey, APIKeyUsageLog, LoginHit, AccountBlockHistory, EmployeeArchive, PositionAssignment, PositionActivityLog, PositionShiftRoster,
-    Segment, RoleSubGroup, PositionType, Shift
+    Segment, RoleSubGroup, PositionType, Shift, OfficeType
 )
 from django.contrib.auth.models import User
 
@@ -868,6 +868,7 @@ class PositionLevelSerializer(serializers.ModelSerializer):
 class PositionDetailSerializer(serializers.ModelSerializer):
     """Detailed position serializer with full hierarchy"""
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
+    office_type = serializers.ReadOnlyField(source='office.office_type', allow_null=True)
     reporting_to_names = serializers.StringRelatedField(source='reporting_to', many=True, read_only=True)
     office_level = serializers.ReadOnlyField(source='office.level.name', allow_null=True)
     department_name = serializers.ReadOnlyField(source='department.name', allow_null=True)
@@ -955,7 +956,7 @@ class PositionDetailSerializer(serializers.ModelSerializer):
         model = Position
         fields = [
             'id', 'name', 'office_id', 'department_id', 'section_id', 'role_id', 'job_id',
-            'office_name', 'reporting_to_names', 'office_level', 'office_level_id',
+            'office_name', 'office_type', 'reporting_to_names', 'office_level', 'office_level_id',
             'department_name', 'section_name', 'role_name', 'job_name', 'job_family_name',
             'job_family_id', 'role_type_id',
             'role_details', 'job_details', 'project_name', 'reporting_to', 'start_date',
@@ -1333,6 +1334,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         parent_office = office.parent
         return {
             "office_name": office.name,
+            "office_type": office.office_type,
             "reporting_office_id": parent_office.id if parent_office else None,
             "reporting_office_name": parent_office.name if parent_office else None,
             "country": office.country_name,
@@ -1360,7 +1362,11 @@ class EmployeeSerializer(serializers.ModelSerializer):
             positions = obj.positions.all()
         boss_pos_ids = []
         for pos in positions:
-            for boss_pos in pos.reporting_to.all():
+            pos_cache = getattr(pos, '_prefetched_objects_cache', {})
+            boss_positions = pos_cache.get('reporting_to') if pos_cache else None
+            if boss_positions is None:
+                boss_positions = pos.reporting_to.all()
+            for boss_pos in boss_positions:
                 if boss_pos.id not in boss_pos_ids:
                     boss_pos_ids.append(boss_pos.id)
         if not boss_pos_ids and getattr(obj, 'reporting_to_id', None):
@@ -1368,11 +1374,26 @@ class EmployeeSerializer(serializers.ModelSerializer):
         return boss_pos_ids
 
     def get_reporting_to_name(self, obj):
-        pos = obj.positions.first()
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        positions = cache.get('positions') if cache else None
+        if positions is None:
+            positions = obj.positions.all()
+        
+        pos = positions[0] if positions else None
         if pos:
-            boss_pos = pos.reporting_to.first()
+            pos_cache = getattr(pos, '_prefetched_objects_cache', {})
+            boss_positions = pos_cache.get('reporting_to') if pos_cache else None
+            if boss_positions is None:
+                boss_positions = pos.reporting_to.all()
+            
+            boss_pos = boss_positions[0] if boss_positions else None
             if boss_pos:
-                boss = boss_pos.employees.filter(status='Active').first()
+                boss_pos_cache = getattr(boss_pos, '_prefetched_objects_cache', {})
+                boss_employees = boss_pos_cache.get('employees') if boss_pos_cache else None
+                if boss_employees is not None:
+                    boss = next((b for b in boss_employees if getattr(b, 'status', None) == 'Active'), None)
+                else:
+                    boss = boss_pos.employees.filter(status='Active').first()
                 if boss:
                     return boss.name
                 return boss_pos.name
@@ -1384,13 +1405,23 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
     def get_reporting_to_details(self, obj):
         results = []
+        seen_ids = set()
         cache = getattr(obj, '_prefetched_objects_cache', {})
         positions = cache.get('positions') if cache else None
         if positions is None:
             positions = obj.positions.all()
 
         for pos in positions:
-            for boss_pos in pos.reporting_to.all():
+            pos_cache = getattr(pos, '_prefetched_objects_cache', {})
+            boss_positions = pos_cache.get('reporting_to') if pos_cache else None
+            if boss_positions is None:
+                boss_positions = pos.reporting_to.all()
+
+            for boss_pos in boss_positions:
+                if boss_pos.id in seen_ids:
+                    continue
+                seen_ids.add(boss_pos.id)
+                
                 emp_cache = getattr(boss_pos, '_prefetched_objects_cache', {})
                 emps = emp_cache.get('employees')
                 if emps is not None:
@@ -1413,7 +1444,11 @@ class EmployeeSerializer(serializers.ModelSerializer):
         
         if not results and obj.reporting_to:
             boss = obj.reporting_to
-            boss_pos = boss.positions.first()
+            boss_pos_cache = getattr(boss, '_prefetched_objects_cache', {})
+            boss_positions = boss_pos_cache.get('positions') if boss_pos_cache else None
+            if boss_positions is None:
+                boss_positions = boss.positions.all()
+            boss_pos = boss_positions[0] if boss_positions else None
             results.append({
                 "position_id": boss_pos.id if boss_pos else None,
                 "position_name": boss_pos.name if boss_pos else None,
@@ -1554,6 +1589,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
 class LightEmployeePositionListSerializer(serializers.ModelSerializer):
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
+    office_type = serializers.ReadOnlyField(source='office.office_type', allow_null=True)
     reporting_office_id = serializers.IntegerField(source='office.parent.id', allow_null=True, read_only=True)
     reporting_office_name = serializers.ReadOnlyField(source='office.parent.name', allow_null=True)
     department_name = serializers.ReadOnlyField(source='department.name', allow_null=True)
@@ -1631,7 +1667,7 @@ class LightEmployeePositionListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Position
         fields = [
-            'id', 'name', 'office_id', 'office_name', 'reporting_office_id', 'reporting_office_name',
+            'id', 'name', 'office_id', 'office_name', 'office_type', 'reporting_office_id', 'reporting_office_name',
             'department_id', 'department_name', 'section_id', 'section_name', 'level_id', 'office_level_id',
             'project_id', 'project_name', 'segment_id', 'segment_name',
             'position_type_id', 'position_type_name', 'role_id', 'role_name',
@@ -1663,6 +1699,7 @@ class EmployeeListSerializer(EmployeeSerializer):
         parent_office = off.parent
         return {
             "office_name": off.name,
+            "office_type": off.office_type,
             "reporting_office_id": parent_office.id if parent_office else None,
             "reporting_office_name": parent_office.name if parent_office else None,
             "country": off.country_name,
@@ -1993,6 +2030,112 @@ class CompactOfficeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Office
         fields = ['id', 'name', 'code', 'sac', 'vehicle_code', 'status']
+
+class IntegrationEmployeeSerializer(serializers.ModelSerializer):
+    employee = serializers.SerializerMethodField()
+    position = serializers.SerializerMethodField()
+    project = serializers.SerializerMethodField()
+    office = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Employee
+        fields = ['employee', 'position', 'project', 'office']
+
+    def get_employee(self, obj):
+        pos = obj.positions.first()
+        return {
+            "id": obj.id,
+            "name": obj.name,
+            "employee_code": obj.employee_code,
+            "status": obj.status,
+            "dob": obj.date_of_birth.strftime('%Y-%m-%d') if getattr(obj, 'date_of_birth', None) else None,
+            "gender": obj.gender,
+            "phone": obj.phone,
+            "primary_position": pos.name if pos else None
+        }
+
+    def get_position(self, obj):
+        pos = obj.positions.first()
+        if not pos:
+            return None
+        
+        reporting_to = []
+        for boss_pos in pos.reporting_to.all():
+            boss = boss_pos.employees.filter(status='Active').first()
+            reporting_to.append({
+                "id": boss_pos.id,
+                "position_name": boss_pos.name,
+                "position_code": boss_pos.code,
+                "role_name": boss_pos.role.name if boss_pos.role else None,
+                "employee_id": boss.id if boss else None,
+                "employee_name": boss.name if boss else None,
+                "employee_code": boss.employee_code if boss else None,
+                "employee_email": boss.email if boss else None,
+                "employee_status": boss.status if boss else None,
+            })
+
+        return {
+            "id": pos.id,
+            "name": pos.name,
+            "code": pos.code,
+            "position_type_id": pos.position_type.id if pos.position_type else None,
+            "position_type": pos.position_type.name if pos.position_type else None,
+            "role_id": pos.role.id if pos.role else None,
+            "role_name": pos.role.name if pos.role else None,
+            "role_sub_group_id": pos.role_sub_group.id if pos.role_sub_group else None,
+            "role_sub_group_name": pos.role_sub_group.name if pos.role_sub_group else None,
+            "department": pos.department.name if pos.department else None,
+            "section": pos.section.name if pos.section else None,
+            "level_id": pos.level.id if pos.level else None,
+            "reporting_to": reporting_to
+        }
+
+    def get_project(self, obj):
+        pos = obj.positions.first()
+        if not pos:
+            return None
+        project = None
+        if pos.section and pos.section.project:
+            project = pos.section.project
+        elif pos.department and pos.department.project:
+            project = pos.department.project
+        
+        if project:
+            return {
+                "id": project.id,
+                "name": project.name,
+                "code": project.code
+            }
+        return None
+
+    def get_office(self, obj):
+        pos = obj.positions.first()
+        if not pos or not pos.office:
+            return None
+        office = pos.office
+        parent_office = office.parent
+        return {
+            "id": office.id,
+            "name": office.name,
+            "level": office.level.name if office.level else None,
+            "office_type": office.office_type,
+            "sac": office.sac,
+            "vehicle_code": office.vehicle_code,
+            "vehicle_no": office.vehicle_no,
+            "reporting_office_id": parent_office.id if parent_office else None,
+            "reporting_office_name": parent_office.name if parent_office else None,
+            "geo_location": {
+                "country": office.country_name,
+                "state": office.state_name,
+                "district": office.district_name,
+                "mandal": office.mandal_name,
+                "cluster": office.cluster.name if office.cluster else None,
+                "cluster_type": office.cluster.get_cluster_type_display() if office.cluster else None,
+                "specific_location": office.location,
+                "address": ""
+            }
+        }
+
 
 class ProjectSerializer(serializers.ModelSerializer):
     assigned_offices_details = CompactOfficeSerializer(source='assigned_offices', many=True, read_only=True)
@@ -2356,16 +2499,8 @@ class ShiftChangeRequestSerializer(serializers.ModelSerializer):
         read_only_fields = ['requested_by', 'status', 'employee_consent', 'created_at', 'updated_at']
 
 
-class ShiftChangeRequestSerializer(serializers.ModelSerializer):
-    requested_by_name = serializers.ReadOnlyField(source='requested_by.name')
-    employee_name = serializers.ReadOnlyField(source='employee.name')
-    employee_code = serializers.ReadOnlyField(source='employee.employee_code')
-    position_name = serializers.ReadOnlyField(source='position.name')
-    from_shift_name = serializers.ReadOnlyField(source='from_shift.name')
-    to_shift_name = serializers.ReadOnlyField(source='to_shift.name')
-
+class OfficeTypeSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ShiftChangeRequest
+        model = OfficeType
         fields = '__all__'
-        read_only_fields = ['requested_by', 'status', 'employee_consent', 'created_at', 'updated_at']
 

@@ -237,6 +237,7 @@ const ModalForm = () => {
         selectedEmployee,
         projects,
         facilityMasters,
+        officeTypes,
         roleTypes,
         tasks,
         documentTypes,
@@ -1735,6 +1736,73 @@ const ModalForm = () => {
                 </div>
             );
 
+        case 'Office Types':
+        case 'OfficeType':
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    <div className="premium-form-section">
+                        <div className="form-section-title" style={{ marginBottom: '2rem' }}><Settings size={18} /> Office Type Details</div>
+                        <div className="form-grid">
+                            <div className="form-group full-width">
+                                <label className="premium-label"><Edit size={14} /> Name <span style={{ color: '#ef4444' }}>*</span></label>
+                                <div className="premium-input-wrapper">
+                                    <Edit className="premium-input-icon" size={18} />
+                                    <input
+                                        type="text"
+                                        className="premium-input"
+                                        placeholder="e.g. Warehouse, Branch Office"
+                                        value={formData.name || ''}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label className="premium-label"><Settings size={14} /> Code</label>
+                                <div className="premium-input-wrapper">
+                                    <Settings className="premium-input-icon" size={18} />
+                                    <input
+                                        type="text"
+                                        className="premium-input"
+                                        placeholder="e.g. WH, BO"
+                                        value={formData.code || ''}
+                                        onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label className="premium-label"><Layers size={14} /> Status</label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={[
+                                            { id: 'Active', name: 'Active' },
+                                            { id: 'Inactive', name: 'Inactive' }
+                                        ]}
+                                        value={formData.status || 'Active'}
+                                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                                        icon={Layers}
+                                    />
+                                </div>
+                            </div>
+                            <div className="form-group full-width">
+                                <label className="premium-label"><FileText size={14} /> Description</label>
+                                <div className="premium-input-wrapper" style={{ height: 'auto' }}>
+                                    <FileText className="premium-input-icon" size={18} style={{ marginTop: '0.75rem' }} />
+                                    <textarea
+                                        className="premium-input"
+                                        style={{ padding: '0.75rem 0.75rem 0.75rem 2.5rem', minHeight: '100px', resize: 'vertical' }}
+                                        rows="2"
+                                        placeholder="Enter description..."
+                                        value={formData.description || ''}
+                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
         case 'Offices':
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -1774,11 +1842,7 @@ const ModalForm = () => {
                                 <label className="premium-label"><Building size={14} /> Office Type</label>
                                 <div className="premium-input-wrapper">
                                     <SearchableSelect
-                                        options={[
-                                            { id: 'Permanent', name: 'Permanent' },
-                                            { id: 'Mobile', name: 'Mobile' },
-                                            { id: 'Camp', name: 'Camp' }
-                                        ]}
+                                        options={officeTypes?.map(ot => ({ id: ot.name, name: ot.name })) || []}
                                         value={formData.office_type || ''}
                                         onChange={(e) => setFormData({ ...formData, office_type: e.target.value })}
                                         placeholder="Select Office Type..."
