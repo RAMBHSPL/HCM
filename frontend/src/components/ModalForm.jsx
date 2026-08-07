@@ -5349,7 +5349,9 @@ const ModalForm = () => {
                                 <label className="premium-label"><Briefcase size={14} /> Department</label>
                                 <div className="premium-input-wrapper">
                                     <SearchableSelect
-                                        options={departments.filter(d => !formData.office || d.office == formData.office).map(d => ({ id: d.id, name: `${d.name} (${d.project_name || 'General'})` }))}
+                                        options={departments.filter(d => 
+                                            !formData._pos_project || String(d.project) === String(formData._pos_project) || !d.project || String(d.office) === String(formData.office)
+                                        ).map(d => ({ id: d.id, name: `${d.name} (${d.project_name || 'General'})` }))}
                                         value={formData.department || ''}
                                         onChange={(e) => {
                                             const deptId = e.target.value;
