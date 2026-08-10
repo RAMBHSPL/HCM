@@ -1786,7 +1786,7 @@ class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSe
                             if not facility_master:
                                 raise Exception(f"Facility Template '{fm_val}' not found.")
 
-                        office_type_val = str(row.get('Office Type') or row.get('office_type') or '').strip()
+                        office_type_val = str(row.get('Facility Type') or row.get('facility_type') or row.get('Office Type') or row.get('office_type') or '').strip()
                         if office_type_val:
                             ot_lower = office_type_val.lower()
                             if 'mobile' in ot_lower: office_type_val = 'Mobile'
@@ -3259,7 +3259,9 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
 
 
     def get_serializer_class(self):
-        if self.request.query_params.get('integration') == 'true':
+        from core.models import APIKey
+        auth = getattr(self.request, 'auth', None)
+        if self.request.query_params.get('integration') == 'true' or (auth and isinstance(auth, APIKey)):
             return IntegrationEmployeeSerializer
         if self.action == 'list':
             return EmployeeListSerializer

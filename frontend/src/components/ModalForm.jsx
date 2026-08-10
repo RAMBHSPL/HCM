@@ -1738,10 +1738,12 @@ const ModalForm = () => {
 
         case 'Office Types':
         case 'OfficeType':
+        case 'Facility Types':
+        case 'FacilityType':
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                     <div className="premium-form-section">
-                        <div className="form-section-title" style={{ marginBottom: '2rem' }}><Settings size={18} /> Office Type Details</div>
+                        <div className="form-section-title" style={{ marginBottom: '2rem' }}><Settings size={18} /> Facility Type Details</div>
                         <div className="form-grid">
                             <div className="form-group full-width">
                                 <label className="premium-label"><Edit size={14} /> Name <span style={{ color: '#ef4444' }}>*</span></label>
@@ -1839,13 +1841,13 @@ const ModalForm = () => {
                             </div>
 
                             <div className="form-group">
-                                <label className="premium-label"><Building size={14} /> Office Type</label>
+                                <label className="premium-label"><Building size={14} /> Facility Type</label>
                                 <div className="premium-input-wrapper">
                                     <SearchableSelect
                                         options={officeTypes?.map(ot => ({ id: ot.name, name: ot.name })) || []}
                                         value={formData.office_type || ''}
                                         onChange={(e) => setFormData({ ...formData, office_type: e.target.value })}
-                                        placeholder="Select Office Type..."
+                                        placeholder="Select Facility Type..."
                                         icon={Building}
                                     />
                                 </div>

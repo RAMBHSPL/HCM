@@ -11,6 +11,7 @@ const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const ProjectAnalyticsDashboard = React.lazy(() => import('./pages/ProjectAnalyticsDashboard'));
 const OrganizationLevels = React.lazy(() => import('./pages/OrganizationLevels'));
 const Offices = React.lazy(() => import('./pages/Offices'));
+const FacilityTypes = React.lazy(() => import('./pages/FacilityTypes'));
 const Departments = React.lazy(() => import('./pages/Departments'));
 const Sections = React.lazy(() => import('./pages/Sections'));
 const Employees = React.lazy(() => import('./pages/Employees'));
@@ -107,6 +108,7 @@ const AppContent = () => {
             <Route path="/organization/*" element={<ProtectedRoute section="organization"><Organization /></ProtectedRoute>} />
             <Route path="/organization-levels/*" element={<ProtectedRoute section="organization-levels"><OrganizationLevels /></ProtectedRoute>} />
             <Route path="/offices/*" element={<ProtectedRoute section="offices"><Offices /></ProtectedRoute>} />
+            <Route path="/office-types/*" element={<ProtectedRoute section="office-types"><FacilityTypes /></ProtectedRoute>} />
             <Route path="/vehicle-swaps/*" element={<ProtectedRoute section="vehicle-swaps"><VehicleSwaps /></ProtectedRoute>} />
             <Route path="/vehicle-swap-requests/*" element={<ProtectedRoute section="vehicle-swap-requests"><VehicleSwapRequests /></ProtectedRoute>} />
             <Route path="/shift-change-requests/*" element={<ProtectedRoute section="shift-change-requests"><ShiftChangeRequests /></ProtectedRoute>} />

@@ -1334,7 +1334,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         parent_office = office.parent
         return {
             "office_name": office.name,
-            "office_type": office.office_type,
+            "facility_type": office.office_type,
             "reporting_office_id": parent_office.id if parent_office else None,
             "reporting_office_name": parent_office.name if parent_office else None,
             "country": office.country_name,
@@ -1343,7 +1343,6 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "mandal": office.mandal_name,
             "cluster": office.cluster.name if office.cluster else None,
             "cluster_type": office.cluster.get_cluster_type_display() if office.cluster else None,
-            "specific_location": office.location,
             "sac": office.sac,
             "vehicle_code": office.vehicle_code,
             "vehicle_no": office.vehicle_no
@@ -1589,7 +1588,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
 class LightEmployeePositionListSerializer(serializers.ModelSerializer):
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
-    office_type = serializers.ReadOnlyField(source='office.office_type', allow_null=True)
+    facility_type = serializers.ReadOnlyField(source='office.office_type', allow_null=True)
     reporting_office_id = serializers.IntegerField(source='office.parent.id', allow_null=True, read_only=True)
     reporting_office_name = serializers.ReadOnlyField(source='office.parent.name', allow_null=True)
     department_name = serializers.ReadOnlyField(source='department.name', allow_null=True)
@@ -1667,7 +1666,7 @@ class LightEmployeePositionListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Position
         fields = [
-            'id', 'name', 'office_id', 'office_name', 'office_type', 'reporting_office_id', 'reporting_office_name',
+            'id', 'name', 'office_id', 'office_name', 'facility_type', 'reporting_office_id', 'reporting_office_name',
             'department_id', 'department_name', 'section_id', 'section_name', 'level_id', 'office_level_id',
             'project_id', 'project_name', 'segment_id', 'segment_name',
             'position_type_id', 'position_type_name', 'role_id', 'role_name',
@@ -1699,7 +1698,7 @@ class EmployeeListSerializer(EmployeeSerializer):
         parent_office = off.parent
         return {
             "office_name": off.name,
-            "office_type": off.office_type,
+            "facility_type": off.office_type,
             "reporting_office_id": parent_office.id if parent_office else None,
             "reporting_office_name": parent_office.name if parent_office else None,
             "country": off.country_name,
@@ -2036,10 +2035,11 @@ class IntegrationEmployeeSerializer(serializers.ModelSerializer):
     position = serializers.SerializerMethodField()
     project = serializers.SerializerMethodField()
     office = serializers.SerializerMethodField()
+    positions_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
-        fields = ['employee', 'position', 'project', 'office']
+        fields = ['employee', 'position', 'project', 'office', 'positions_details']
 
     def get_employee(self, obj):
         pos = obj.positions.first()
@@ -2067,6 +2067,8 @@ class IntegrationEmployeeSerializer(serializers.ModelSerializer):
                 "position_name": boss_pos.name,
                 "position_code": boss_pos.code,
                 "role_name": boss_pos.role.name if boss_pos.role else None,
+                "level_name": boss_pos.level.name if boss_pos.level else None,
+                "level_rank": boss_pos.level.rank if boss_pos.level else None,
                 "employee_id": boss.id if boss else None,
                 "employee_name": boss.name if boss else None,
                 "employee_code": boss.employee_code if boss else None,
@@ -2087,6 +2089,8 @@ class IntegrationEmployeeSerializer(serializers.ModelSerializer):
             "department": pos.department.name if pos.department else None,
             "section": pos.section.name if pos.section else None,
             "level_id": pos.level.id if pos.level else None,
+            "level_name": pos.level.name if pos.level else None,
+            "level_rank": pos.level.rank if pos.level else None,
             "reporting_to": reporting_to
         }
 
@@ -2118,7 +2122,7 @@ class IntegrationEmployeeSerializer(serializers.ModelSerializer):
             "id": office.id,
             "name": office.name,
             "level": office.level.name if office.level else None,
-            "office_type": office.office_type,
+            "facility_type": office.office_type,
             "sac": office.sac,
             "vehicle_code": office.vehicle_code,
             "vehicle_no": office.vehicle_no,
@@ -2130,11 +2134,14 @@ class IntegrationEmployeeSerializer(serializers.ModelSerializer):
                 "district": office.district_name,
                 "mandal": office.mandal_name,
                 "cluster": office.cluster.name if office.cluster else None,
-                "cluster_type": office.cluster.get_cluster_type_display() if office.cluster else None,
-                "specific_location": office.location,
-                "address": ""
+                "cluster_type": office.cluster.get_cluster_type_display() if office.cluster else None
             }
         }
+
+    def get_positions_details(self, obj):
+        # Skip the first (primary) position — already sent under "position"
+        secondary_positions = obj.positions.all()[1:]
+        return LightEmployeePositionListSerializer(secondary_positions, many=True).data
 
 
 class ProjectSerializer(serializers.ModelSerializer):
