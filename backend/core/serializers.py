@@ -865,6 +865,20 @@ class PositionLevelSerializer(serializers.ModelSerializer):
         model = PositionLevel
         fields = '__all__'
 
+
+class LightRoleSerializer(serializers.ModelSerializer):
+    role_type_id = serializers.ReadOnlyField(source='role_type.id')
+    role_type_name = serializers.ReadOnlyField(source='role_type.name')
+    job_family_name = serializers.ReadOnlyField(source='role_type.job_family.name')
+    job_family_id = serializers.ReadOnlyField(source='role_type.job_family.id')
+    project_name = serializers.ReadOnlyField(source='project.name')
+    segment_name = serializers.ReadOnlyField(source='segment.name')
+
+    class Meta:
+        model = Role
+        fields = ['id', 'name', 'code', 'role_type_id', 'role_type_name', 'job_family_name', 'job_family_id', 'project_name', 'segment_name', 'status']
+
+
 class PositionDetailSerializer(serializers.ModelSerializer):
     """Detailed position serializer with full hierarchy"""
     office_name = serializers.ReadOnlyField(source='office.name', allow_null=True)
@@ -898,6 +912,12 @@ class PositionDetailSerializer(serializers.ModelSerializer):
     position_type_name = serializers.ReadOnlyField(source='position_type.name', allow_null=True)
     role_details = RoleSerializer(source='role', read_only=True)
     job_details = JobSerializer(source='job', read_only=True)
+    additional_roles = serializers.PrimaryKeyRelatedField(many=True, queryset=Role.objects.all(), required=False)
+    additional_roles_details = LightRoleSerializer(source='additional_roles', many=True, read_only=True)
+    additional_sub_groups = serializers.PrimaryKeyRelatedField(many=True, queryset=RoleSubGroup.objects.all(), required=False)
+    additional_sub_groups_details = RoleSubGroupSerializer(source='additional_sub_groups', many=True, read_only=True)
+    additional_jobs = serializers.PrimaryKeyRelatedField(many=True, queryset=Job.objects.all(), required=False)
+    additional_jobs_details = JobSerializer(source='additional_jobs', many=True, read_only=True)
 
     def get_job_family_id(self, obj):
         try: return obj.role.role_type.job_family.id
@@ -961,7 +981,10 @@ class PositionDetailSerializer(serializers.ModelSerializer):
             'job_family_id', 'role_type_id',
             'role_details', 'job_details', 'project_name', 'reporting_to', 'start_date',
             'level', 'level_name', 'level_rank', 'rank',
-            'project_id', 'segment_id', 'segment_name', 'position_type_id', 'position_type_name'
+            'project_id', 'segment_id', 'segment_name', 'position_type_id', 'position_type_name',
+            'additional_roles', 'additional_roles_details',
+            'additional_sub_groups', 'additional_sub_groups_details',
+            'additional_jobs', 'additional_jobs_details'
         ]
 
     def to_representation(self, instance):
@@ -990,17 +1013,6 @@ class LightPositionSerializer(serializers.ModelSerializer):
         model = Position
         fields = ['id', 'name', 'code', 'office_name', 'level_name', 'status']
 
-class LightRoleSerializer(serializers.ModelSerializer):
-    role_type_id = serializers.ReadOnlyField(source='role_type.id')
-    role_type_name = serializers.ReadOnlyField(source='role_type.name')
-    job_family_name = serializers.ReadOnlyField(source='role_type.job_family.name')
-    job_family_id = serializers.ReadOnlyField(source='role_type.job_family.id')
-    project_name = serializers.ReadOnlyField(source='project.name')
-    segment_name = serializers.ReadOnlyField(source='segment.name')
-
-    class Meta:
-        model = Role
-        fields = ['id', 'name', 'code', 'role_type_id', 'role_type_name', 'job_family_name', 'job_family_id', 'project_name', 'segment_name', 'status']
 
 class PositionSerializer(serializers.ModelSerializer):
     """Simple position serializer for listings"""
@@ -1663,6 +1675,42 @@ class LightEmployeePositionListSerializer(serializers.ModelSerializer):
             for parent_pos in obj.reporting_to.all()
         ]
 
+    additional_roles = serializers.SerializerMethodField()
+    additional_sub_groups = serializers.SerializerMethodField()
+    additional_jobs = serializers.SerializerMethodField()
+
+    def get_additional_roles(self, obj):
+        return [
+            {
+                "id": r.id,
+                "name": r.name,
+                "code": r.code,
+                "role_type_id": r.role_type.id if r.role_type else None,
+                "role_type_name": r.role_type.name if r.role_type else None,
+            }
+            for r in obj.additional_roles.all()
+        ]
+
+    def get_additional_sub_groups(self, obj):
+        return [
+            {
+                "id": sg.id,
+                "name": sg.name,
+                "code": sg.code,
+            }
+            for sg in obj.additional_sub_groups.all()
+        ]
+
+    def get_additional_jobs(self, obj):
+        return [
+            {
+                "id": j.id,
+                "name": j.name,
+                "code": j.code,
+            }
+            for j in obj.additional_jobs.all()
+        ]
+
     class Meta:
         model = Position
         fields = [
@@ -1670,7 +1718,8 @@ class LightEmployeePositionListSerializer(serializers.ModelSerializer):
             'department_id', 'department_name', 'section_id', 'section_name', 'level_id', 'office_level_id',
             'project_id', 'project_name', 'segment_id', 'segment_name',
             'position_type_id', 'position_type_name', 'role_id', 'role_name',
-            'role_sub_group_id', 'role_sub_group_name', 'reporting_to'
+            'role_sub_group_id', 'role_sub_group_name', 'reporting_to',
+            'additional_roles', 'additional_sub_groups', 'additional_jobs'
         ]
 
 class EmployeeListSerializer(EmployeeSerializer):
@@ -1971,6 +2020,42 @@ class LightEmployeePositionSerializer(serializers.ModelSerializer):
     segment_id = serializers.SerializerMethodField()
     segment_name = serializers.SerializerMethodField()
 
+    additional_roles = serializers.SerializerMethodField()
+    additional_sub_groups = serializers.SerializerMethodField()
+    additional_jobs = serializers.SerializerMethodField()
+
+    def get_additional_roles(self, obj):
+        return [
+            {
+                "id": r.id,
+                "name": r.name,
+                "code": r.code,
+                "role_type_id": r.role_type.id if r.role_type else None,
+                "role_type_name": r.role_type.name if r.role_type else None,
+            }
+            for r in obj.additional_roles.all()
+        ]
+
+    def get_additional_sub_groups(self, obj):
+        return [
+            {
+                "id": sg.id,
+                "name": sg.name,
+                "code": sg.code,
+            }
+            for sg in obj.additional_sub_groups.all()
+        ]
+
+    def get_additional_jobs(self, obj):
+        return [
+            {
+                "id": j.id,
+                "name": j.name,
+                "code": j.code,
+            }
+            for j in obj.additional_jobs.all()
+        ]
+
     def get_project_id(self, obj):
         # section.project → department.project (office.projects avoided — N+1 on M2M)
         if obj.section_id and obj.section and obj.section.project_id:
@@ -2006,6 +2091,7 @@ class LightEmployeePositionSerializer(serializers.ModelSerializer):
             'role_sub_group_id', 'role_sub_group_name',
             'project_id', 'project_name',
             'segment_id', 'segment_name',
+            'additional_roles', 'additional_sub_groups', 'additional_jobs'
         ]
 
 
@@ -2076,6 +2162,32 @@ class IntegrationEmployeeSerializer(serializers.ModelSerializer):
                 "employee_status": boss.status if boss else None,
             })
 
+        additional_roles = []
+        for r in pos.additional_roles.all():
+            additional_roles.append({
+                "id": r.id,
+                "name": r.name,
+                "code": r.code,
+                "role_type_id": r.role_type.id if r.role_type else None,
+                "role_type_name": r.role_type.name if r.role_type else None,
+            })
+            
+        additional_sub_groups = []
+        for sg in pos.additional_sub_groups.all():
+            additional_sub_groups.append({
+                "id": sg.id,
+                "name": sg.name,
+                "code": sg.code,
+            })
+
+        additional_jobs = []
+        for j in pos.additional_jobs.all():
+            additional_jobs.append({
+                "id": j.id,
+                "name": j.name,
+                "code": j.code,
+            })
+
         return {
             "id": pos.id,
             "name": pos.name,
@@ -2091,7 +2203,10 @@ class IntegrationEmployeeSerializer(serializers.ModelSerializer):
             "level_id": pos.level.id if pos.level else None,
             "level_name": pos.level.name if pos.level else None,
             "level_rank": pos.level.rank if pos.level else None,
-            "reporting_to": reporting_to
+            "reporting_to": reporting_to,
+            "additional_roles": additional_roles,
+            "additional_sub_groups": additional_sub_groups,
+            "additional_jobs": additional_jobs
         }
 
     def get_project(self, obj):
