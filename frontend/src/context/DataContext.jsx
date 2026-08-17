@@ -206,6 +206,7 @@ export const DataProvider = ({ children }) => {
     const activeSectionRef = React.useRef('dashboard');
     const fetchRef = React.useRef(null);
     const pageCache = React.useRef(new Map()); // High Speed Cache
+    const isSubmittingRef = React.useRef(false);
 
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -357,6 +358,15 @@ export const DataProvider = ({ children }) => {
                 setPagination({ count: 0, next: null, previous: null, current: 1 });
                 setActiveSection(path);
                 activeSectionRef.current = path;
+
+                // Automatically expand the sidebar group containing this active section
+                const parentGroup = SECTION_GROUPS.find(g => g.items.includes(path));
+                if (parentGroup) {
+                    setExpandedGroups(prev => {
+                        if (prev.includes(parentGroup.name)) return prev;
+                        return [...prev, parentGroup.name];
+                    });
+                }
 
                 // Clear any pending fetch markers for the new path
                 fetchRef.current = null;
@@ -1844,7 +1854,7 @@ export const DataProvider = ({ children }) => {
 
     const handleFormSubmit = async (e) => {
         if (e) e.preventDefault();
-        if (isSubmitting) return;
+        if (isSubmittingRef.current) return;
 
         const currentSectionId = activeSectionRef.current; // Capture section at start
         let endpoint = resolveEndpoint(modalType);
@@ -1864,6 +1874,7 @@ export const DataProvider = ({ children }) => {
             }
         }
 
+        isSubmittingRef.current = true;
         setIsSubmitting(true);
         try {
             // Clean up effectiveFormData before submission (remove keys starting with _)
@@ -2005,6 +2016,7 @@ export const DataProvider = ({ children }) => {
                 showNotification(modalType === 'Task URL Mapping' ? `${modalType} configuration saved` : `${modalType} created successfully`);
             }
 
+            isSubmittingRef.current = false;
             setIsSubmitting(false);
 
             // Sync Selected Employee if we just edited them or their sub-records
@@ -2108,6 +2120,7 @@ export const DataProvider = ({ children }) => {
             console.log('🔴 FINAL ERROR MESSAGE (type: ' + typeof errorMessage + '):', errorMessage);
             showNotification(errorMessage, 'error');
         } finally {
+            isSubmittingRef.current = false;
             setIsSubmitting(false);
         }
     };

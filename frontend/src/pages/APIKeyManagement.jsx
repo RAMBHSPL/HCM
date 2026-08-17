@@ -1768,9 +1768,9 @@ const UsageLogs = ({ title, logs, loading, onClose }) => {
 
     return (
         <div className="modal-overlay" style={{ zIndex: 3000, backdropFilter: 'blur(20px)', background: 'rgba(0,0,0,0.85)' }}>
-            <div className="modal-content" style={{ 
-                maxWidth: '1050px', 
-                height: '85vh', 
+            <div className="modal-content" style={{
+                maxWidth: '1050px',
+                height: '85vh',
                 background: auditTheme.bg,
                 border: `1px solid ${auditTheme.border}`,
                 boxShadow: '0 0 100px rgba(0,0,0,0.95)',
@@ -1845,10 +1845,10 @@ const UsageLogs = ({ title, logs, loading, onClose }) => {
                         </button>
                     </div>
 
-                    <button 
-                        onClick={onClose} 
-                        style={{ 
-                            width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', 
+                    <button
+                        onClick={onClose}
+                        style={{
+                            width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)',
                             border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center'
                         }}
@@ -1886,8 +1886,8 @@ const UsageLogs = ({ title, logs, loading, onClose }) => {
                                 const color = isWebhook ? '#c084fc' : (log.method === 'POST' ? auditTheme.emerald : auditTheme.cyan);
 
                                 return (
-                                    <div 
-                                        key={log.id} 
+                                    <div
+                                        key={log.id}
                                         onClick={() => setSelectedLog(log)}
                                         className="audit-row-item"
                                         style={{
@@ -1906,7 +1906,7 @@ const UsageLogs = ({ title, logs, loading, onClose }) => {
                                         }}
                                     >
                                         <div style={{ position: 'absolute', left: 0, top: '20%', bottom: '20%', width: '4px', background: color, borderRadius: '0 4px 4px 0', boxShadow: `0 0 10px ${color}` }} />
-                                        
+
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
                                             {/* Type Badge */}
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
@@ -1974,7 +1974,7 @@ const UsageLogs = ({ title, logs, loading, onClose }) => {
                                                     )}
                                                     <span style={{ fontSize: '0.75rem', color: auditTheme.textDim, fontWeight: 700, fontFamily: 'monospace', opacity: 0.6 }}>{log.ip_address || '127.0.0.1'}</span>
                                                 </div>
-                                                
+
                                                 <div style={{ fontSize: '0.82rem', color: auditTheme.textDim, fontWeight: 600, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                     <span style={{ color: isWebhook ? '#e879f9' : auditTheme.textMain, fontFamily: 'monospace', opacity: 0.9 }}>{targetUrl}</span>
                                                 </div>
@@ -2010,13 +2010,13 @@ const UsageLogs = ({ title, logs, loading, onClose }) => {
 
                 {/* ─── FOOTER METRIC ─── */}
                 <div style={{ padding: '0.85rem 2.5rem', background: 'rgba(255,255,255,0.02)', borderTop: `1px solid ${auditTheme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                     <div style={{ fontSize: '0.75rem', color: auditTheme.textDim, fontWeight: 800, letterSpacing: '0.08em' }}>
+                    <div style={{ fontSize: '0.75rem', color: auditTheme.textDim, fontWeight: 800, letterSpacing: '0.08em' }}>
                         SECURE LOG STREAM TERMINATED • {displayedLogs.length} ENTRIES CACHED
-                     </div>
-                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.75rem', fontWeight: 800 }}>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.75rem', fontWeight: 800 }}>
                         <span style={{ color: '#e879f9' }}>⚡ {webhookLogs.length} Webhook Pushes</span>
                         <span style={{ color: '#06b6d4' }}>📥 {pullLogs.length} API Pulls</span>
-                     </div>
+                    </div>
                 </div>
             </div>
 

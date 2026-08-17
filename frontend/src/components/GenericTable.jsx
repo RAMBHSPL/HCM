@@ -492,9 +492,6 @@ const GenericTable = ({ renderTableData, customData = null }) => {
             'geo-countries', 'geo-states', 'geo-districts', 'geo-mandals', 'geo-clusters', 'visiting-locations', 'landmarks'
         ];
 
-        // If filtering is done on the server, rawData already represents the primary filtered set.
-        // However, we still proceed with local SEARCH filtering to provide INSTANT feedback 
-        // to the user while the server request is in flight.
         let result = [...rawData];
         const isServerSection = serverFilteredSections.includes(activeSection);
 
@@ -528,6 +525,12 @@ const GenericTable = ({ renderTableData, customData = null }) => {
                     return fieldVal.includes(lowerSearch);
                 });
             });
+        }
+
+        // For server-filtered sections, the server already did the heavy lifting.
+        // Bypassing remaining local filters avoids reference resolution errors and freezes.
+        if (isServerSection) {
+            return result;
         }
 
         // Status filter: Proceed with local filtering as a second pass/fallback

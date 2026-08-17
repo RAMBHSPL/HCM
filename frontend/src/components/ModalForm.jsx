@@ -1059,20 +1059,27 @@ const ModalForm = () => {
     const getFilteredPositions = () => {
         if (!positions) return [];
 
+        const levelFilterId = formData._emp_level_filter ? String(formData._emp_level_filter) : null;
+        const sectionFilterId = formData._emp_section_filter ? String(formData._emp_section_filter) : null;
+        const deptFilterId = formData._emp_dept_filter ? String(formData._emp_dept_filter) : null;
+        const officeFilterId = formData._emp_office_filter ? String(formData._emp_office_filter) : null;
+        const assignedPositionIds = (formData.positions || []).map(id => Number(id));
+
+        const hasFilter = levelFilterId || sectionFilterId || deptFilterId || officeFilterId;
+
         // Start with filtered positions from global list
         const filtered = (positions || []).filter(p => {
             if (!p) return false;
 
             // Always include currently assigned positions (for edit mode)
-            const assignedPositionIds = (formData.positions || []).map(id => Number(id));
             if (assignedPositionIds.includes(Number(p.id))) {
                 return true;
             }
 
-            const levelFilterId = formData._emp_level_filter ? String(formData._emp_level_filter) : null;
-            const sectionFilterId = formData._emp_section_filter ? String(formData._emp_section_filter) : null;
-            const deptFilterId = formData._emp_dept_filter ? String(formData._emp_dept_filter) : null;
-            const officeFilterId = formData._emp_office_filter ? String(formData._emp_office_filter) : null;
+            // Guard: If no filter is active, exclude other positions to prevent main thread freezing
+            if (!hasFilter) {
+                return false;
+            }
 
             // 1. Strict Section Filter
             if (sectionFilterId) {
@@ -1134,15 +1141,26 @@ const ModalForm = () => {
         const currentPosId = Number(formData.id);
         const assignedReportingIds = (formData.reporting_to || []).map(id => Number(id));
 
+        const hasFilter = formData._rep_level_filter || formData._rep_office_filter || formData._rep_pos_level_filter || (hierarchySearchTerm && hierarchySearchTerm.trim());
+
         // Start with filtered positions
         let filtered = positions
             .filter(p => !currentPosId || Number(p.id) !== currentPosId) // Exclude self
-            .filter(p => !formData._rep_level_filter || Number(p.office_level_id) === Number(formData._rep_level_filter))
-            .filter(p => !formData._rep_office_filter || Number(p.office_id) === Number(formData._rep_office_filter))
-            .filter(p => !formData._rep_pos_level_filter || Number(p.level_id) === Number(formData._rep_pos_level_filter));
+            .filter(p => {
+                if (assignedReportingIds.includes(Number(p.id))) {
+                    return true;
+                }
+                if (!hasFilter) {
+                    return false;
+                }
+                if (formData._rep_level_filter && Number(p.office_level_id) !== Number(formData._rep_level_filter)) return false;
+                if (formData._rep_office_filter && Number(p.office_id) !== Number(formData._rep_office_filter)) return false;
+                if (formData._rep_pos_level_filter && Number(p.level_id) !== Number(formData._rep_pos_level_filter)) return false;
+                return true;
+            });
 
         // Apply hierarchy search filter
-        if (hierarchySearchTerm) {
+        if (hasFilter && hierarchySearchTerm) {
             const query = hierarchySearchTerm.toLowerCase().trim();
             filtered = filtered.filter(p =>
                 (p.name && p.name.toLowerCase().includes(query)) ||

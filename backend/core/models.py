@@ -528,7 +528,7 @@ class Shift(models.Model):
         return self.name
 
 class Position(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_index=True)
     code = models.CharField(max_length=50, unique=True, blank=True, null=True)
     office = models.ForeignKey(Office, on_delete=models.CASCADE, related_name='positions', null=True, blank=True)
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='positions', null=True, blank=True)
@@ -543,7 +543,7 @@ class Position(models.Model):
     position_type = models.ForeignKey(PositionType, on_delete=models.SET_NULL, null=True, blank=True, related_name='positions')
     shifts = models.ManyToManyField(Shift, related_name='positions', blank=True)
     reporting_to = models.ManyToManyField('self', symmetrical=False, related_name='subordinates', blank=True)
-    status = models.CharField(max_length=20, default='Active')
+    status = models.CharField(max_length=20, default='Active', db_index=True)
     start_date = models.DateField(default=timezone.now, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
@@ -594,7 +594,7 @@ class Position(models.Model):
 
 class Employee(models.Model):
     user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='employee_profile')
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_index=True)
     employee_code = models.CharField(max_length=50, unique=True, blank=True, null=True)
     email = models.EmailField(unique=True, null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True, null=True, unique=True)
@@ -611,7 +611,7 @@ class Employee(models.Model):
     employment_start_date = models.DateField(blank=True, null=True)
     employment_end_date = models.DateField(blank=True, null=True)
     employment_type = models.CharField(max_length=20, choices=[('Permanent', 'Permanent'), ('Temporary', 'Temporary')], default='Permanent')
-    status = models.CharField(max_length=20, default='Active')
+    status = models.CharField(max_length=20, default='Active', db_index=True)
     status_date = models.DateField(null=True, blank=True)
     photo = models.TextField(null=True, blank=True) # Base64 encoded image
     failed_login_attempts = models.IntegerField(default=0)
@@ -620,7 +620,7 @@ class Employee(models.Model):
     last_failed_login_count = models.IntegerField(default=0)
     is_password_reset_required = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    is_deleted = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False, db_index=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     deleted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees_deleted')
     deletion_reason = models.TextField(blank=True, null=True)

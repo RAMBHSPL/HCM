@@ -564,6 +564,44 @@ class PerfectUpsertMixin:
         return super().create(request, *args, **kwargs)
 
 
+class CachedListMixin:
+    """
+    Mixin to transparently cache list action responses for viewsets.
+    Automatically invalidates on any model change due to model signals clearing cache.
+    """
+    def list(self, request, *args, **kwargs):
+        from django.core.cache import cache
+        import hashlib
+        from rest_framework.response import Response
+
+        # Check if user-scoped filtering (like reports_to_me) is enabled
+        reports_to_me = request.query_params.get('reports_to_me', 'false').lower() == 'true'
+        user_id = getattr(request.user, 'id', None)
+        auth = getattr(request, 'auth', None)
+        
+        if reports_to_me and user_id:
+            user_identifier = f"user_{user_id}"
+            if hasattr(auth, 'id'):
+                user_identifier += f"_auth_{auth.id}"
+        else:
+            user_identifier = "shared"
+            if hasattr(auth, 'id'):
+                user_identifier += f"_auth_{auth.id}"
+
+        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
+        model_name = self.serializer_class.Meta.model.__name__.lower()
+        cache_key = f"hcm_{model_name}_list_v1_{user_identifier}_{query_hash}"
+
+        cached_res = cache.get(cache_key)
+        if cached_res is not None:
+            return Response(cached_res)
+
+        response = super().list(request, *args, **kwargs)
+        if response.status_code == 200:
+            cache.set(cache_key, response.data, 86400) # Cache for 1 day
+        return response
+
+
 class PositionActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for viewing activity logs of delegated positions.
@@ -1247,7 +1285,7 @@ class GeoMandalViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVie
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         res_data = serializer.data
-        cache.set(cache_key, res_data, 300)
+        cache.set(cache_key, res_data, 86400)
         return Response(res_data)
     
     def get_queryset(self):
@@ -1340,7 +1378,7 @@ class GeoClusterViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVi
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         res_data = serializer.data
-        cache.set(cache_key, res_data, 300)
+        cache.set(cache_key, res_data, 86400)
         return Response(res_data)
 
     def get_queryset(self):
@@ -1406,7 +1444,7 @@ class VisitingLocationViewSet(ScopedViewSetMixin, viewsets.ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         res_data = serializer.data
-        cache.set(cache_key, res_data, 300)
+        cache.set(cache_key, res_data, 86400)
         return Response(res_data)
 
     def update(self, request, *args, **kwargs):
@@ -1487,7 +1525,7 @@ class LandmarkViewSet(ScopedViewSetMixin, viewsets.ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         res_data = serializer.data
-        cache.set(cache_key, res_data, 300)
+        cache.set(cache_key, res_data, 86400)
         return Response(res_data)
 
     def get_queryset(self):
@@ -1534,7 +1572,7 @@ class OrganizationLevelViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-class OfficeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
+class OfficeViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Office.objects.all()
     serializer_class = OfficeSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -1879,7 +1917,7 @@ class FacilityMasterViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.Mod
     upsert_lookup_fields = ['name', 'project']
     pagination_class = None
 
-class DepartmentViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
+class DepartmentViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
     upsert_lookup_fields = ['office', 'name']
@@ -2002,7 +2040,7 @@ class DepartmentViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVi
                 queryset = queryset.filter(status=status_param)
             serializer = LightDepartmentSerializer(queryset, many=True)
             res_data = serializer.data
-            cache.set(cache_key, res_data, 300)
+            cache.set(cache_key, res_data, 86400)
             return Response(res_data)
         # Otherwise fall back to the scoped list
         queryset = self.filter_queryset(self.get_queryset())
@@ -2012,7 +2050,7 @@ class DepartmentViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVi
         )
         serializer = LightDepartmentSerializer(queryset, many=True)
         res_data = serializer.data
-        cache.set(cache_key, res_data, 300)
+        cache.set(cache_key, res_data, 86400)
         return Response(res_data)
 
     def get_queryset(self):
@@ -2076,7 +2114,7 @@ class DepartmentViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelVi
             
         return queryset
 
-class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
+class SectionViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Section.objects.select_related('department__office__level', 'project').all()
     serializer_class = SectionSerializer
     upsert_lookup_fields = ['department', 'name']
@@ -2084,7 +2122,6 @@ class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
     search_fields = ['name', 'code', 'department__office__country_name', 'department__office__state_name', 'department__office__district_name', 'department__office__mandal_name']
     ordering_fields = ['name', 'department__name', 'office__name']
     ordering = ['name']
-    pagination_class = None
 
     @action(detail=False, methods=['post'], url_path='bulk-upload')
     def bulk_upload(self, request):
@@ -2193,7 +2230,7 @@ class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
                 queryset = queryset.filter(status=status_param)
             serializer = self.get_serializer(queryset, many=True)
             res_data = serializer.data
-            cache.set(cache_key, res_data, 300)
+            cache.set(cache_key, res_data, 86400)
             return Response(res_data)
         if office_param and office_param != 'all' and str(office_param).isdigit():
             queryset = base_qs.filter(department__office_id=office_param).order_by('name')
@@ -2202,7 +2239,7 @@ class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
                 queryset = queryset.filter(status=status_param)
             serializer = self.get_serializer(queryset, many=True)
             res_data = serializer.data
-            cache.set(cache_key, res_data, 300)
+            cache.set(cache_key, res_data, 86400)
             return Response(res_data)
         # Fallback: return scoped list
         queryset = self.filter_queryset(self.get_queryset())
@@ -2214,7 +2251,7 @@ class SectionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewS
         )
         serializer = self.get_serializer(queryset, many=True)
         res_data = serializer.data
-        cache.set(cache_key, res_data, 300)
+        cache.set(cache_key, res_data, 86400)
         return Response(res_data)
 
 
@@ -2536,7 +2573,7 @@ def get_subordinates_recursive(employee, visited=None):
     sub_ids = get_recursive_subordinate_ids(employee, exclude_self=True)
     return builtins.list(Employee.objects.filter(id__in=sub_ids, is_deleted=False))
 
-class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
+class PositionViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Position.objects.all()
     serializer_class = PositionSerializer
     upsert_lookup_fields = ['office', 'department', 'section', 'role', 'name']
@@ -2675,29 +2712,6 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
             return None
         return super().paginate_queryset(queryset)
 
-    def list(self, request, *args, **kwargs):
-        from django.core.cache import cache
-        import hashlib
-        
-        user_id = getattr(request.user, 'id', None)
-        user_identifier = f"user_{user_id}" if user_id else "anon"
-        auth = getattr(request, 'auth', None)
-        if hasattr(auth, 'id'):
-            user_identifier += f"_auth_{auth.id}"
-        
-        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
-        cache_key = f"hcm_pos_list_v2_{user_identifier}_{query_hash}"
-        
-        cached_res = cache.get(cache_key)
-        if cached_res is not None:
-            return Response(cached_res)
-            
-        response = super().list(request, *args, **kwargs)
-        
-        if response.status_code == 200:
-            cache.set(cache_key, response.data, 30)
-            
-        return response
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -2796,7 +2810,7 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
                         'num_pages': paginator.num_pages,
                         'results': []
                     }
-                    cache.set(cache_key, res_data, 30)
+                    cache.set(cache_key, res_data, 86400)
                     return Response(res_data)
                 
                 res_data = {
@@ -2804,14 +2818,14 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
                     'num_pages': paginator.num_pages,
                     'results': PositionDropdownSerializer(paginated_qs, many=True).data
                 }
-                cache.set(cache_key, res_data, 30)
+                cache.set(cache_key, res_data, 86400)
                 return Response(res_data)
             except ValueError:
                 pass
 
         from .serializers import PositionDropdownSerializer
         res_data = PositionDropdownSerializer(positions, many=True).data
-        cache.set(cache_key, res_data, 30)
+        cache.set(cache_key, res_data, 86400)
         return Response(res_data)
 
 
@@ -3216,7 +3230,7 @@ class PositionViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         })
 
 
-class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
+class EmployeeViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Employee.objects.all()
     serializer_class = EmployeeSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -3229,33 +3243,6 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
             return None
         return super().paginate_queryset(queryset)
 
-    def list(self, request, *args, **kwargs):
-        from django.core.cache import cache
-        import hashlib
-        
-        reports_to_me = request.query_params.get('reports_to_me', 'false').lower() == 'true'
-        user_id = getattr(request.user, 'id', None)
-        
-        # Scope cache key per-user ONLY if user-specific filtering ('reports_to_me') is enabled
-        if reports_to_me and user_id:
-            user_identifier = f"user_{user_id}"
-        else:
-            user_identifier = "shared_dir"
-            
-        query_hash = hashlib.md5(request.GET.urlencode().encode()).hexdigest()
-        cache_key = f"hcm_emp_list_v3_{user_identifier}_{query_hash}"
-        
-        cached_res = cache.get(cache_key)
-        if cached_res is not None:
-            return Response(cached_res)
-            
-        response = super().list(request, *args, **kwargs)
-        
-        if response.status_code == 200:
-            # Cache directory queries for 300 seconds (5 minutes) to support cron warm-cache loops & live queries
-            cache.set(cache_key, response.data, 300)
-            
-        return response
 
 
     def get_serializer_class(self):
@@ -3578,12 +3565,12 @@ class EmployeeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelView
         if page is not None:
             serializer = EmployeeDropdownSerializer(page, many=True, context={'request': request})
             res_data = self.get_paginated_response(serializer.data).data
-            cache.set(cache_key, res_data, 30)
+            cache.set(cache_key, res_data, 86400)
             return Response(res_data)
 
         serializer = EmployeeDropdownSerializer(queryset, many=True, context={'request': request})
         res_data = serializer.data
-        cache.set(cache_key, res_data, 30)
+        cache.set(cache_key, res_data, 86400)
         return Response(res_data)
 
 

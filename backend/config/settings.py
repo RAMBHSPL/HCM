@@ -187,7 +187,7 @@ REST_FRAMEWORK = {
         'core.permissions.DynamicSecurityPermission',
     ],
     'DEFAULT_PAGINATION_CLASS': 'core.pagination.CustomPagination',
-    'PAGE_SIZE': 200,
+    'PAGE_SIZE': 100,
     'DEFAULT_FILTER_BACKENDS': [
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
