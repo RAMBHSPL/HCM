@@ -400,6 +400,13 @@ class ScopedViewSetMixin(ActivityLoggingMixin):
                     return queryset.filter(id__in=ids1 | ids2 | ids3).distinct().order_by('name')
                 elif model in [GeoContinent, GeoCountry, GeoState, GeoDistrict, GeoMandal, GeoCluster, IndianVillage, VisitingLocation, Landmark]:
                     return queryset.all()
+                elif model in [
+                    # Reference / Lookup models - accessible to all authenticated users
+                    PositionType, Shift, JobFamily, RoleType, Role, RoleSubGroup,
+                    Job, Task, PositionLevel, Segment, FacilityMaster, DocumentType,
+                    OfficeType, OrganizationLevel,
+                ]:
+                    return queryset.all()
                 
             return queryset.none()
         except Exception as e:
