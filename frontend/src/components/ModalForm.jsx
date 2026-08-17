@@ -341,6 +341,31 @@ const ModalForm = () => {
         }
     }, [modalType, loadPositionsIfNeeded, loadEmployeesIfNeeded]);
 
+    // ── Facility Master: Dynamic Position Types by Project ──────────────────
+    const [facilityPositionTypes, setFacilityPositionTypes] = useState([]);
+    const [facilityPTLoading, setFacilityPTLoading] = useState(false);
+
+    React.useEffect(() => {
+        if (modalType !== 'Facility Master' && modalType !== 'FacilityMaster') return;
+        if (!formData.project) {
+            setFacilityPositionTypes([]);
+            return;
+        }
+        let cancelled = false;
+        setFacilityPTLoading(true);
+        api.get(`/api/position-types/?project=${formData.project}&pagination=false`)
+            .then(res => {
+                if (!cancelled) {
+                    const results = Array.isArray(res.data) ? res.data : (res.data?.results || []);
+                    setFacilityPositionTypes(results.sort((a, b) => a.name.localeCompare(b.name)));
+                }
+            })
+            .catch(() => { if (!cancelled) setFacilityPositionTypes([]); })
+            .finally(() => { if (!cancelled) setFacilityPTLoading(false); });
+        return () => { cancelled = true; };
+    }, [formData.project, modalType]);
+    // ────────────────────────────────────────────────────────────────────────
+
     const filteredOffices = useMemo(() => {
         if (modalType !== 'Projects') return [];
         let filtered = (offices || []).filter(o => !formData.assigned_level || String(o.level) === String(formData.assigned_level));
@@ -3054,37 +3079,69 @@ const ModalForm = () => {
                                 <div style={{
                                     maxHeight: '250px',
                                     overflowY: 'auto',
-                                    border: '2px solid var(--primary-light)',
+                                    border: `2px solid ${!formData.project ? '#e2e8f0' : 'var(--primary-light)'}`,
                                     borderRadius: '16px',
                                     padding: '1rem',
                                     background: '#f8fafc',
                                     display: 'grid',
                                     gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                                    gap: '0.75rem'
+                                    gap: '0.75rem',
+                                    position: 'relative'
                                 }}>
-                                    {(positionTypes || [])
-                                        .filter(pt => {
-                                            if (!pt.project) return true;
-                                            return formData.project && String(pt.project) === String(formData.project);
-                                        })
-                                        .map(pt => (
-                                            <label key={pt.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px', background: 'white', border: '1px solid #f1f5f9', borderRadius: '8px', transition: 'all 0.2s ease' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={(formData.position_types || []).includes(pt.id)}
-                                                    onChange={(e) => {
-                                                        const currentPTs = formData.position_types || [];
-                                                        const newPTs = e.target.checked
-                                                            ? [...currentPTs, pt.id]
-                                                            : currentPTs.filter(id => id !== pt.id);
-                                                        setFormData({ ...formData, position_types: newPTs });
-                                                    }}
-                                                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
-                                                />
-                                                <span style={{ fontSize: '0.85rem', color: '#334155' }}>{pt.name}</span>
-                                            </label>
-                                        ))
-                                    }
+                                    {/* No project selected */}
+                                    {!formData.project && (
+                                        <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.875rem' }}>
+                                            <ShieldCheck size={28} style={{ margin: '0 auto 0.5rem', opacity: 0.3, display: 'block' }} />
+                                            Select a Project above to see available Position Types
+                                        </div>
+                                    )}
+                                    {/* Loading */}
+                                    {formData.project && facilityPTLoading && (
+                                        <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '2rem', color: '#64748b', fontSize: '0.875rem' }}>
+                                            <div style={{ width: '24px', height: '24px', border: '3px solid var(--primary-light)', borderTop: '3px solid var(--primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 0.5rem' }} />
+                                            Loading position types for this project...
+                                        </div>
+                                    )}
+                                    {/* No position types found for this project */}
+                                    {formData.project && !facilityPTLoading && facilityPositionTypes.length === 0 && (
+                                        <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '2rem', color: '#f59e0b', fontSize: '0.875rem' }}>
+                                            <ShieldAlert size={28} style={{ margin: '0 auto 0.5rem', opacity: 0.5, display: 'block' }} />
+                                            No Position Types found for this Project.<br />
+                                            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Go to <b>Position Type Mapping</b> and create types under this project first.</span>
+                                        </div>
+                                    )}
+                                    {/* Position type checkboxes */}
+                                    {!facilityPTLoading && facilityPositionTypes.map(pt => (
+                                        <label key={pt.id} style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            cursor: 'pointer',
+                                            padding: '10px 12px',
+                                            background: (formData.position_types || []).includes(pt.id) ? 'var(--primary-light)' : 'white',
+                                            border: `1px solid ${(formData.position_types || []).includes(pt.id) ? 'var(--primary)' : '#f1f5f9'}`,
+                                            borderRadius: '10px',
+                                            transition: 'all 0.15s ease',
+                                            boxShadow: (formData.position_types || []).includes(pt.id) ? '0 0 0 2px var(--primary-light)' : 'none'
+                                        }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={(formData.position_types || []).includes(pt.id)}
+                                                onChange={(e) => {
+                                                    const currentPTs = formData.position_types || [];
+                                                    const newPTs = e.target.checked
+                                                        ? [...currentPTs, pt.id]
+                                                        : currentPTs.filter(id => id !== pt.id);
+                                                    setFormData({ ...formData, position_types: newPTs });
+                                                }}
+                                                style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
+                                            />
+                                            <div>
+                                                <div style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600 }}>{pt.name}</div>
+                                                {pt.role_name && <div style={{ fontSize: '0.72rem', color: '#64748b' }}>Role: {pt.role_name}</div>}
+                                            </div>
+                                        </label>
+                                    ))}
                                 </div>
                                 <span className="form-help-text">Select the position types required for this Facility Template. Options are filtered by the selected Project.</span>
                             </div>
