@@ -2515,11 +2515,14 @@ class PositionTypeViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.Model
     ordering_fields = ['name']
 
     def get_queryset(self):
+        from django.db.models import Q
         queryset = super().get_queryset()
         project = self.request.query_params.get('project') or self.request.query_params.get('project_id')
         segment = self.request.query_params.get('segment') or self.request.query_params.get('segment_id')
         if project and project != 'all':
-            queryset = queryset.filter(project_id=project)
+            # Return position types for this specific project PLUS global ones (project=null)
+            # so that globally-defined position types always appear as options
+            queryset = queryset.filter(Q(project_id=project) | Q(project__isnull=True))
         if segment and segment != 'all':
             queryset = queryset.filter(segment_id=segment)
         return queryset.select_related(
