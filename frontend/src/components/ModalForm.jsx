@@ -353,14 +353,21 @@ const ModalForm = () => {
         }
         let cancelled = false;
         setFacilityPTLoading(true);
-        api.get(`/api/position-types/?project=${formData.project}&pagination=false`)
+        console.log(`[FacilityMaster] Fetching position types for project: ${formData.project}`);
+        // api.get returns data directly (not res.data) — it uses fetch, not axios
+        api.get(`position-types/?project=${formData.project}`)
             .then(res => {
                 if (!cancelled) {
-                    const results = Array.isArray(res.data) ? res.data : (res.data?.results || []);
+                    // res is the direct JSON response — array or paginated object
+                    const results = Array.isArray(res) ? res : (res?.results || []);
+                    console.log(`[FacilityMaster] Got ${results.length} position types`);
                     setFacilityPositionTypes(results.sort((a, b) => a.name.localeCompare(b.name)));
                 }
             })
-            .catch(() => { if (!cancelled) setFacilityPositionTypes([]); })
+            .catch((err) => {
+                console.error('[FacilityMaster] Failed to fetch position types:', err);
+                if (!cancelled) setFacilityPositionTypes([]);
+            })
             .finally(() => { if (!cancelled) setFacilityPTLoading(false); });
         return () => { cancelled = true; };
     }, [formData.project, modalType]);
