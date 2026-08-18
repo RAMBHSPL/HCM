@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     PositionViewSet, EmployeeViewSet, ProjectViewSet, IndianVillageViewSet,
-    OfficeViewSet, FacilityViewSet, FacilityMasterViewSet, DepartmentViewSet, SectionViewSet, JobFamilyViewSet,
+    OfficeViewSet, FacilityViewSet, FacilityMasterViewSet, FacilityDeploymentModeViewSet, DepartmentViewSet, SectionViewSet, JobFamilyViewSet,
     RoleTypeViewSet, RoleViewSet, JobViewSet, TaskViewSet, TaskUrlViewSet,
     OrganizationLevelViewSet, DocumentTypeViewSet, EmployeeDocumentViewSet,
     PositionLevelViewSet, PositionTypeViewSet, ShiftViewSet,
@@ -31,6 +31,7 @@ router.register(r'users', UserViewSet)
 router.register(r'offices', OfficeViewSet)
 router.register(r'facilities', FacilityViewSet)
 router.register(r'facility-masters', FacilityMasterViewSet)
+router.register(r'facility-deployment-modes', FacilityDeploymentModeViewSet)
 router.register(r'departments', DepartmentViewSet)
 router.register(r'sections', SectionViewSet)
 router.register(r'job-families', JobFamilyViewSet)

@@ -238,6 +238,7 @@ const ModalForm = () => {
         projects,
         facilityMasters,
         officeTypes,
+        facilityDeploymentModes,
         roleTypes,
         tasks,
         documentTypes,
@@ -1964,8 +1965,8 @@ const ModalForm = () => {
                                                             <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>{master.life_display}</div>
                                                         </div>
                                                         <div>
-                                                            <label style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>Service Mode</label>
-                                                            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>{master.mode_display || master.mode}</div>
+                                                            <label style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>Facility Deployment Mode</label>
+                                                            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>{master.deployment_mode_name || master.mode_display || master.mode || 'N/A'}</div>
                                                         </div>
                                                         <div>
                                                             <label style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>Geo Scope</label>
@@ -3047,16 +3048,14 @@ const ModalForm = () => {
                                 </div>
                             </div>
                             <div className="form-group">
-                                <label className="premium-label"><Navigation size={14} /> Service Mode</label>
+                                <label className="premium-label"><Navigation size={14} /> Facility Deployment Mode</label>
                                 <div className="premium-input-wrapper">
                                     <SearchableSelect
-                                        options={[
-                                            { id: 'FIXED', name: 'Fixed / Static' },
-                                            { id: 'MOBILE', name: 'Mobile / Outbound' }
-                                        ]}
-                                        value={formData.mode || 'FIXED'}
-                                        onChange={(e) => setFormData({ ...formData, mode: e.target.value })}
+                                        options={(facilityDeploymentModes || []).map(m => ({ id: m.id, name: m.name }))}
+                                        value={formData.deployment_mode || formData.mode || ''}
+                                        onChange={(e) => setFormData({ ...formData, deployment_mode: e.target.value, mode: e.target.value })}
                                         icon={Navigation}
+                                        placeholder="Select Facility Deployment Mode..."
                                     />
                                 </div>
                             </div>
@@ -3151,6 +3150,88 @@ const ModalForm = () => {
                                     ))}
                                 </div>
                                 <span className="form-help-text">Select the position types required for this Facility Template. Options are filtered by the selected Project.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+        case 'Facility Deployment Modes':
+        case 'FacilityDeploymentModes':
+        case 'Facility Deployment Mode':
+        case 'FacilityDeploymentMode':
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    <div className="premium-form-section">
+                        <div className="form-section-title" style={{ marginBottom: '2rem' }}>
+                            <Navigation size={18} /> Facility Deployment Mode Configuration
+                        </div>
+                        <div className="form-grid">
+                            <div className="form-group">
+                                <label className="premium-label">
+                                    <Edit size={14} /> Mode Name <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <div className="premium-input-wrapper">
+                                    <Edit className="premium-input-icon" size={18} />
+                                    <input
+                                        type="text"
+                                        className="premium-input"
+                                        placeholder="e.g. Fixed / Static, Mobile / Outbound"
+                                        value={formData.name || ''}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="premium-label">
+                                    <Network size={14} /> Mode Code
+                                </label>
+                                <div className="premium-input-wrapper">
+                                    <Network className="premium-input-icon" size={18} />
+                                    <input
+                                        type="text"
+                                        className="premium-input"
+                                        placeholder="e.g. FIXED_STATIC, MOBILE_OUTBOUND"
+                                        value={formData.code || ''}
+                                        onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase().replace(/\s+/g, '_') })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group full-width">
+                                <label className="premium-label">
+                                    <ShieldCheck size={14} /> Active Status
+                                </label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={[
+                                            { id: true, name: 'Active' },
+                                            { id: false, name: 'Inactive' }
+                                        ]}
+                                        value={formData.is_active !== undefined ? formData.is_active : true}
+                                        onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'true' || e.target.value === true })}
+                                        icon={ShieldCheck}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group full-width">
+                                <label className="premium-label">
+                                    <FileText size={14} /> Description
+                                </label>
+                                <div className="premium-input-wrapper" style={{ height: 'auto' }}>
+                                    <FileText className="premium-input-icon" size={18} style={{ marginTop: '0.75rem' }} />
+                                    <textarea
+                                        className="premium-input"
+                                        style={{ padding: '0.75rem 0.75rem 0.75rem 2.5rem', minHeight: '100px', resize: 'vertical' }}
+                                        rows="3"
+                                        placeholder="Operational details of this deployment mode..."
+                                        value={formData.description || ''}
+                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -1,0 +1,363 @@
+104-MMU-AP-- Bommanacheruvu
+104-MMU-AP-- Kosuvaripalli
+104-MMU-AP--avuladatla
+104-MMU-AP--chinnathippasamudram
+104-MMU-AP--chinthaparthy
+104-MMU-AP--chukkalur
+104-MMU-AP--errakotapalli
+104-MMU-AP--garnimitta
+104-MMU-AP--kudair
+104-MMU-AP--kurakunta
+104-MMU-AP--kurugunta
+104-MMU-AP--medikurthi
+104-MMU-AP--muddinayanipalli
+104-MMU-AP--mudipapanapalli
+104-MMU-AP--pedda Kowkuntla
+104-MMU-AP--raketla
+104-MMU-AP--regallu
+104-MMU-AP--tarimella
+104-MMU-AP--yandapalli
+104-MMU-AP--yeddulapalli
+104-MMU-AP-A.s.peta
+104-MMU-AP-A.sagaram
+104-MMU-AP-Ahobilam
+104-MMU-AP-Akepadu
+104-MMU-AP-Allipuram
+104-MMU-AP-Annadevarapeta
+104-MMU-AP-Anumulaveedu
+104-MMU-AP-Avidi
+104-MMU-AP-B.n.kandriga
+104-MMU-AP-Badinehal
+104-MMU-AP-Bakrapet
+104-MMU-AP-Bandarulanka
+104-MMU-AP-Bandlamudi
+104-MMU-AP-Bangarupeta
+104-MMU-AP-Bayanagudem
+104-MMU-AP-Bheemanapalli
+104-MMU-AP-Bobbilanka
+104-MMU-AP-Brahmanakotkur
+104-MMU-AP-Bramhagari Matam
+104-MMU-AP-Buchampeta
+104-MMU-AP-Buffer Chittoor
+104-MMU-AP-Buffer Kuppam
+104-MMU-AP-Buffer Nagari
+104-MMU-AP-Buffer Palamaner
+104-MMU-AP-Bugga Agraharam
+104-MMU-AP-Bullepalle
+104-MMU-AP-Ch Pothepalli
+104-MMU-AP-Chakalikonda
+104-MMU-AP-chakicharla
+104-MMU-AP-Chandalur
+104-MMU-AP-Chandrajupalem
+104-MMU-AP-Chandrasekharapuram
+104-MMU-AP-Chapirevula
+104-MMU-AP-Chataparru
+104-MMU-AP-Chaviti Dibbala
+104-MMU-AP-Chennakesampalli (thottigaripalli)
+104-MMU-AP-Chinna Malkapuram
+104-MMU-AP-Chinnapandur
+104-MMU-AP-CHIRALA CO LOCATED
+104-MMU-AP-Chittedu
+104-MMU-AP-Chittoor Dst Back Up
+104-MMU-AP-Chopella
+104-MMU-AP-Chouuduvada
+104-MMU-AP-Chuchu Konda
+104-MMU-AP-D Kesavaram
+104-MMU-AP-Daivam Dinne
+104-MMU-AP-Damalcheruvu
+104-MMU-AP-Darsinamala
+104-MMU-AP-Dasukuppam
+104-MMU-AP-Devapudi Aam
+104-MMU-AP-Dhaminedu
+104-MMU-AP-Dharamjigudem
+104-MMU-AP-dhulipudi
+104-MMU-AP-Digavalli
+104-MMU-AP-Dimili
+104-MMU-AP-Dommeru
+104-MMU-AP-Dowelswaram
+104-MMU-AP-Draksharamam
+104-MMU-AP-Duggudurru
+104-MMU-AP-Dwarapudi
+104-MMU-AP-E Thandrapadu
+104-MMU-AP-Edara
+104-MMU-AP-Empedu
+104-MMU-AP-Enumulavaripalli
+104-MMU-AP-G Vemavaram
+104-MMU-AP-Gadimoga
+104-MMU-AP-Gajulapalli
+104-MMU-AP-Gajuwaka
+104-MMU-AP-Gandipalem
+104-MMU-AP-Ganguvarisigadam
+104-MMU-AP-Geddanapalli
+104-MMU-AP-Godicherla
+104-MMU-AP-Godilanka
+104-MMU-AP-Gollapalem
+104-MMU-AP-Gollavanitippa
+104-MMU-AP-Gopanapalem
+104-MMU-AP-Gottiprolu
+104-MMU-AP-Gouravaram
+104-MMU-AP-Gowripatnam
+104-MMU-AP-Gudem Kotha Veedhi
+104-MMU-AP-Gudikothuru
+104-MMU-AP-Gudiwaklanka
+104-MMU-AP-Gudupalli
+104-MMU-AP-Gundugolanu
+104-MMU-AP-Guntupalli
+104-MMU-AP-Guntur Buffer
+104-MMU-AP-Guntur Urban
+104-MMU-AP-Guraja
+104-MMU-AP-Gurthedu
+104-MMU-AP-Guttur
+104-MMU-AP-Hanumanthunipadu
+104-MMU-AP-Haripalem
+104-MMU-AP-Hussainapuram
+104-MMU-AP-Inamadugu
+104-MMU-AP-Iskapalem
+104-MMU-AP-Iskapalli
+104-MMU-AP-Jagadev Peta
+104-MMU-AP-Jaladurgam
+104-MMU-AP-Jeedigummala
+104-MMU-AP-Jonnawada
+104-MMU-AP-K Basavanahalli
+104-MMU-AP-Kaderepally
+104-MMU-AP-Kadiyapulanka
+104-MMU-AP-Kagupadu
+104-MMU-AP-Kakumanu
+104-MMU-AP-Kalludevakuntla
+104-MMU-AP-Kallumarri
+104-MMU-AP-Kamanur
+104-MMU-AP-Kammapalli
+104-MMU-AP-Kammarichedu
+104-MMU-AP-Kandrakota
+104-MMU-AP-Kanipakam
+104-MMU-AP-Karavadi
+104-MMU-AP-karedu
+104-MMU-AP-Kasaram
+104-MMU-AP-Kasumur
+104-MMU-AP-Katherapalli
+104-MMU-AP-Katheru
+104-MMU-AP-Kd Peta
+104-MMU-AP-Kenthali
+104-MMU-AP-Kesanakurru
+104-MMU-AP-Kesanapalli
+104-MMU-AP-Kj Puram
+104-MMU-AP-Koida
+104-MMU-AP-Kokkanti
+104-MMU-AP-Kolakaluru
+104-MMU-AP-Kolamasanapalli
+104-MMU-AP-Kolletikota
+104-MMU-AP-Komaragiri
+104-MMU-AP-Konakanamitla
+104-MMU-AP-Konkuduru
+104-MMU-AP-Kopperapadu
+104-MMU-AP-Korukallu
+104-MMU-AP-Kothaburuju
+104-MMU-AP-Kothalanka
+104-MMU-AP-Kovurupalli
+104-MMU-AP-Kr Puram
+104-MMU-AP-Kukunoor
+104-MMU-AP-Kunduru
+104-MMU-AP-Kutukuluru
+104-MMU-AP-L B Cherla
+104-MMU-AP-Laddagiri
+104-MMU-AP-Lakkavaram
+104-MMU-AP-Lanakalakoderu
+104-MMU-AP-Lutukurru
+104-MMU-AP-Madanapalli
+104-MMU-AP-Maddur
+104-MMU-AP-Madhireddypalli
+104-MMU-AP-Madhurawada
+104-MMU-AP-Mahimlur
+104-MMU-AP-Mahipadu
+104-MMU-AP-Mallam
+104-MMU-AP-Mallapu Reddipalli
+104-MMU-AP-Mallavalli Workshop
+104-MMU-AP-Mangalam
+104-MMU-AP-Md.puram
+104-MMU-AP-Medarametla
+104-MMU-AP-Modepalli
+104-MMU-AP-Molakavemula
+104-MMU-AP-Moragudi
+104-MMU-AP-Mori
+104-MMU-AP-Mukkavaripalli
+104-MMU-AP-Mulagavalli
+104-MMU-AP-Mulanka Aam
+104-MMU-AP-N.suravaram
+104-MMU-AP-Nagasamudram Gate
+104-MMU-AP-Nagullanka
+104-MMU-AP-Nambala Pulakunta
+104-MMU-AP-Nannur
+104-MMU-AP-Nr Peta
+104-MMU-AP-Ogu
+104-MMU-AP-Ozili
+104-MMU-AP-P.kottam
+104-MMU-AP-Pachikapalam
+104-MMU-AP-Pagidiroy
+104-MMU-AP-Paipalyam
+104-MMU-AP-Palacherla
+104-MMU-AP-Papanaidupet
+104-MMU-AP-Parameshwara Mangalam
+104-MMU-AP-PARCHUR CO LOCATED
+104-MMU-AP-Parvada
+104-MMU-AP-Patnam
+104-MMU-AP-pedacherlopalli
+104-MMU-AP-Pedagantayada
+104-MMU-AP-Pedanindrakolanu
+104-MMU-AP-Pedapalakaluru
+104-MMU-AP-Pedapalla
+104-MMU-AP-Pedda Geddada
+104-MMU-AP-Peddacheppali
+104-MMU-AP-Peddada
+104-MMU-AP-Peddaharivanam
+104-MMU-AP-Peddamallapuram
+104-MMU-AP-Peddathumbalam
+104-MMU-AP-Peddipalem
+104-MMU-AP-Pekeru
+104-MMU-AP-Penugollu
+104-MMU-AP-Pernadu
+104-MMU-AP-Peruru
+104-MMU-AP-Petluru
+104-MMU-AP-Phummapala
+104-MMU-AP-Polakal
+104-MMU-AP-Pothunuru
+104-MMU-AP-Puchakayalamada
+104-MMU-AP-Pulimeru
+104-MMU-AP-R Tallavalasa
+104-MMU-AP-Rachapalli
+104-MMU-AP-Raghavapuram
+104-MMU-AP-Rajapudi
+104-MMU-AP-Rallabudhuguru
+104-MMU-AP-Ramavaram Anaparty
+104-MMU-AP-Ravikampadu
+104-MMU-AP-Rayalapeta
+104-MMU-AP-Reddipalli
+104-MMU-AP-Regidi Amadalavalasa
+104-MMU-AP-Rekhapalli
+104-MMU-AP-Revanur
+104-MMU-AP-Revidi
+104-MMU-AP-Rs Rangapuram
+104-MMU-AP-S. Yanam
+104-MMU-AP-Sagguru
+104-MMU-AP-Samisragudem
+104-MMU-AP-Sampara
+104-MMU-AP-Sarvasiddi
+104-MMU-AP-Sarvayapalem
+104-MMU-AP-Settigunta
+104-MMU-AP-Siddantham
+104-MMU-AP-Singampalli
+104-MMU-AP-Singarayakonda
+104-MMU-AP-Sithannapalli
+104-MMU-AP-Sontyam
+104-MMU-AP-Surabhi
+104-MMU-AP-Surampalem
+104-MMU-AP-Tadepalli
+104-MMU-AP-Tadimalla
+104-MMU-AP-Tadpatri Dh
+104-MMU-AP-Talamudipi
+104-MMU-AP-Tallapalem
+104-MMU-AP-Taraka Rama Nagar
+104-MMU-AP-Tekuripeta
+104-MMU-AP-test
+104-MMU-AP-Tetagunta
+104-MMU-AP-Thalla Proddatur
+104-MMU-AP-Thambalavaripalli
+104-MMU-AP-Theertham
+104-MMU-AP-Thugundram
+104-MMU-AP-Thumbakuppam
+104-MMU-AP-Thummapala
+104-MMU-AP-Tulasipaka
+104-MMU-AP-Turakalampeta
+104-MMU-AP-Turangi
+104-MMU-AP-Ubalanka
+104-MMU-AP-Ulindakonda
+104-MMU-AP-Uppalapadu
+104-MMU-AP-V.n.palli
+104-MMU-AP-Vaddadi
+104-MMU-AP-valetivaripalem
+104-MMU-AP-Vanapalli
+104-MMU-AP-Varigonda
+104-MMU-AP-Vatluru
+104-MMU-AP-Vechalam
+104-MMU-AP-Veeravallipalem
+104-MMU-AP-Velangi
+104-MMU-AP-Velivennu
+104-MMU-AP-Velugodu
+104-MMU-AP-Vemulapadu
+104-MMU-AP-Vemulapudi
+104-MMU-AP-Venkataramannagudem
+104-MMU-AP-Vepinapi
+104-MMU-AP-Vijairai
+104-MMU-AP-Virava
+104-MMU-AP-Vonipenta
+104-MMU-AP-Yellavaram
+104-MMU-AP-Yerraguntapalli
+104-MMU-AP--kurakunta-2
+104-MMU-AP-Chandalur-2
+104-MMU-AP-Chapirevula-2
+104-MMU-AP-Chapirevula-3
+104-MMU-AP-Chebrolu-2
+104-MMU-AP-D Kesavaram-2
+104-MMU-AP-Dommeru-2
+104-MMU-AP-Dowelswaram-2
+104-MMU-AP-Dwarapudi-2
+104-MMU-AP-Gargeyapuram-2
+104-MMU-AP-Gd Nellore-2
+104-MMU-AP-Gollavanitippa-2
+104-MMU-AP-Gollavanitippa-3
+104-MMU-AP-Gollavanitippa-4
+104-MMU-AP-Inamadugu-2
+104-MMU-AP-Kalludevakuntla-2
+104-MMU-AP-Karavadi-2
+104-MMU-AP-Lakkavaram-2
+104-MMU-AP-Lanakalakoderu-2
+104-MMU-AP-Md.puram-2
+104-MMU-AP-Mori-2
+104-MMU-AP-Siddantham-2
+104-MMU-AP-Tekuripeta-2
+104-MMU-AP-Uppalapadu-2
+104-MMU-AP-Venkataramannagudem-2
+AP104-MMU-GNT-backup-0317
+AP104-MMU-GNT-backup-0318
+AP104-MMU-GNT-CBR-0309
+AP104-MMU-GNT-DGR-0310
+AP104-MMU-GNT-GNT-0311
+AP104-MMU-GNT-GNT-0312
+AP104-MMU-GNT-KLP-0313
+AP104-MMU-GNT-MDK-0316
+AP104-MMU-GNT-MNG-0314
+AP104-MMU-GNT-MNG-0315
+AP104-MMU-GNT-PDK-0319
+AP104-MMU-GNT-PGP-0321
+AP104-MMU-GNT-PNP-0320
+AP104-MMU-GNT-PNR-0322
+AP104-MMU-GNT-PNR-0323
+AP104-MMU-GNT-PTP-0324
+AP104-MMU-GNT-TDK-0325
+AP104-MMU-GNT-TLU-0328
+AP104-MMU-GNT-TNL-0326
+AP104-MMU-GNT-TNL-0327
+AP104-MMU-GNT-VTR-0329
+AP104-MMU-NTR-aKD-01
+AP104-MMU-NTR-backup-0512
+AP104-MMU-NTR-backup-0513
+AP104-MMU-NTR-CDP-0502
+AP104-MMU-NTR-GKD-0501
+AP104-MMU-NTR-GPG-0503-2
+AP104-MMU-NTR-GPG-0504-1
+AP104-MMU-NTR-IBM-0505
+AP104-MMU-NTR-JGP-0506
+AP104-MMU-NTR-JGP-0507
+AP104-MMU-NTR-KCK-0508
+AP104-MMU-NTR-MYL-0509
+AP104-MMU-NTR-NDG-0510-1
+AP104-MMU-NTR-NDG-0511-2
+AP104-MMU-NTR-PNP-0514
+AP104-MMU-NTR-RDG-0515
+AP104-MMU-NTR-TRV-0516
+AP104-MMU-NTR-VJW-0519
+AP104-MMU-NTR-VJW-0520
+AP104-MMU-NTR-VJW-0521
+AP104-MMU-NTR-VJW-0522
+AP104-MMU-NTR-VRP-0518
+AP104-MMU-NTR-VSP-0523
+AP104-MMU-NTR-VTV-0517

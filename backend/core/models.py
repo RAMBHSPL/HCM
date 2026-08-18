@@ -72,16 +72,40 @@ MOBILE_TYPE_CHOICES = [
     ('NON_EMERGENCY', 'Non-Emergency'),
 ]
 
+class FacilityDeploymentMode(models.Model):
+    """Dynamically managed list of facility deployment modes (e.g. Fixed, Mobile, Outreach)."""
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=30, unique=True, blank=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = self.name.upper().replace(' ', '_')[:30]
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
 class FacilityMaster(models.Model):
     LIFE_CHOICES = [('PERMANENT', 'Permanent'), ('TEMPORARY', 'Temporary')]
-    MODE_CHOICES = [('FIXED', 'Fixed'), ('MOBILE', 'Mobile')]
     TYPE_CHOICES = [('SINGLE', 'Single Location'), ('MULTIPLE', 'Multiple Location')]
     name = models.CharField(max_length=100, unique=True)
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='facility_masters')
     project_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='SINGLE')
     location_code = models.CharField(max_length=255, blank=True)
     life = models.CharField(max_length=20, choices=LIFE_CHOICES, default='PERMANENT')
-    mode = models.CharField(max_length=20, choices=MODE_CHOICES, default='FIXED')
+    deployment_mode = models.ForeignKey(
+        'FacilityDeploymentMode',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='facility_masters'
+    )
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, default='Active')
     roles = models.ManyToManyField('Role', blank=True, related_name='facility_masters_roles')

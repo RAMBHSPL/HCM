@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 import builtins
 from .models import (
-    Office, Facility, FacilityMaster, Department, Section, JobFamily, RoleType, Role, Job, Task, TaskUrl, Position, 
+    Office, Facility, FacilityMaster, FacilityDeploymentMode, Department, Section, JobFamily, RoleType, Role, Job, Task, TaskUrl, Position, 
     Employee, Project, IndianVillage, OrganizationLevel, EmployeeTaskUrlPermission, PositionScreenPermission,
     DocumentType, EmployeeDocument,
     EmployeeEducation, EmployeeExperience, EmployeeEmploymentHistory,
@@ -17,7 +17,7 @@ from .serializers import (
     OfficeSerializer, LightOfficeSerializer, FacilitySerializer, DepartmentSerializer, LightDepartmentSerializer, SectionSerializer, JobFamilySerializer, 
     RoleTypeSerializer, RoleSerializer, JobSerializer, TaskSerializer, TaskUrlSerializer,
     PositionLevelSerializer, PositionTypeSerializer, ShiftSerializer,
-    PositionSerializer, PositionDetailSerializer, EmployeeSerializer, EmployeeListSerializer, IntegrationEmployeeSerializer, ProjectSerializer, FacilityMasterSerializer, IndianVillageSerializer, 
+    PositionSerializer, PositionDetailSerializer, EmployeeSerializer, EmployeeListSerializer, IntegrationEmployeeSerializer, ProjectSerializer, FacilityMasterSerializer, FacilityDeploymentModeSerializer, IndianVillageSerializer, 
     OrganizationLevelSerializer, DocumentTypeSerializer, EmployeeDocumentSerializer, EmployeeDocumentListSerializer, 
     EmployeeEducationSerializer, EmployeeEducationListSerializer, EmployeeExperienceSerializer, EmployeeExperienceListSerializer, EmployeeEmploymentHistorySerializer,
     EmployeeBankDetailsSerializer, EmployeeEPFODetailsSerializer, EmployeeHealthDetailsSerializer, EmployeeSalaryDetailsSerializer,
@@ -403,7 +403,7 @@ class ScopedViewSetMixin(ActivityLoggingMixin):
                 elif model in [
                     # Reference / Lookup models - accessible to all authenticated users
                     PositionType, Shift, JobFamily, RoleType, Role, RoleSubGroup,
-                    Job, Task, PositionLevel, Segment, FacilityMaster, DocumentType,
+                    Job, Task, PositionLevel, Segment, FacilityMaster, FacilityDeploymentMode, DocumentType,
                     OfficeType, OrganizationLevel,
                 ]:
                     return queryset.all()
@@ -1923,6 +1923,13 @@ class FacilityMasterViewSet(PerfectUpsertMixin, ScopedViewSetMixin, viewsets.Mod
     serializer_class = FacilityMasterSerializer
     upsert_lookup_fields = ['name', 'project']
     pagination_class = None
+
+class FacilityDeploymentModeViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
+    queryset = FacilityDeploymentMode.objects.all()
+    serializer_class = FacilityDeploymentModeSerializer
+    upsert_lookup_fields = ['name']
+    pagination_class = None
+    search_fields = ['name', 'code']
 
 class DepartmentViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, viewsets.ModelViewSet):
     queryset = Department.objects.all()

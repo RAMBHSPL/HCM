@@ -108,6 +108,11 @@ const resolveEndpointHelper = (type) => {
         'Task URLs': 'task-urls',
         'Facility Master': 'facility-masters',
         'FacilityMaster': 'facility-masters',
+        'Facility Deployment Modes': 'facility-deployment-modes',
+        'FacilityDeploymentModes': 'facility-deployment-modes',
+        'Facility Deployment Mode': 'facility-deployment-modes',
+        'FacilityDeploymentMode': 'facility-deployment-modes',
+        'facility-deployment-modes': 'facility-deployment-modes',
         'Position Levels': 'position-levels',
         'Delegate Activity': 'position-activity-logs',
         'Login History': 'login-hits',
@@ -141,6 +146,7 @@ export const SECTIONS = [
     { id: 'departments', name: 'Departments', icon: <Layers />, endpoint: 'departments' },
     { id: 'sections', name: 'Sections', icon: <LayoutGrid />, endpoint: 'sections' },
     { id: 'facility-masters', name: 'Facility Master', icon: <MapIcon />, endpoint: 'facility-masters' },
+    { id: 'facility-deployment-modes', name: 'Facility Deployment Modes', icon: <Navigation />, endpoint: 'facility-deployment-modes' },
     { id: 'job-families', name: 'Job Families', icon: <BarChart3 />, endpoint: 'job-families' },
     { id: 'role-types', name: 'Role Types', icon: <Settings />, endpoint: 'role-types' },
     { id: 'roles', name: 'Role Names', icon: <Settings />, endpoint: 'roles' },
@@ -235,6 +241,7 @@ export const DataProvider = ({ children }) => {
     const [roleTypes, setRoleTypes] = useState([]);
     const [tasks, setTasks] = useState([]);
     const [facilityMasters, setFacilityMasters] = useState([]);
+    const [facilityDeploymentModes, setFacilityDeploymentModes] = useState([]);
     const [officeTypes, setOfficeTypes] = useState([]);
     const [jobFamilyMap, setJobFamilyMap] = useState({});
     const [geoContinents, setGeoContinents] = useState([]);
@@ -1257,10 +1264,11 @@ export const DataProvider = ({ children }) => {
                 safeFetch('role-types', force),
                 safeFetch('projects', force),
                 safeFetch('facility-masters', force),
-                safeFetch('office-types', force)
+                safeFetch('office-types', force),
+                safeFetch('facility-deployment-modes', force)
             ]);
 
-            const [orgLevelsData, officesData, jobFamiliesData, roleTypesData, projectsData, facilityMastersData, officeTypesData] = wave1;
+            const [orgLevelsData, officesData, jobFamiliesData, roleTypesData, projectsData, facilityMastersData, officeTypesData, facilityDeploymentModesData] = wave1;
 
             const jfMap = {};
             jobFamiliesData.forEach(jf => { jfMap[jf.id] = jf.name; });
@@ -1276,11 +1284,13 @@ export const DataProvider = ({ children }) => {
             setProjects(universalSort(projectsData));
             setFacilityMasters(universalSort(facilityMastersData));
             setOfficeTypes(universalSort(officeTypesData));
+            setFacilityDeploymentModes(universalSort(facilityDeploymentModesData));
 
             // Instant Cache Pre-population
             pageCache.current.set('offices', sortedOffices);
             pageCache.current.set('projects', universalSort(projectsData));
             pageCache.current.set('facility-masters', universalSort(facilityMastersData));
+            pageCache.current.set('facility-deployment-modes', universalSort(facilityDeploymentModesData));
             pageCache.current.set('organization-levels', levelSort(orgLevelsData));
             pageCache.current.set('office-types', universalSort(officeTypesData));
 
@@ -2189,6 +2199,7 @@ export const DataProvider = ({ children }) => {
         orgLevels, setOrgLevels,
         projects, setProjects,
         facilityMasters, setFacilityMasters,
+        facilityDeploymentModes, setFacilityDeploymentModes,
         officeTypes, setOfficeTypes,
         positionLevels, setPositionLevels,
         positionTypes, setPositionTypes,

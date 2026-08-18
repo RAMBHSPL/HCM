@@ -67,7 +67,7 @@ const FacilityMasters = () => {
                                             <Clock size={12} /> {item.life_display}
                                         </div>
                                         <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b' }}>
-                                            <Navigation size={12} /> {item.mode_display}
+                                            <Navigation size={12} /> {item.deployment_mode_name || item.mode_display || item.mode || 'N/A'}
                                         </div>
                                     </div>
                                 </td>
