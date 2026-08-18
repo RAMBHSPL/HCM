@@ -386,16 +386,21 @@ const BulkUploadModal = ({ isOpen, onClose, section }) => {
             };
         } else if (s.includes('positions')) {
             headers = {
-                'Position Title *': 'Field Officer',
-                'Position Code *': 'POS-FO-01',
-                'Position Type': 'Primary',
-                'Role Name *': 'Field Operator',
-                'Role Group': 'Operations Group',
-                'Assign to Office / Unit': 'Regional Office VSKP',
-                'Department': 'Operations',
-                'Section / Team': 'Field Ops',
-                'Job Profile': 'Field Engineer',
-                'Designation Rank / Level': 'L2',
+                'Position Title *': 'Senior Project Manager',
+                'Position Code *': 'POS-001',
+                'Position Type': 'Position Type Name',
+                'Role Name *': 'Role Name',
+                'Role Sub Group': 'Sub Group Name',
+                'Shift Names': 'General Shift, Night Shift',
+                'Assign to Office / Unit': 'Office Name',
+                'Department': 'Department Name',
+                'Section / Team': 'Section Name',
+                'Job Profile': 'Job Name',
+                'Designation Rank / Level': 'Level Name',
+                'Reporting To (Codes)': 'POS-REP-01, POS-REP-02',
+                'Additional Roles': 'Role 2, Role 3',
+                'Additional Sub Groups': 'Sub Group 2',
+                'Additional Jobs': 'Job 2',
                 'Status': 'Active'
             };
         } else if (s.includes('projects')) {

@@ -112,12 +112,18 @@ const BulkUploadModal = ({ isOpen, onClose, section }) => {
                 'Job Family': ['job family', 'family'],
                 'Role Type': ['role type', 'type'],
                 'Role Name': ['role name', 'role', 'role code'],
+                'Role Sub Group': ['role sub group', 'role sub-group', 'role group', 'sub group', 'role_sub_group'],
+                'Position Type': ['position type', 'pos type', 'position_type'],
+                'Shift Names': ['shift names', 'shift', 'shifts', 'shift name'],
                 'Job Profile (Specific Role)': ['job profile', 'job', 'job code', 'job profile (specific role)'],
                 'Structural Tier (Office Level)': ['structural tier', 'office level', 'tier', 'structural tier (office level)'],
                 'Assign to Office / Unit': ['assign to office', 'office', 'unit', 'assign to office / unit'],
                 'Department': ['department', 'dept', 'division'],
                 'Section / Team': ['section', 'unit', 'section / team'],
                 'Reporting To (Codes)': ['reporting to', 'reports to', 'boss', 'manager', 'reporting codes', 'reporting to (codes)'],
+                'Additional Roles': ['additional roles', 'additional role', 'extra roles', 'additional_roles'],
+                'Additional Sub Groups': ['additional sub groups', 'additional sub-groups', 'additional_sub_groups'],
+                'Additional Jobs': ['additional jobs', 'additional job', 'additional_jobs'],
                 'Status': ['status']
             };
 
@@ -497,12 +503,18 @@ const BulkUploadModal = ({ isOpen, onClose, section }) => {
                 'Job Family': 'Family Name',
                 'Role Type': 'Type Name',
                 'Role Name': 'Role Name',
+                'Role Sub Group': 'Sub Group Name',
+                'Position Type': 'Position Type Name',
+                'Shift Names': 'General Shift, Night Shift',
                 'Job Profile (Specific Role)': 'Job Name',
                 'Structural Tier (Office Level)': 'State/Circle/Dist',
                 'Assign to Office / Unit': 'Office Name',
                 'Department': 'Department Name',
                 'Section / Team': 'Section Name',
                 'Reporting To (Codes)': 'POS-REP-01, POS-REP-02',
+                'Additional Roles': 'Role 2, Role 3',
+                'Additional Sub Groups': 'Sub Group 2',
+                'Additional Jobs': 'Job 2',
                 'Status': 'Active'
             };
         } else if (s.includes('employees')) {

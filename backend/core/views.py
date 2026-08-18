@@ -2929,7 +2929,6 @@ class PositionViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, v
                                 pos_type_cache[pt_val] = pt_obj
                             position_type = pos_type_cache[pt_val]
 
-
                         # 3. Relationship Resolution: Office
                         office_val = str(row.get('Assign to Office / Unit') or row.get('office') or '').strip()
                         office = None
@@ -2957,7 +2956,7 @@ class PositionViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, v
                                 dept_cache[dept_key] = dept_obj
                             dept = dept_cache[dept_key]
 
-                        # 4. Section (by name)
+                        # 5. Section (by name)
                         sec_val = str(row.get('Section / Team') or row.get('section') or '').strip()
                         sec = None
                         if sec_val:
@@ -2985,7 +2984,7 @@ class PositionViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, v
                                 level_cache[level_val] = level_obj
                             level = level_cache[level_val]
 
-                        # 7. Atomic Write (Upsert)
+                        # 8. Atomic Write (Upsert)
                         defaults = {
                             'name': name,
                             'office': office,
@@ -2996,20 +2995,17 @@ class PositionViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, v
                             'position_type': position_type,
                             'job': job,
                             'level': level,
-                            'status': str(row.get('status') or 'Active')
+                            'status': str(row.get('status') or row.get('Status') or 'Active')
                         }
                         start_date = str(row.get('Activation Date') or row.get('start_date') or '').strip()
                         if start_date and start_date != '-':
                             defaults['start_date'] = start_date
 
-
-                        # 8. Unique Identification & Resolution
-                        # Use 'id' if provided for rock-solid mass updates (allows changing codes/names)
+                        # 9. Unique Identification & Resolution
                         row_id = row.get('id') or row.get('ID')
                         
                         if row_id and str(row_id).isdigit():
                             obj, created = Position.objects.update_or_create(id=int(row_id), defaults=defaults)
-                            # If we updated by ID, ensure the code is also updated if provided
                             if code:
                                 project_code = None
                                 if dept and dept.project: project_code = dept.project.code
@@ -3025,7 +3021,6 @@ class PositionViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, v
                                 obj.code = final_code
                                 obj.save()
                         else:
-                            # Fallback to Code or Name+Dept lookup
                             project_code = None
                             if dept and dept.project:
                                 project_code = dept.project.code
@@ -3043,6 +3038,33 @@ class PositionViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, v
                                 obj, created = Position.objects.update_or_create(code=search_code, defaults=defaults)
                             else:
                                 obj, created = Position.objects.update_or_create(name=name, department=dept, defaults=defaults)
+
+                        # 10. M2M Relationships: Shifts & Additional Roles/SubGroups/Jobs
+                        shift_val = str(row.get('Shift Names') or row.get('Shifts') or row.get('Shift') or '').strip()
+                        if shift_val:
+                            from .models import Shift
+                            shift_names = [s.strip() for s in shift_val.replace(';', ',').split(',') if s.strip()]
+                            shift_objs = Shift.objects.filter(name__in=shift_names)
+                            obj.shifts.set(shift_objs)
+
+                        add_roles_val = str(row.get('Additional Roles') or row.get('additional_roles') or '').strip()
+                        if add_roles_val:
+                            role_names = [r.strip() for r in add_roles_val.replace(';', ',').split(',') if r.strip()]
+                            add_role_objs = Role.objects.filter(Q(code__in=role_names) | Q(name__in=role_names))
+                            obj.additional_roles.set(add_role_objs)
+
+                        add_sg_val = str(row.get('Additional Sub Groups') or row.get('additional_sub_groups') or '').strip()
+                        if add_sg_val:
+                            from .models import RoleSubGroup
+                            sg_names = [s.strip() for s in add_sg_val.replace(';', ',').split(',') if s.strip()]
+                            add_sg_objs = RoleSubGroup.objects.filter(Q(code__in=sg_names) | Q(name__in=sg_names))
+                            obj.additional_sub_groups.set(add_sg_objs)
+
+                        add_jobs_val = str(row.get('Additional Jobs') or row.get('additional_jobs') or '').strip()
+                        if add_jobs_val:
+                            job_names = [j.strip() for j in add_jobs_val.replace(';', ',').split(',') if j.strip()]
+                            add_job_objs = Job.objects.filter(Q(code__in=job_names) | Q(name__in=job_names))
+                            obj.additional_jobs.set(add_job_objs)
                         
                         if created: created_count += 1
                         else: updated_count += 1
@@ -3089,22 +3111,38 @@ class PositionViewSet(CachedListMixin, PerfectUpsertMixin, ScopedViewSetMixin, v
         
         writer = csv.writer(response)
         # Headers matching the Bulk Upload expectation
-        writer.writerow(['id', 'Position Title', 'Position Code', 'Designation Rank / Level', 'Activation Date', 'Role Name', 'Assign to Office / Unit', 'Department', 'Section / Team', 'Job Profile (Specific Role)', 'Reporting To (Codes)', 'Status'])
+        writer.writerow([
+            'id', 'Position Title', 'Position Code', 'Designation Rank / Level', 'Activation Date', 
+            'Role Name', 'Role Sub Group', 'Position Type', 'Shift Names', 'Assign to Office / Unit', 
+            'Department', 'Section / Team', 'Job Profile (Specific Role)', 'Reporting To (Codes)', 
+            'Additional Roles', 'Additional Sub Groups', 'Additional Jobs', 'Status'
+        ])
         
         for pos in queryset:
-            reporting_codes = ",".join([p.code for p in pos.reporting_to.all()])
+            reporting_codes = ",".join([p.code for p in pos.reporting_to.all() if p.code])
+            shift_names = ",".join([s.name for s in pos.shifts.all() if s.name])
+            add_roles = ",".join([r.name for r in pos.additional_roles.all() if r.name])
+            add_sub_groups = ",".join([sg.name for sg in pos.additional_sub_groups.all() if sg.name])
+            add_jobs = ",".join([j.name for j in pos.additional_jobs.all() if j.name])
+
             writer.writerow([
                 pos.id,
                 pos.name,
-                pos.code,
+                pos.code or '',
                 pos.level.name if pos.level else '',
                 pos.start_date or '',
                 pos.role.name if pos.role else '',
+                pos.role_sub_group.name if pos.role_sub_group else '',
+                pos.position_type.name if pos.position_type else '',
+                shift_names,
                 pos.office.name if pos.office else '',
                 pos.department.name if pos.department else '',
                 pos.section.name if pos.section else '',
                 pos.job.name if pos.job else '',
                 reporting_codes,
+                add_roles,
+                add_sub_groups,
+                add_jobs,
                 pos.status
             ])
             
