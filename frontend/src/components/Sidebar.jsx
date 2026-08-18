@@ -26,7 +26,7 @@ const Sidebar = () => {
     const isInternalSection = (id) => [
         'permission-matrix', 'position-assignments', 'shifts', 
         'position-shift-rosters', 'shift-change-requests', 'shift-requests',
-        'position-role-mappings'
+        'position-role-mappings', 'facility-deployment-modes'
     ].includes(id);
 
     return (

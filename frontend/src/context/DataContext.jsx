@@ -190,7 +190,7 @@ export const SECTIONS = [
 
 export const SECTION_GROUPS = [
     { name: 'Dashboard Overview', icon: <LayoutDashboard />, items: ['dashboard', 'users'], standalone: true },
-    { name: 'Organization', icon: <Building2 />, items: ['organization', 'organization-levels', 'offices', 'office-types', 'vehicle-swaps', 'vehicle-swap-requests', 'facility-masters', 'departments', 'sections'] },
+    { name: 'Organization', icon: <Building2 />, items: ['organization', 'organization-levels', 'offices', 'office-types', 'vehicle-swaps', 'vehicle-swap-requests', 'facility-masters', 'facility-deployment-modes', 'departments', 'sections'] },
     { name: 'Job Structure', icon: <Briefcase />, items: ['roles', 'role-sub-groups', 'jobs', 'position-role-mappings'] },
     { name: 'Workforce', icon: <Users />, items: ['employees', 'workforce-tracker', 'positions', 'position-assignments', 'position-levels', 'position-types', 'shifts', 'position-shift-rosters', 'shift-change-requests', 'projects', 'position-activity-logs'] },
 
