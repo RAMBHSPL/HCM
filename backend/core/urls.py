@@ -96,5 +96,6 @@ urlpatterns = [
     path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
     path('geo/bulk-upload/', GeoBulkUploadView.as_view(), name='geo-bulk-upload'),
     path('geo/full-hierarchy/', GeoFullHierarchyView.as_view(), name='geo-full-hierarchy'),
+    path('scm/v1/', include('core.scm_v1.urls')),
     path('', include(router.urls)),
 ]

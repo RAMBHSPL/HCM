@@ -30,10 +30,13 @@ def _build_signature(payload_str: str, secret: str) -> str:
 
 def _dispatch(webhook_url: str, event: str, payload: dict, api_key_id: int):
     """Blocking send — called in a daemon thread."""
+    from django.db import connection
+    connection.close()
     from core.models import APIKey, APIKeyUsageLog  # local import to avoid circular deps
     try:
         api_key = APIKey.objects.get(id=api_key_id)
-    except APIKey.DoesNotExist:
+    except Exception as err:
+        print(f"[Webhook Error fetching key {api_key_id}]: {err}")
         return
 
     # Build body
@@ -72,13 +75,13 @@ def _dispatch(webhook_url: str, event: str, payload: dict, api_key_id: int):
             )
             status_code = resp.status_code
             resp.raise_for_status()
-            print(f"[Webhook] ✓ {event} → {webhook_url} [{resp.status_code}]")
+            print(f"[Webhook] [OK] {event} -> {webhook_url} [{resp.status_code}]")
             break
         except requests.RequestException as e:
             if hasattr(e, 'response') and getattr(e, 'response', None) is not None:
                 status_code = e.response.status_code
             wait = 2 ** attempt  # exponential backoff: 1s, 2s, 4s
-            print(f"[Webhook] ✗ Attempt {attempt + 1}/{max_retries} failed for {event} → {webhook_url}: {e}")
+            print(f"[Webhook] [FAIL] Attempt {attempt + 1}/{max_retries} failed for {event} -> {webhook_url}: {e}")
             if attempt < max_retries - 1:
                 time.sleep(wait)
 
@@ -97,8 +100,8 @@ def _dispatch(webhook_url: str, event: str, payload: dict, api_key_id: int):
 
 def is_in_api_key_scope(api_key, payload) -> bool:
     """Validate if the shift payload is within the allowed scope of the API key."""
-    scope = api_key.scope
-    if scope.get('type') == 'GLOBAL':
+    scope = api_key.scope or {}
+    if not scope or scope.get('type', 'GLOBAL') == 'GLOBAL':
         return True
 
     entities = scope.get('entities', [])
@@ -116,9 +119,10 @@ def is_in_api_key_scope(api_key, payload) -> bool:
 
     from core.models import Employee, Position
     employee = None
-    if 'employee_id' in payload:
+    emp_id = payload.get('employee_id') or payload.get('id')
+    if emp_id:
         try:
-            employee = Employee.objects.get(id=payload['employee_id'])
+            employee = Employee.objects.get(id=emp_id)
         except Employee.DoesNotExist:
             pass
 
@@ -129,45 +133,41 @@ def is_in_api_key_scope(api_key, payload) -> bool:
         except Position.DoesNotExist:
             pass
 
-    # Helper function to check if a specific position matches the grouped scopes
     def position_matches(pos):
         if not pos:
             return False
-        
-        # Office check
-        if 'OFFICE' in grouped and str(pos.office_id) in grouped['OFFICE']:
+
+        if 'OFFICE' in grouped and hasattr(pos, 'office_id') and str(pos.office_id) in grouped['OFFICE']:
             return True
-        # Department check
-        if 'DEPARTMENT' in grouped and str(pos.department_id) in grouped['DEPARTMENT']:
+        if 'DEPARTMENT' in grouped and hasattr(pos, 'department_id') and str(pos.department_id) in grouped['DEPARTMENT']:
             return True
-        # Section check
-        if 'SECTION' in grouped and str(pos.section_id) in grouped['SECTION']:
+        if 'SECTION' in grouped and hasattr(pos, 'section_id') and str(pos.section_id) in grouped['SECTION']:
             return True
-        # Role check
-        if 'ROLE' in grouped and str(pos.role_id) in grouped['ROLE']:
+        if 'ROLE' in grouped and hasattr(pos, 'role_id') and str(pos.role_id) in grouped['ROLE']:
             return True
-        # Level check
-        if 'LEVEL' in grouped and str(pos.office.level_id) in grouped['LEVEL']:
+        if 'LEVEL' in grouped and hasattr(pos, 'level_id') and str(pos.level_id) in grouped['LEVEL']:
             return True
-        # Project check
         if 'PROJECT' in grouped:
-            proj_id = (pos.section.project_id if pos.section else None) or (pos.department.project_id if pos.department else None)
+            proj_id = None
+            if hasattr(pos, 'section') and pos.section and getattr(pos.section, 'project_id', None):
+                proj_id = pos.section.project_id
+            elif hasattr(pos, 'department') and pos.department and getattr(pos.department, 'project_id', None):
+                proj_id = pos.department.project_id
+            elif hasattr(pos, 'office') and pos.office and hasattr(pos.office, 'projects'):
+                p_first = pos.office.projects.first()
+                if p_first:
+                    proj_id = p_first.id
             if proj_id and str(proj_id) in grouped['PROJECT']:
                 return True
-        # Geo check
-        off = pos.office
+        off = getattr(pos, 'office', None)
         if off:
-            if 'CLUSTER' in grouped and off.cluster_id and str(off.cluster_id) in grouped['CLUSTER']:
+            if 'CLUSTER' in grouped and getattr(off, 'cluster_id', None) and str(off.cluster_id) in grouped['CLUSTER']:
                 return True
-            if 'MANDAL' in grouped and off.mandal_id and str(off.mandal_id) in grouped['MANDAL']:
+            if 'MANDAL' in grouped and getattr(off, 'mandal_id', None) and str(off.mandal_id) in grouped['MANDAL']:
                 return True
-            if 'DISTRICT' in grouped and off.district_id and str(off.district_id) in grouped['DISTRICT']:
+            if 'DISTRICT' in grouped and getattr(off, 'district_id', None) and str(off.district_id) in grouped['DISTRICT']:
                 return True
-            if 'STATE' in grouped and off.state_id and str(off.state_id) in grouped['STATE']:
-                return True
-            if 'COUNTRY' in grouped and off.country_id and str(off.country_id) in grouped['COUNTRY']:
-                return True
-            if 'CONTINENT' in grouped and off.country and off.country.continent_ref_id and str(off.country.continent_ref_id) in grouped['CONTINENT']:
+            if 'STATE' in grouped and getattr(off, 'state_id', None) and str(off.state_id) in grouped['STATE']:
                 return True
         return False
 
@@ -233,6 +233,7 @@ def fire_shift_webhook(event: str, payload: dict):
         is_active=True,
         webhook_url__isnull=False,
     ).exclude(webhook_url=''))
+    print(f'[DEBUG Webhook] Event: {event}, Matching Keys Found: {len(keys)}')
 
     default_url = getattr(settings, 'DEFAULT_WEBHOOK_URL', None) or getattr(settings, 'WEBHOOK_URL', None)
 
@@ -247,19 +248,18 @@ def fire_shift_webhook(event: str, payload: dict):
         return
 
     for api_key in keys:
-        # Check if this key has subscribed to the event
         subscribed = api_key.webhook_events
-        # If webhook_events is empty list → fire ALL events (opt-in to everything)
         if subscribed and event not in subscribed:
+            print(f"[DEBUG Key {api_key.id}] Skipped event mismatch: {subscribed}")
             continue
 
-        # Enforce API Key scoping constraints on the payload data
         if not is_in_api_key_scope(api_key, payload):
+            print(f"[DEBUG Key {api_key.id}] Skipped scope mismatch")
             continue
 
-        # Support comma-separated URLs in a single API key
         urls = [u.strip() for u in api_key.webhook_url.split(',') if u.strip()]
         for target_url in urls:
+            print(f"[DEBUG Key {api_key.id}] Dispatching thread to {target_url}")
             t = threading.Thread(
                 target=_dispatch,
                 args=(target_url, event, payload, api_key.id),

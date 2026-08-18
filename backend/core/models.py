@@ -1404,3 +1404,27 @@ def clear_cache_on_change(sender, instance, **kwargs):
     except Exception:
         pass
 
+
+@receiver(post_save, sender=Employee)
+def trigger_employee_webhook_on_save(sender, instance, created, **kwargs):
+    try:
+        from core.scm_v1.serializers import SCMEmployeeSerializer
+        from core.webhook_utils import fire_shift_webhook
+        event = 'employee.created' if created else 'employee.updated'
+        payload = SCMEmployeeSerializer(instance).data
+        fire_shift_webhook(event, payload)
+    except Exception as e:
+        print('[Signal Error Employee]:', e)
+
+
+@receiver(post_save, sender=Position)
+def trigger_position_webhook_on_save(sender, instance, created, **kwargs):
+    try:
+        from core.scm_v1.serializers import SCMPositionSerializer
+        from core.webhook_utils import fire_shift_webhook
+        event = 'position.created' if created else 'position.updated'
+        payload = SCMPositionSerializer(instance).data
+        fire_shift_webhook(event, payload)
+    except Exception as e:
+        print('[Signal Error Position]:', e)
+
