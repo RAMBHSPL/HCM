@@ -113,6 +113,14 @@ const resolveEndpointHelper = (type) => {
         'Facility Deployment Mode': 'facility-deployment-modes',
         'FacilityDeploymentMode': 'facility-deployment-modes',
         'facility-deployment-modes': 'facility-deployment-modes',
+        'Facility Classes': 'facility-classes',
+        'FacilityClasses': 'facility-classes',
+        'Facility Class': 'facility-classes',
+        'facility-classes': 'facility-classes',
+        'Facility Sub-Classes': 'facility-sub-classes',
+        'FacilitySubClasses': 'facility-sub-classes',
+        'Facility Sub-Class': 'facility-sub-classes',
+        'facility-sub-classes': 'facility-sub-classes',
         'Position Levels': 'position-levels',
         'Delegate Activity': 'position-activity-logs',
         'Login History': 'login-hits',
@@ -147,6 +155,8 @@ export const SECTIONS = [
     { id: 'sections', name: 'Sections', icon: <LayoutGrid />, endpoint: 'sections' },
     { id: 'facility-masters', name: 'Facility Master', icon: <MapIcon />, endpoint: 'facility-masters' },
     { id: 'facility-deployment-modes', name: 'Facility Deployment Modes', icon: <Navigation />, endpoint: 'facility-deployment-modes' },
+    { id: 'facility-classes', name: 'Facility Classes', icon: <Layers />, endpoint: 'facility-classes' },
+    { id: 'facility-sub-classes', name: 'Facility Sub-Classes', icon: <LayoutGrid />, endpoint: 'facility-sub-classes' },
     { id: 'job-families', name: 'Job Families', icon: <BarChart3 />, endpoint: 'job-families' },
     { id: 'role-types', name: 'Role Types', icon: <Settings />, endpoint: 'role-types' },
     { id: 'roles', name: 'Role Names', icon: <Settings />, endpoint: 'roles' },
@@ -190,7 +200,7 @@ export const SECTIONS = [
 
 export const SECTION_GROUPS = [
     { name: 'Dashboard Overview', icon: <LayoutDashboard />, items: ['dashboard', 'users'], standalone: true },
-    { name: 'Organization', icon: <Building2 />, items: ['organization', 'organization-levels', 'offices', 'office-types', 'vehicle-swaps', 'vehicle-swap-requests', 'facility-masters', 'facility-deployment-modes', 'departments', 'sections'] },
+    { name: 'Organization', icon: <Building2 />, items: ['organization', 'organization-levels', 'offices', 'office-types', 'vehicle-swaps', 'vehicle-swap-requests', 'facility-masters', 'facility-deployment-modes', 'facility-classes', 'facility-sub-classes', 'departments', 'sections'] },
     { name: 'Job Structure', icon: <Briefcase />, items: ['roles', 'role-sub-groups', 'jobs', 'position-role-mappings'] },
     { name: 'Workforce', icon: <Users />, items: ['employees', 'workforce-tracker', 'positions', 'position-assignments', 'position-levels', 'position-types', 'shifts', 'position-shift-rosters', 'shift-change-requests', 'projects', 'position-activity-logs'] },
 
@@ -242,6 +252,8 @@ export const DataProvider = ({ children }) => {
     const [tasks, setTasks] = useState([]);
     const [facilityMasters, setFacilityMasters] = useState([]);
     const [facilityDeploymentModes, setFacilityDeploymentModes] = useState([]);
+    const [facilityClasses, setFacilityClasses] = useState([]);
+    const [facilitySubClasses, setFacilitySubClasses] = useState([]);
     const [officeTypes, setOfficeTypes] = useState([]);
     const [jobFamilyMap, setJobFamilyMap] = useState({});
     const [geoContinents, setGeoContinents] = useState([]);
@@ -1265,10 +1277,12 @@ export const DataProvider = ({ children }) => {
                 safeFetch('projects', force),
                 safeFetch('facility-masters', force),
                 safeFetch('office-types', force),
-                safeFetch('facility-deployment-modes', force)
+                safeFetch('facility-deployment-modes', force),
+                safeFetch('facility-classes', force),
+                safeFetch('facility-sub-classes', force)
             ]);
 
-            const [orgLevelsData, officesData, jobFamiliesData, roleTypesData, projectsData, facilityMastersData, officeTypesData, facilityDeploymentModesData] = wave1;
+            const [orgLevelsData, officesData, jobFamiliesData, roleTypesData, projectsData, facilityMastersData, officeTypesData, facilityDeploymentModesData, facilityClassesData, facilitySubClassesData] = wave1;
 
             const jfMap = {};
             jobFamiliesData.forEach(jf => { jfMap[jf.id] = jf.name; });
@@ -1285,12 +1299,16 @@ export const DataProvider = ({ children }) => {
             setFacilityMasters(universalSort(facilityMastersData));
             setOfficeTypes(universalSort(officeTypesData));
             setFacilityDeploymentModes(universalSort(facilityDeploymentModesData));
+            setFacilityClasses(universalSort(facilityClassesData));
+            setFacilitySubClasses(universalSort(facilitySubClassesData));
 
             // Instant Cache Pre-population
             pageCache.current.set('offices', sortedOffices);
             pageCache.current.set('projects', universalSort(projectsData));
             pageCache.current.set('facility-masters', universalSort(facilityMastersData));
             pageCache.current.set('facility-deployment-modes', universalSort(facilityDeploymentModesData));
+            pageCache.current.set('facility-classes', universalSort(facilityClassesData));
+            pageCache.current.set('facility-sub-classes', universalSort(facilitySubClassesData));
             pageCache.current.set('organization-levels', levelSort(orgLevelsData));
             pageCache.current.set('office-types', universalSort(officeTypesData));
 
@@ -2200,6 +2218,8 @@ export const DataProvider = ({ children }) => {
         projects, setProjects,
         facilityMasters, setFacilityMasters,
         facilityDeploymentModes, setFacilityDeploymentModes,
+        facilityClasses, setFacilityClasses,
+        facilitySubClasses, setFacilitySubClasses,
         officeTypes, setOfficeTypes,
         positionLevels, setPositionLevels,
         positionTypes, setPositionTypes,

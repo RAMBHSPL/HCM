@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from core.models import (
-    Office, Facility, FacilityMaster, FacilityDeploymentMode, Department, Section, JobFamily, Role, RoleType, Job, Task, TaskUrl, Position, PositionLevel,
+    Office, Facility, FacilityMaster, FacilityDeploymentMode, FacilityClass, FacilitySubClass, Department, Section, JobFamily, Role, RoleType, Job, Task, TaskUrl, Position, PositionLevel,
     Employee, Project, IndianVillage, OrganizationLevel, EmployeeTaskUrlPermission,
     DocumentType, EmployeeDocument,
     EmployeeEducation, EmployeeExperience, EmployeeEmploymentHistory,
@@ -587,6 +587,20 @@ class FacilityDeploymentModeSerializer(serializers.ModelSerializer):
         model = FacilityDeploymentMode
         fields = '__all__'
 
+class FacilitySubClassSerializer(serializers.ModelSerializer):
+    facility_class_name = serializers.ReadOnlyField(source='facility_class.name')
+
+    class Meta:
+        model = FacilitySubClass
+        fields = '__all__'
+
+class FacilityClassSerializer(serializers.ModelSerializer):
+    sub_classes = FacilitySubClassSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = FacilityClass
+        fields = '__all__'
+
 class FacilityMasterSerializer(serializers.ModelSerializer):
     project_name = serializers.SerializerMethodField()
     project_code = serializers.SerializerMethodField()
@@ -594,6 +608,10 @@ class FacilityMasterSerializer(serializers.ModelSerializer):
     project_end_date = serializers.SerializerMethodField()
     deployment_mode_name = serializers.ReadOnlyField(source='deployment_mode.name')
     deployment_mode_details = FacilityDeploymentModeSerializer(source='deployment_mode', read_only=True)
+    facility_class_name = serializers.ReadOnlyField(source='facility_class.name')
+    facility_class_details = FacilityClassSerializer(source='facility_class', read_only=True)
+    facility_sub_class_name = serializers.ReadOnlyField(source='facility_sub_class.name')
+    facility_sub_class_details = FacilitySubClassSerializer(source='facility_sub_class', read_only=True)
     mode_display = serializers.SerializerMethodField()
     mode = serializers.SerializerMethodField()
 
@@ -630,9 +648,11 @@ class FacilityMasterSerializer(serializers.ModelSerializer):
 
 class LightFacilityMasterSerializer(serializers.ModelSerializer):
     deployment_mode_name = serializers.ReadOnlyField(source='deployment_mode.name')
+    facility_class_name = serializers.ReadOnlyField(source='facility_class.name')
+    facility_sub_class_name = serializers.ReadOnlyField(source='facility_sub_class.name')
     class Meta:
         model = FacilityMaster
-        fields = ['id', 'name', 'location_code', 'life', 'deployment_mode', 'deployment_mode_name', 'project_type', 'status', 'position_types']
+        fields = ['id', 'name', 'location_code', 'life', 'deployment_mode', 'deployment_mode_name', 'facility_class', 'facility_class_name', 'facility_sub_class', 'facility_sub_class_name', 'project_type', 'status', 'position_types']
 
 class OfficeSerializer(serializers.ModelSerializer):
     level_name = serializers.ReadOnlyField(source='level.name')

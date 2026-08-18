@@ -69,6 +69,11 @@ const FacilityMasters = () => {
                                         <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b' }}>
                                             <Navigation size={12} /> {item.deployment_mode_name || item.mode_display || item.mode || 'N/A'}
                                         </div>
+                                        {(item.facility_class_name || item.facility_sub_class_name) && (
+                                            <div style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', color: '#4338ca', fontWeight: 600 }}>
+                                                <Layers size={12} /> {item.facility_class_name || 'Class N/A'} {item.facility_sub_class_name ? `→ ${item.facility_sub_class_name}` : ''}
+                                            </div>
+                                        )}
                                     </div>
                                 </td>
                                 <td>

@@ -239,6 +239,8 @@ const ModalForm = () => {
         facilityMasters,
         officeTypes,
         facilityDeploymentModes,
+        facilityClasses,
+        facilitySubClasses,
         roleTypes,
         tasks,
         documentTypes,
@@ -3059,6 +3061,39 @@ const ModalForm = () => {
                                     />
                                 </div>
                             </div>
+                            <div className="form-group">
+                                <label className="premium-label"><Layers size={14} /> Facility Class</label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={(facilityClasses || []).map(c => ({ id: c.id, name: c.name }))}
+                                        value={formData.facility_class || ''}
+                                        onChange={(e) => {
+                                            const newClassId = e.target.value;
+                                            setFormData({ 
+                                                ...formData, 
+                                                facility_class: newClassId, 
+                                                facility_sub_class: '' 
+                                            });
+                                        }}
+                                        icon={Layers}
+                                        placeholder="Select Facility Class..."
+                                    />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label className="premium-label"><LayoutGrid size={14} /> Facility Sub-Class</label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={(facilitySubClasses || [])
+                                            .filter(sc => !formData.facility_class || String(sc.facility_class) === String(formData.facility_class) || String(sc.facility_class_id) === String(formData.facility_class))
+                                            .map(sc => ({ id: sc.id, name: sc.name }))}
+                                        value={formData.facility_sub_class || ''}
+                                        onChange={(e) => setFormData({ ...formData, facility_sub_class: e.target.value })}
+                                        icon={LayoutGrid}
+                                        placeholder={formData.facility_class ? "Select Facility Sub-Class..." : "Select Facility Class first..."}
+                                    />
+                                </div>
+                            </div>
 
                             <div className="form-group full-width">
                                 <label className="premium-label"><FileText size={14} /> Strategic Description</label>
@@ -3228,6 +3263,186 @@ const ModalForm = () => {
                                         style={{ padding: '0.75rem 0.75rem 0.75rem 2.5rem', minHeight: '100px', resize: 'vertical' }}
                                         rows="3"
                                         placeholder="Operational details of this deployment mode..."
+                                        value={formData.description || ''}
+                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+        case 'Facility Classes':
+        case 'FacilityClasses':
+        case 'Facility Class':
+        case 'FacilityClass':
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    <div className="premium-form-section">
+                        <div className="form-section-title" style={{ marginBottom: '2rem' }}>
+                            <Layers size={18} /> Facility Class Configuration
+                        </div>
+                        <div className="form-grid">
+                            <div className="form-group">
+                                <label className="premium-label">
+                                    <Edit size={14} /> Class Name <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <div className="premium-input-wrapper">
+                                    <Edit className="premium-input-icon" size={18} />
+                                    <input
+                                        type="text"
+                                        className="premium-input"
+                                        placeholder="e.g. Primary Healthcare, Secondary Healthcare"
+                                        value={formData.name || ''}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="premium-label">
+                                    <Network size={14} /> Class Code
+                                </label>
+                                <div className="premium-input-wrapper">
+                                    <Network className="premium-input-icon" size={18} />
+                                    <input
+                                        type="text"
+                                        className="premium-input"
+                                        placeholder="e.g. PRIMARY_HEALTHCARE"
+                                        value={formData.code || ''}
+                                        onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase().replace(/\s+/g, '_') })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group full-width">
+                                <label className="premium-label">
+                                    <ShieldCheck size={14} /> Active Status
+                                </label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={[
+                                            { id: true, name: 'Active' },
+                                            { id: false, name: 'Inactive' }
+                                        ]}
+                                        value={formData.is_active !== undefined ? formData.is_active : true}
+                                        onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'true' || e.target.value === true })}
+                                        icon={ShieldCheck}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group full-width">
+                                <label className="premium-label">
+                                    <FileText size={14} /> Description
+                                </label>
+                                <div className="premium-input-wrapper" style={{ height: 'auto' }}>
+                                    <FileText className="premium-input-icon" size={18} style={{ marginTop: '0.75rem' }} />
+                                    <textarea
+                                        className="premium-input"
+                                        style={{ padding: '0.75rem 0.75rem 0.75rem 2.5rem', minHeight: '100px', resize: 'vertical' }}
+                                        rows="3"
+                                        placeholder="Details regarding this facility classification..."
+                                        value={formData.description || ''}
+                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+        case 'Facility Sub-Classes':
+        case 'FacilitySubClasses':
+        case 'Facility Sub-Class':
+        case 'FacilitySubClass':
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    <div className="premium-form-section">
+                        <div className="form-section-title" style={{ marginBottom: '2rem' }}>
+                            <LayoutGrid size={18} /> Facility Sub-Class Configuration
+                        </div>
+                        <div className="form-grid">
+                            <div className="form-group full-width">
+                                <label className="premium-label">
+                                    <Layers size={14} /> Parent Facility Class <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={(facilityClasses || []).map(c => ({ id: c.id, name: c.name }))}
+                                        value={formData.facility_class || ''}
+                                        onChange={(e) => setFormData({ ...formData, facility_class: e.target.value })}
+                                        icon={Layers}
+                                        placeholder="Select Parent Facility Class..."
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="premium-label">
+                                    <Edit size={14} /> Sub-Class Name <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <div className="premium-input-wrapper">
+                                    <Edit className="premium-input-icon" size={18} />
+                                    <input
+                                        type="text"
+                                        className="premium-input"
+                                        placeholder="e.g. Sub-Centre, PHC, CHC"
+                                        value={formData.name || ''}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="premium-label">
+                                    <Network size={14} /> Sub-Class Code
+                                </label>
+                                <div className="premium-input-wrapper">
+                                    <Network className="premium-input-icon" size={18} />
+                                    <input
+                                        type="text"
+                                        className="premium-input"
+                                        placeholder="e.g. SUB_CENTRE, PHC"
+                                        value={formData.code || ''}
+                                        onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase().replace(/\s+/g, '_') })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group full-width">
+                                <label className="premium-label">
+                                    <ShieldCheck size={14} /> Active Status
+                                </label>
+                                <div className="premium-input-wrapper">
+                                    <SearchableSelect
+                                        options={[
+                                            { id: true, name: 'Active' },
+                                            { id: false, name: 'Inactive' }
+                                        ]}
+                                        value={formData.is_active !== undefined ? formData.is_active : true}
+                                        onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'true' || e.target.value === true })}
+                                        icon={ShieldCheck}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group full-width">
+                                <label className="premium-label">
+                                    <FileText size={14} /> Description
+                                </label>
+                                <div className="premium-input-wrapper" style={{ height: 'auto' }}>
+                                    <FileText className="premium-input-icon" size={18} style={{ marginTop: '0.75rem' }} />
+                                    <textarea
+                                        className="premium-input"
+                                        style={{ padding: '0.75rem 0.75rem 0.75rem 2.5rem', minHeight: '100px', resize: 'vertical' }}
+                                        rows="3"
+                                        placeholder="Details regarding this sub-classification..."
                                         value={formData.description || ''}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     />

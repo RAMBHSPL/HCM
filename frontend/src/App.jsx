@@ -28,6 +28,8 @@ const PositionScreenMapping = React.lazy(() => import('./pages/PositionScreenMap
 const Projects = React.lazy(() => import('./pages/Projects'));
 const FacilityMasters = React.lazy(() => import('./pages/FacilityMasters'));
 const FacilityDeploymentModes = React.lazy(() => import('./pages/FacilityDeploymentModes'));
+const FacilityClasses = React.lazy(() => import('./pages/FacilityClasses'));
+const FacilitySubClasses = React.lazy(() => import('./pages/FacilitySubClasses'));
 const JobFamilies = React.lazy(() => import('./pages/JobFamilies'));
 const RoleTypes = React.lazy(() => import('./pages/RoleTypes'));
 const Roles = React.lazy(() => import('./pages/Roles'));
@@ -54,7 +56,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 const ProtectedRoute = ({ section, children }) => {
   const { canView } = useData();
   // Basic modules always allowed
-  if (['dashboard', 'users', 'api-keys', 'reactivations', 'position-assignments', 'profile', 'position-activity-logs', 'audit-logs', 'login-history', 'vehicle-swaps', 'vehicle-swap-requests', 'manager-screen-mappings', 'position-screen-mappings', 'position-role-mappings', 'shift-change-requests', 'workforce-tracker', 'role-sub-groups', 'facility-deployment-modes'].includes(section)) {
+  if (['dashboard', 'users', 'api-keys', 'reactivations', 'position-assignments', 'profile', 'position-activity-logs', 'audit-logs', 'login-history', 'vehicle-swaps', 'vehicle-swap-requests', 'manager-screen-mappings', 'position-screen-mappings', 'position-role-mappings', 'shift-change-requests', 'workforce-tracker', 'role-sub-groups', 'facility-deployment-modes', 'facility-classes', 'facility-sub-classes'].includes(section)) {
     return children;
   }
 
@@ -117,6 +119,8 @@ const AppContent = () => {
             <Route path="/sections/*" element={<ProtectedRoute section="sections"><Sections /></ProtectedRoute>} />
             <Route path="/facility-masters/*" element={<ProtectedRoute section="facility-masters"><FacilityMasters /></ProtectedRoute>} />
             <Route path="/facility-deployment-modes/*" element={<ProtectedRoute section="facility-deployment-modes"><FacilityDeploymentModes /></ProtectedRoute>} />
+            <Route path="/facility-classes/*" element={<ProtectedRoute section="facility-classes"><FacilityClasses /></ProtectedRoute>} />
+            <Route path="/facility-sub-classes/*" element={<ProtectedRoute section="facility-sub-classes"><FacilitySubClasses /></ProtectedRoute>} />
 
             {/* Job Structure */}
             <Route path="/job-families/*" element={<ProtectedRoute section="job-families"><JobFamilies /></ProtectedRoute>} />

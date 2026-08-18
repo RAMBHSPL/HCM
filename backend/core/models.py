@@ -92,6 +92,48 @@ class FacilityDeploymentMode(models.Model):
         return self.name
 
 
+class FacilityClass(models.Model):
+    """Dynamically managed facility classification (e.g. Primary Care, Secondary Care, Tertiary Care, Administrative)."""
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=30, unique=True, blank=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = self.name.upper().replace(' ', '_')[:30]
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class FacilitySubClass(models.Model):
+    """Dynamically managed facility sub-classification linked to a parent FacilityClass."""
+    facility_class = models.ForeignKey(FacilityClass, on_delete=models.CASCADE, related_name='sub_classes')
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=30, blank=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        unique_together = ('facility_class', 'name')
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = self.name.upper().replace(' ', '_')[:30]
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.facility_class.name} -> {self.name}"
+
+
 class FacilityMaster(models.Model):
     LIFE_CHOICES = [('PERMANENT', 'Permanent'), ('TEMPORARY', 'Temporary')]
     TYPE_CHOICES = [('SINGLE', 'Single Location'), ('MULTIPLE', 'Multiple Location')]
@@ -102,6 +144,18 @@ class FacilityMaster(models.Model):
     life = models.CharField(max_length=20, choices=LIFE_CHOICES, default='PERMANENT')
     deployment_mode = models.ForeignKey(
         'FacilityDeploymentMode',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='facility_masters'
+    )
+    facility_class = models.ForeignKey(
+        'FacilityClass',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='facility_masters'
+    )
+    facility_sub_class = models.ForeignKey(
+        'FacilitySubClass',
         on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name='facility_masters'
