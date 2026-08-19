@@ -549,23 +549,31 @@ class PerfectUpsertMixin:
             }, status=status.HTTP_201_CREATED)
 
         # 2. Extract lookup data from request
+        # Safely resolve FK fields: empty string '' is not valid for FK filter -> treat as None
         lookup_data = {}
         for field in self.upsert_lookup_fields:
             val = data.get(field)
-            if val:
+            if val == '' or val is None:
+                # For nullable FK fields, explicitly use None so filter works correctly
+                lookup_data[field] = None
+            elif val:
                 lookup_data[field] = val
-        
-        # 3. If we have lookup data, try to find an existing record
-        # Note: We use the raw model manager to ensure we find duplicates even if they are outside current scope
+
+        # 3. If we have at least the name or key field, try to find an existing record
+        # Wrap in try/except to gracefully handle any FK resolution errors
         if lookup_data:
-            model = self.queryset.model
-            existing = model.objects.filter(**lookup_data).first()
-            if existing:
-                # Found it! Switch to UPDATE mode
-                serializer = self.get_serializer(existing, data=data, partial=True)
-                serializer.is_valid(raise_exception=True)
-                self.perform_update(serializer)
-                return Response(serializer.data, status=status.HTTP_200_OK)
+            try:
+                model = self.queryset.model
+                existing = model.objects.filter(**lookup_data).first()
+                if existing:
+                    # Found it! Switch to UPDATE mode
+                    serializer = self.get_serializer(existing, data=data, partial=True)
+                    serializer.is_valid(raise_exception=True)
+                    self.perform_update(serializer)
+                    return Response(serializer.data, status=status.HTTP_200_OK)
+            except (ValueError, TypeError):
+                # FK resolution failed (e.g. invalid value type for FK field) - fall through to standard CREATE
+                pass
 
         # 4. Default to standard CREATE
         return super().create(request, *args, **kwargs)
