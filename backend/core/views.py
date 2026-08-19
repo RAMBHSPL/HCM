@@ -11,7 +11,7 @@ from .models import (
     GeoContinent, GeoCountry, GeoState, GeoDistrict,    GeoMandal, GeoCluster, VisitingLocation, Landmark, APIKey, LoginHit, AccountBlockHistory, EmployeeArchive, PositionLevel, PositionAssignment, PositionType, Shift, PositionShiftRoster,
     Segment, RoleSubGroup, OfficeType
 )
-from django.db import transaction
+from django.db import transaction, IntegrityError, DatabaseError
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import (
     OfficeSerializer, LightOfficeSerializer, FacilitySerializer, DepartmentSerializer, LightDepartmentSerializer, SectionSerializer, JobFamilySerializer, 
@@ -575,8 +575,24 @@ class PerfectUpsertMixin:
                 # FK resolution failed (e.g. invalid value type for FK field) - fall through to standard CREATE
                 pass
 
-        # 4. Default to standard CREATE
-        return super().create(request, *args, **kwargs)
+        # 4. Default to standard CREATE - wrap in IntegrityError handler
+        # so DB constraint violations return JSON 400 instead of HTML 500
+        try:
+            return super().create(request, *args, **kwargs)
+        except (IntegrityError, DatabaseError) as db_err:
+            import re as _re
+            msg = str(db_err)
+            if 'Duplicate entry' in msg or 'UNIQUE constraint' in msg or 'unique constraint' in msg:
+                match = _re.search(r"Duplicate entry '(.+)' for key '(.+)'", msg)
+                if match:
+                    field_hint = match.group(2).replace('core_', '').replace('_', ' ').title()
+                    detail = f"A record with this combination already exists ({field_hint}). Please use a different name or code."
+                else:
+                    detail = "A record with these values already exists. Please use a different name or code."
+            else:
+                detail = "A database error occurred. Please check your input and try again."
+            return Response({'error': 'Duplicate Value', 'details': detail}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class CachedListMixin:

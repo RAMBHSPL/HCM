@@ -9,6 +9,16 @@ from core.models import (
     Segment, RoleSubGroup, PositionType, Shift, OfficeType
 )
 from django.contrib.auth.models import User
+from django.db import models
+import datetime
+
+class SafeDateField(serializers.DateField):
+    def to_representation(self, value):
+        if isinstance(value, datetime.datetime):
+            value = value.date()
+        return super().to_representation(value)
+
+serializers.ModelSerializer.serializer_field_mapping[models.DateField] = SafeDateField
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
