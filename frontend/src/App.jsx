@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import { DataProvider, useData } from './context/DataContext';
 import Layout from './components/Layout';
 import BavyaSpinner from './components/BavyaSpinner';
 import BulkUploadModal from './components/BulkUploadModal';
+import { useLocation } from 'react-router-dom';
 
 // Pages
 // Lazy Load Pages for Performance
@@ -68,6 +69,35 @@ const ProtectedRoute = ({ section, children }) => {
   return children;
 };
 
+// Global page transition overlay — eliminates freeze/blank flash on route change
+const PageTransitionOverlay = () => {
+  const location = useLocation();
+  const [show, setShow] = useState(false);
+  const prevPath = React.useRef(location.pathname);
+
+  useEffect(() => {
+    if (location.pathname !== prevPath.current) {
+      prevPath.current = location.pathname;
+      setShow(true);
+      const t = setTimeout(() => setShow(false), 600); // hide after page loaded
+      return () => clearTimeout(t);
+    }
+  }, [location.pathname]);
+
+  if (!show) return null;
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 99998,
+      background: 'rgba(255,255,255,0.72)',
+      backdropFilter: 'blur(10px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      transition: 'opacity 0.2s ease'
+    }}>
+      <BavyaSpinner label="Opening page..." minHeight="0" />
+    </div>
+  );
+};
+
 const AppContent = () => {
   const { activeSection, isAuthenticated, notification, isBulkUploadOpen, setIsBulkUploadOpen } = useData();
 
@@ -89,6 +119,9 @@ const AppContent = () => {
           {notification.message}
         </div>
       )}
+
+      {/* Global page transition overlay — prevents freeze on navigation */}
+      {isAuthenticated && <PageTransitionOverlay />}
 
       {!isAuthenticated ? (
         <Login />
@@ -182,7 +215,16 @@ const AppContent = () => {
 function App() {
   return (
     <DataProvider>
-      <React.Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><BavyaSpinner label="Initializing..." /></div>}>
+      <React.Suspense fallback={
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 99999,
+          background: 'rgba(255,255,255,0.92)',
+          backdropFilter: 'blur(12px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <BavyaSpinner label="Loading module..." />
+        </div>
+      }>
         <AppContent />
       </React.Suspense>
     </DataProvider>
