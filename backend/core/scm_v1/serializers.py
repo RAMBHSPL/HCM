@@ -284,8 +284,6 @@ class SCMEmployeeSerializer(serializers.ModelSerializer):
             'name': obj.name,
             'employee_code': getattr(obj, 'employee_code', None) or getattr(obj, 'code', f"HR-EMP-{obj.id}"),
             'status': self.get_status(obj),
-            'dob': str(getattr(obj, 'dob', '2026-08-17')),
-            'gender': getattr(obj, 'gender', 'Male'),
             'phone': getattr(obj, 'phone', None),
             'primary_position': primary_pos.name if primary_pos else None
         }
@@ -436,22 +434,39 @@ class SCMPositionAssignmentSerializer(serializers.ModelSerializer):
     department = serializers.SerializerMethodField()
     office = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
+    is_primary = serializers.SerializerMethodField()
+    valid_from = serializers.SerializerMethodField()
+    valid_to = serializers.SerializerMethodField()
 
     class Meta:
         model = PositionAssignment
         fields = ['id', 'employee', 'position', 'department', 'office', 'is_primary', 'valid_from', 'valid_to', 'status']
 
     def get_employee(self, obj):
-        return {'id': obj.employee.id, 'name': obj.employee.name, 'employee_code': obj.employee.code}
+        emp = getattr(obj, 'assignee', None)
+        if not emp:
+            return None
+        return {'id': emp.id, 'name': emp.name, 'employee_code': getattr(emp, 'employee_code', None)}
 
     def get_position(self, obj):
-        return {'id': obj.position.id, 'name': obj.position.name}
+        return {'id': obj.position.id, 'name': obj.position.name} if obj.position else None
 
     def get_department(self, obj):
-        return {'id': obj.department.id, 'name': obj.department.name} if obj.department else None
+        dept = obj.position.department if (obj.position and obj.position.department) else None
+        return {'id': dept.id, 'name': dept.name} if dept else None
 
     def get_office(self, obj):
-        return {'id': obj.office.id, 'name': obj.office.name} if obj.office else None
+        off = obj.position.office if (obj.position and obj.position.office) else None
+        return {'id': off.id, 'name': off.name} if off else None
+
+    def get_is_primary(self, obj):
+        return True
+
+    def get_valid_from(self, obj):
+        return obj.created_at.date().isoformat() if getattr(obj, 'created_at', None) else None
+
+    def get_valid_to(self, obj):
+        return obj.expires_at.date().isoformat() if getattr(obj, 'expires_at', None) else None
 
     def get_status(self, obj):
-        return 'active' if getattr(obj, 'status', 'Active') in ['Active', 'active', True] else 'inactive'
+        return 'active' if getattr(obj, 'status', 'Active') in ['Active', 'active', 'ACCEPTED', 'APPROVED', True] else 'inactive'

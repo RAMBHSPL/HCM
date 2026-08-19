@@ -1,21 +1,15 @@
 """
 Async webhook dispatcher for HCM push notifications.
 Fires an HTTP POST to the registered webhook_url on an API key
-whenever a shift roster event occurs.
-
-Events fired:
-  shift.assigned       — single assignment created/updated
-  shift.unassigned     — single assignment deleted
-  shift.bulk_assigned  — bulk_assign action completed
-  shift.bulk_deleted   — bulk_delete action completed
+whenever a shift roster or core entity event occurs.
 """
 import json
 import threading
 import hashlib
 import hmac
 import time
-import datetime
-import requests  # pip install requests (already in requirements)
+import uuid
+import requests
 from django.utils import timezone
 
 
@@ -39,33 +33,58 @@ def _dispatch(webhook_url: str, event: str, payload: dict, api_key_id: int):
         print(f"[Webhook Error fetching key {api_key_id}]: {err}")
         return
 
-    # Build body
+    # SCM Webhook requirements config
+    event_id = str(uuid.uuid4())
+    timestamp = str(int(time.time()))
+
+    try:
+        sequence = APIKeyUsageLog.objects.count() + 1
+    except Exception:
+        sequence = int(time.time())
+
+    # Build SCM standard envelope body
     body = {
-        "event": event,
-        "timestamp": timezone.now().isoformat(),
-        "source": "HCM Shift Roster",
+        "event_id": event_id,
+        "event_type": event,
+        "occurred_at": timezone.now().isoformat() + "Z",
+        "sequence": sequence,
+        "entity": event.split('.')[0] if '.' in event else 'unknown',
+        "entity_id": payload.get('id') or payload.get('employee_id') or payload.get('position_id'),
         "data": payload,
+        "changes": {},
+        "reason": "system_sync",
+        "actor": {
+            "id": 1,
+            "name": "System"
+        }
     }
     body_str = json.dumps(body, default=str)
 
-    # Sign with key value for verification
+    # Compute SCM HMAC-SHA256 signature: HMAC-SHA256(secret, "<X-HCM-Timestamp>.<raw request body>")
+    signature_base = f"{timestamp}.{body_str}"
     signature = hmac.new(
         api_key.key.encode(),
-        body_str.encode(),
+        signature_base.encode(),
         hashlib.sha256
     ).hexdigest()
 
-    headers = {
-        "Content-Type": "application/json",
-        "X-HCM-Event": event,
-        "X-HCM-Signature": f"sha256={signature}",
-        "X-HCM-Api-Key": api_key.key[:8] + "...",
-        "User-Agent": "HCM-Webhook/1.0",
-    }
-
+    delays = [30, 120, 600]
+    max_retries = len(delays)
     status_code = None
-    max_retries = 3
+
     for attempt in range(max_retries):
+        delivery_id = str(uuid.uuid4())
+        headers = {
+            "Content-Type": "application/json",
+            "X-HCM-Event-Id": event_id,
+            "X-HCM-Event-Type": event,
+            "X-HCM-Delivery-Id": delivery_id,
+            "X-HCM-Timestamp": timestamp,
+            "X-HCM-Signature": f"sha256={signature}",
+            "X-HCM-Attempt": str(attempt + 1),
+            "User-Agent": "HCM-Webhook/1.0",
+        }
+
         try:
             resp = requests.post(
                 webhook_url,
@@ -80,10 +99,9 @@ def _dispatch(webhook_url: str, event: str, payload: dict, api_key_id: int):
         except requests.RequestException as e:
             if hasattr(e, 'response') and getattr(e, 'response', None) is not None:
                 status_code = e.response.status_code
-            wait = 2 ** attempt  # exponential backoff: 1s, 2s, 4s
             print(f"[Webhook] [FAIL] Attempt {attempt + 1}/{max_retries} failed for {event} -> {webhook_url}: {e}")
             if attempt < max_retries - 1:
-                time.sleep(wait)
+                time.sleep(delays[attempt])
 
     # Record delivery log for full tracking & audits in API Key Management UI
     try:
@@ -98,8 +116,8 @@ def _dispatch(webhook_url: str, event: str, payload: dict, api_key_id: int):
         pass
 
 
-def is_in_api_key_scope(api_key, payload) -> bool:
-    """Validate if the shift payload is within the allowed scope of the API key."""
+def is_in_api_key_scope(api_key, payload, event: str = None) -> bool:
+    """Validate if the payload is within the allowed scope of the API key."""
     scope = api_key.scope or {}
     if not scope or scope.get('type', 'GLOBAL') == 'GLOBAL':
         return True
@@ -119,19 +137,32 @@ def is_in_api_key_scope(api_key, payload) -> bool:
 
     from core.models import Employee, Position
     employee = None
-    emp_id = payload.get('employee_id') or payload.get('id')
-    if emp_id:
-        try:
-            employee = Employee.objects.get(id=emp_id)
-        except Employee.DoesNotExist:
-            pass
-
     position = None
-    if 'position_id' in payload:
-        try:
-            position = Position.objects.prefetch_related('office', 'department', 'section').get(id=payload['position_id'])
-        except Position.DoesNotExist:
-            pass
+
+    # Handle Position payload directly vs Employee/Shift payload
+    is_pos_payload = (event and event.startswith('position.')) or ('parent_position_id' in payload and 'job_name' in payload)
+
+    if is_pos_payload:
+        pos_id = payload.get('id')
+        if pos_id:
+            try:
+                position = Position.objects.prefetch_related('office', 'department', 'section').get(id=pos_id)
+            except Position.DoesNotExist:
+                pass
+    else:
+        emp_id = payload.get('employee_id') or payload.get('id')
+        if emp_id:
+            try:
+                employee = Employee.objects.get(id=emp_id)
+            except Employee.DoesNotExist:
+                pass
+
+        pos_id = payload.get('position_id')
+        if pos_id:
+            try:
+                position = Position.objects.prefetch_related('office', 'department', 'section').get(id=pos_id)
+            except Position.DoesNotExist:
+                pass
 
     def position_matches(pos):
         if not pos:
@@ -193,16 +224,30 @@ def is_in_api_key_scope(api_key, payload) -> bool:
 
 def _dispatch_direct(webhook_url: str, event: str, payload: dict):
     """Direct send for global DEFAULT_WEBHOOK_URL configured in settings/.env."""
+    event_id = str(uuid.uuid4())
+    timestamp = str(int(time.time()))
     body = {
-        "event": event,
-        "timestamp": timezone.now().isoformat(),
-        "source": "HCM Shift Roster",
+        "event_id": event_id,
+        "event_type": event,
+        "occurred_at": timezone.now().isoformat() + "Z",
+        "sequence": int(time.time()),
+        "entity": event.split('.')[0] if '.' in event else 'unknown',
+        "entity_id": payload.get('id') or payload.get('employee_id') or payload.get('position_id'),
         "data": payload,
+        "changes": {},
+        "reason": "system_sync",
+        "actor": {
+            "id": 1,
+            "name": "System"
+        }
     }
     body_str = json.dumps(body, default=str)
     headers = {
         "Content-Type": "application/json",
-        "X-HCM-Event": event,
+        "X-HCM-Event-Id": event_id,
+        "X-HCM-Event-Type": event,
+        "X-HCM-Delivery-Id": str(uuid.uuid4()),
+        "X-HCM-Timestamp": timestamp,
         "User-Agent": "HCM-Webhook/1.0",
     }
     try:
@@ -223,7 +268,7 @@ def fire_shift_webhook(event: str, payload: dict):
     from django.conf import settings
     from django.core.cache import cache
 
-    # Instantly invalidate cache on roster/shift changes
+    # Instantly invalidate cache on roster/shift/entity changes
     try:
         cache.clear()
     except Exception:
@@ -253,7 +298,7 @@ def fire_shift_webhook(event: str, payload: dict):
             print(f"[DEBUG Key {api_key.id}] Skipped event mismatch: {subscribed}")
             continue
 
-        if not is_in_api_key_scope(api_key, payload):
+        if not is_in_api_key_scope(api_key, payload, event):
             print(f"[DEBUG Key {api_key.id}] Skipped scope mismatch")
             continue
 
@@ -266,3 +311,4 @@ def fire_shift_webhook(event: str, payload: dict):
                 daemon=True,
             )
             t.start()
+

@@ -1185,7 +1185,7 @@ const APIKeyManagement = () => {
                                             }}
                                         />
                                         <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '6px', fontWeight: 600 }}>
-                                            HCM will POST a signed JSON body to this URL on every shift change. Leave blank to disable.
+                                            HCM will POST a signed JSON body to this URL on subscribed events. Leave blank to disable.
                                         </div>
                                     </div>
 
@@ -1197,6 +1197,12 @@ const APIKeyManagement = () => {
                                                 { id: 'shift.unassigned', label: 'Shift Removed', color: '#f87171' },
                                                 { id: 'shift.bulk_assigned', label: 'Bulk Assign', color: '#60a5fa' },
                                                 { id: 'shift.bulk_deleted', label: 'Bulk Delete', color: '#fb923c' },
+                                                { id: 'employee.created', label: 'Employee Created', color: '#a78bfa' },
+                                                { id: 'employee.updated', label: 'Employee Updated', color: '#818cf8' },
+                                                { id: 'employee.deactivated', label: 'Employee Deactivated', color: '#f472b6' },
+                                                { id: 'position.created', label: 'Position Created', color: '#fb7185' },
+                                                { id: 'position.updated', label: 'Position Updated', color: '#38bdf8' },
+                                                { id: 'position.deactivated', label: 'Position Deactivated', color: '#fb923c' },
                                             ].map(ev => {
                                                 const active = formData.webhookEvents.includes(ev.id);
                                                 return (

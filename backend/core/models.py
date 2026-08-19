@@ -1410,7 +1410,14 @@ def trigger_employee_webhook_on_save(sender, instance, created, **kwargs):
     try:
         from core.scm_v1.serializers import SCMEmployeeSerializer
         from core.webhook_utils import fire_shift_webhook
-        event = 'employee.created' if created else 'employee.updated'
+        if created:
+            event = 'employee.created'
+        else:
+            status = (getattr(instance, 'status', '') or '').lower()
+            if status in ['inactive', 'terminated', 'resigned']:
+                event = 'employee.deactivated'
+            else:
+                event = 'employee.updated'
         payload = SCMEmployeeSerializer(instance).data
         fire_shift_webhook(event, payload)
     except Exception as e:
@@ -1422,7 +1429,14 @@ def trigger_position_webhook_on_save(sender, instance, created, **kwargs):
     try:
         from core.scm_v1.serializers import SCMPositionSerializer
         from core.webhook_utils import fire_shift_webhook
-        event = 'position.created' if created else 'position.updated'
+        if created:
+            event = 'position.created'
+        else:
+            status = (getattr(instance, 'status', '') or '').lower()
+            if status in ['inactive', 'deleted', 'deactivated']:
+                event = 'position.deactivated'
+            else:
+                event = 'position.updated'
         payload = SCMPositionSerializer(instance).data
         fire_shift_webhook(event, payload)
     except Exception as e:
