@@ -218,15 +218,14 @@ const PositionAssignments = () => {
         <div className="fade-in" style={{ padding: '2rem', position: 'relative', minHeight: '600px' }}>
             {(isActuallyLoading || isSecurityChecking) && (
                 <div style={{
-                    position: 'absolute',
+                    position: 'fixed',
                     inset: 0,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: 'rgba(255,255,255,0.8)',
-                    zIndex: 100,
-                    backdropFilter: 'blur(4px)',
-                    borderRadius: '24px'
+                    background: 'rgba(255,255,255,0.75)',
+                    zIndex: 99999,
+                    backdropFilter: 'blur(8px)'
                 }}>
                     <BavyaSpinner label={isSecurityChecking ? "Validating Security Context..." : "Syncing Professional Assignments..."} />
                 </div>

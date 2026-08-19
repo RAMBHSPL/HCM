@@ -291,15 +291,14 @@ const UserManagement = () => {
             <div className="glass section-card" style={{ padding: '0', position: 'relative', minHeight: '200px' }}>
                 {localLoading && employees.length === 0 && (
                     <div style={{
-                        position: 'absolute',
+                        position: 'fixed',
                         inset: 0,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        background: 'rgba(255,255,255,0.1)',
-                        zIndex: 10,
-                        backdropFilter: 'blur(4px)',
-                        borderRadius: '16px'
+                        background: 'rgba(255,255,255,0.75)',
+                        zIndex: 99999,
+                        backdropFilter: 'blur(8px)'
                     }}>
                         <BavyaSpinner label="Initialising Identity Directory..." />
                     </div>

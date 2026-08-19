@@ -2111,22 +2111,16 @@ const PositionShiftRoster = () => {
                 <div className="grid-container" style={{ position: 'relative', border: 'none', background: 'transparent', boxShadow: 'none', padding: 0 }}>
                     {loading && (
                         <div style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
+                            position: 'fixed',
+                            inset: 0,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: 'rgba(255, 255, 255, 0.7)',
-                            zIndex: 100,
-                            backdropFilter: 'blur(3px)',
-                            borderRadius: '28px'
+                            background: 'rgba(255, 255, 255, 0.75)',
+                            zIndex: 99999,
+                            backdropFilter: 'blur(8px)'
                         }}>
-                            <div style={{ position: 'sticky', left: '50%', transform: 'translateX(-50%)' }}>
-                                <BavyaSpinner label="Updating Roster Matrix..." minHeight="0" />
-                            </div>
+                            <BavyaSpinner label="Updating Roster Matrix..." minHeight="0" />
                         </div>
                     )}
 

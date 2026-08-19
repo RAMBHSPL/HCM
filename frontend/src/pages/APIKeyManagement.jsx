@@ -342,7 +342,7 @@ const APIKeyManagement = () => {
         <>
             <div className="fade-in scroll-container" style={{ paddingBottom: '3rem', position: 'relative' }}>
                 {loading && (
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.7)', zIndex: 100, backdropFilter: 'blur(4px)', borderRadius: '24px' }}>
+                    <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.75)', zIndex: 99999, backdropFilter: 'blur(8px)' }}>
                         <BavyaSpinner label="Syncing Security Vault..." />
                     </div>
                 )}

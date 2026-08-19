@@ -2067,6 +2067,13 @@ export const DataProvider = ({ children }) => {
 
             let errorMessage = `Error saving ${modalType}`;
 
+            // Fast-path: If backend returned our standard {error, details} format, use details directly
+            if (err && typeof err === 'object' && typeof err.details === 'string' && err.details.trim()) {
+                errorMessage = err.details;
+                showNotification(errorMessage, 'error');
+                return;
+            }
+
             if (err && typeof err === 'object') {
                 // If it's a standard validation error object from DRF
                 const entries = Object.entries(err);
@@ -2095,6 +2102,8 @@ export const DataProvider = ({ children }) => {
                                     return val;
                                 } catch (e) { return val; }
                             }
+                            // Return the raw string value (e.g. "Duplicate Value" or the details message)
+                            if (typeof val === 'string' && val.trim()) return val;
                             return null;
                         }
 

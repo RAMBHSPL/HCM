@@ -120,7 +120,7 @@ const Profile = () => {
 
             <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'flex-start', padding: '2rem', paddingBottom: '4rem', position: 'relative' }}>
                 {loading && (
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, background: 'rgba(248, 250, 252, 0.7)', backdropFilter: 'blur(4px)' }}>
+                    <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, background: 'rgba(248, 250, 252, 0.8)', backdropFilter: 'blur(8px)' }}>
                         <BavyaSpinner label="Syncing Profile..." />
                     </div>
                 )}

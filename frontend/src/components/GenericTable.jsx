@@ -830,7 +830,7 @@ const GenericTable = ({ renderTableData, customData = null }) => {
         >
             {/* Initial Load Spinner - Centered in table area */}
             {showSpinner && (
-                <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.9)', zIndex: 100, backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(255,255,255,0.75)', zIndex: 99999, backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <BavyaSpinner label={`SYNCHRONIZING ${currentSectionInfo?.name?.toUpperCase() || 'DATA'}...`} minHeight="0" />
                 </div>
             )}
