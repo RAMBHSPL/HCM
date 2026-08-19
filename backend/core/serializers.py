@@ -496,10 +496,19 @@ class RoleSerializer(serializers.ModelSerializer):
     project_name = serializers.ReadOnlyField(source='project.name')
     segment_name = serializers.ReadOnlyField(source='segment.name')
     sub_groups = RoleSubGroupSerializer(many=True, required=False)
-    
+
+    def get_validators(self):
+        # Suppress DRF's auto-generated unique_together validator for ('project', 'segment', 'name').
+        # DRF's validator cannot handle nullable FKs (project/segment can be NULL) — it raises a
+        # false-positive validation error on first creation when these fields are None.
+        # The DB constraint still enforces real uniqueness; the custom_exception_handler catches
+        # any real IntegrityError and returns a clean 400 JSON response.
+        return []
+
     class Meta:
         model = Role
         fields = '__all__'
+
 
     def create(self, validated_data):
         sub_groups_data = validated_data.pop('sub_groups', [])
